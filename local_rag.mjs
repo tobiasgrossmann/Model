@@ -256,5 +256,17 @@ export function createLocalRag({ ragDir, specDir, snippetCount = 4 }) {
     };
   }
 
-  return { retrieve };
+  function listDocuments() {
+    return allDocs.map((doc) => ({
+      doc_id: doc.docId,
+      title: doc.title,
+      tier: doc.tier,
+      file_name: doc.fileName,
+      file_path: doc.filePath,
+      preview: String(doc.content || "").slice(0, 2500),
+      content: doc.content,
+    }));
+  }
+
+  return { retrieve, listDocuments };
 }

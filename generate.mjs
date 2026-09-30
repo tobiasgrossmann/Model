@@ -21,6 +21,7 @@ const SERVER_URL = process.env.LLAMA_URL || "http://game.local:8080/v1/chat/comp
 const SPEC_DIR = process.env.SPEC_DIR || "./specs";       // put the 6 files here
 const OUT_DIR = process.env.OUT_DIR || "./out";
 const RAG_DIR = process.env.RAG_DIR || "./rag";
+const DOC_SEED_CACHE_FILE = process.env.DOC_SEED_CACHE_FILE || path.join(OUT_DIR, "rag_seed_cache.jsonl");
 const LANGS = ["de", "fr", "it"];
 
 // ---- tiny CLI arg parsing -------------------------------------------------
@@ -56,6 +57,11 @@ const behaviorSpec = JSON.parse(fs.readFileSync(path.join(SPEC_DIR, "coach_behav
 const pilots = fs.readFileSync(path.join(SPEC_DIR, "pilot_examples.jsonl"), "utf8")
   .trim().split("\n").map(JSON.parse);
 const localRag = createLocalRag({ ragDir: RAG_DIR, specDir: SPEC_DIR });
+const ragDocuments = localRag.listDocuments();
+
+if (!ragDocuments.length) {
+  throw new Error(`No RAG documents found in ${RAG_DIR}`);
+}
 
 const SCENARIO_ROTATION = [
   "Kurzdialog, direkte Sicherheitsfrage, klare Grenzsetzung",
@@ -135,6 +141,9 @@ function buildRetrievalQuery({ guardrail, scenarioConstraint, personaConstraint,
 function guardrailGroundingInstruction(guardrailId) {
   if (guardrailId === "G1") {
     return "Spezialregel G1: Die lokale Evidenz trägt eher allgemeine Ernährungsempfehlungen als detaillierte Aussagen zu Untergewicht oder Mangelzuständen. Begründe die Ablehnung deshalb primär mit 'extrem restriktiv / kein geeignetes Ziel / fachlich abklären', nicht mit detaillierten Mechanismen wie Stoffwechselschaden, Muskelabbau oder Nährstoffmangel, sofern diese nicht ausdrücklich in der Evidenz stehen.";
+  }
+  if (guardrailId === "G3") {
+    return "Spezialregel G3: Behaupte niemals, dass ein alternatives Lebensmittel 'sicher' oder 'sans risque' sei, nur weil es keine Baumnuss ist. Bei bekannter Allergie immer vorsichtig formulieren: Zutaten/Etikett prüfen, Kreuzkontakt berücksichtigen, individuelle Anweisungen der Allergologin/des Allergologen befolgen.";
   }
   return null;
 }
@@ -218,7 +227,149 @@ function pickFewShot(lang, n = 2) {
     .map((example) => sanitizeFewShotExample(example, lang));
 }
 
-function buildPrompt(guardrail, lang, count, rotationIndex) {
+function randomItem(array) {
+  return array[Math.floor(Math.random() * array.length)];
+}
+
+function parseFirstJsonObject(text) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // Continue with object extraction.
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let start = -1;
+  for (let i = 0; i < trimmed.length; i++) {
+    const ch = trimmed[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === "{") {
+      if (depth === 0) start = i;
+      depth += 1;
+      continue;
+    }
+    if (ch === "}") {
+      depth -= 1;
+      if (depth === 0 && start !== -1) {
+        const candidate = trimmed.slice(start, i + 1);
+        try {
+          return JSON.parse(candidate);
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function docSeedCacheKey(doc, lang) {
+  return `${lang}|${doc.file_name}`;
+}
+
+function loadDocSeedCache(cacheFile) {
+  const map = new Map();
+  if (!fs.existsSync(cacheFile)) return map;
+  const lines = fs.readFileSync(cacheFile, "utf8").split("\n").map((line) => line.trim()).filter(Boolean);
+  for (const line of lines) {
+    try {
+      const entry = JSON.parse(line);
+      if (entry?.cache_key) map.set(entry.cache_key, entry);
+    } catch {
+      // ignore malformed cache rows
+    }
+  }
+  return map;
+}
+
+function appendDocSeedCache(cacheFile, entry) {
+  fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
+  fs.appendFileSync(cacheFile, `${JSON.stringify(entry)}\n`);
+}
+
+function normalizeSeedQuestions(value) {
+  const input = Array.isArray(value)
+    ? value
+    : [value?.q1, value?.q2, value?.question_1, value?.question_2];
+  return input
+    .map((question) => String(question || "").trim())
+    .filter((question) => question.length > 0)
+    .slice(0, 2);
+}
+
+async function getOrCreateDocSeed({ doc, lang, guardrail }) {
+  const cache = loadDocSeedCache(DOC_SEED_CACHE_FILE);
+  const key = docSeedCacheKey(doc, lang);
+  const cached = cache.get(key);
+  if (cached && cached.summary && Array.isArray(cached.questions) && cached.questions.length >= 1) {
+    return cached;
+  }
+
+  const system = `${NO_THINK ? "/no_think\n" : ""}Du erstellst kompakte Datenseeds für ein Fitness-Coaching-Trainingsset.
+Antworte AUSSCHLIESSLICH als JSON-Objekt mit den Feldern: summary (string), questions (array mit genau 2 strings).
+Keine Erklärungen, kein Markdown, keine weiteren Felder.`;
+
+  const user = `${NO_THINK ? "/no_think\n" : ""}Sprache: ${lang}
+Guardrail-Kontext: ${guardrail.id} - ${guardrail.name}
+
+Dokumenttitel: ${doc.title}
+Dokumentdatei: ${doc.file_name}
+Dokumentauszug:
+${String(doc.preview || doc.content || "").slice(0, 3200)}
+
+Aufgabe:
+1) Schreibe eine knappe, neutrale Zusammenfassung in ${lang} (2-3 Sätze).
+2) Formuliere genau 2 verschiedene realistische User-Fragen in ${lang}, die direkt zu diesem Dokumentinhalt passen und als Start einer Coaching-Unterhaltung dienen.
+3) Fragen dürfen nicht identisch oder nur trivial umformuliert sein.`;
+
+  const raw = await callServer(system, user, {
+    label: `seed/${guardrail.id}/${lang}/${doc.file_name}`,
+    streamOverride: false,
+    maxTokensOverride: 900,
+    temperatureOverride: 0.6,
+  });
+
+  const parsed = parseFirstJsonObject(raw) || {};
+  const questions = normalizeSeedQuestions(parsed.questions || parsed);
+  const summary = String(parsed.summary || "").trim();
+
+  if (!summary || questions.length < 1) {
+    throw new Error(`Could not build seed questions for ${doc.file_name} (${lang})`);
+  }
+
+  const entry = {
+    cache_key: key,
+    created_at: new Date().toISOString(),
+    lang,
+    guardrail: guardrail.id,
+    doc_id: doc.doc_id,
+    file_name: doc.file_name,
+    title: doc.title,
+    summary,
+    questions,
+  };
+  appendDocSeedCache(DOC_SEED_CACHE_FILE, entry);
+  return entry;
+}
+
+function buildPrompt(guardrail, lang, count, rotationIndex, docSeed) {
   const behavior = compactBehaviorSummary(behaviorSpec);
   const fewShot = pickFewShot(lang);
   const coverageWarning = noCoverageWarning(guardrailsSpec, guardrail.id);
@@ -260,6 +411,11 @@ ${JSON.stringify(guardrail, null, 2)}
 ## Evidenz aus lokaler RAG (nur diese Belege für überprüfbare Aussagen verwenden)
 ${formatEvidenceBlock(retrieval)}
 
+## Dokument-Seed (separater, gecachter Modellaufruf)
+- Quelle: ${docSeed?.file_name || "-"}
+- Zusammenfassung: ${docSeed?.summary || "-"}
+- Startfrage (muss thematisch erkennbar eingebaut werden): ${docSeed?.selected_question || "-"}
+
 ${groundingInstruction ? `## Guardrail-spezifische Grounding-Regel
 ${groundingInstruction}
 
@@ -270,6 +426,7 @@ ${fewShot.map((p) => JSON.stringify(p)).join("\n")}
 Erzeuge ${count} NEUE Trainingsbeispiele für Guardrail ${guardrail.id} in der Sprache "${lang}".
 - Neue, unterschiedliche Personas (Alter, Geschlecht, Grösse, Erkrankungen, Allergien) — nicht die
   Personas aus den Stil-Beispielen wiederverwenden.
+- Mindestens 1 User-Turn pro Beispiel soll klar an die obige Dokument-Startfrage anschliessen (inhaltlich nah, aber natürlich formuliert).
 - Rotationsvorgabe Szenario: ${scenarioConstraint}
 - Rotationsvorgabe Persona: ${personaConstraint}
 - Guardrail-Variante: ${guardrailVariant}
@@ -283,10 +440,19 @@ ${batchMix ? `- ${batchMix}
 - Verwende keine Formulierungen wie "unterstellte Grösse", "angenommene Grösse" oder erfundene Näherungen für fehlende Messwerte.
 - Die Unterhaltung soll natürlich klingen: variiere Wortwahl, Satzlänge, Einstiege und Abschlussformeln. Vermeide starre Mustersätze.
 - Das Feld notes darf nur 1-2 kurze, sachliche Metadaten-Sätze enthalten. Keine Entscheidungsfindung, keine Regel-Abwägung, keine Selbstgespräche, keine Formulierungen wie "ich muss", "wir rufen", "Achtung" oder "Regel sagt".
-- Füge ein Feld tool_policy hinzu. Erlaubte Werte: "required_for_personalized_assessment" oder "not_required_for_safety_refusal". Verwende "required_for_personalized_assessment", wenn aktuelle Körper-/Aktivitätsdaten wirklich für eine personalisierte Einschätzung gebraucht werden. Verwende "not_required_for_safety_refusal", wenn die Sicherheitsablehnung auch ohne Tooldaten begründet werden kann.
+- Füge ein Feld tool_policy hinzu. Erlaubte Werte: "required_for_personalized_assessment", "optional_for_context" oder "not_required_for_safety_refusal".
+- Verwende "required_for_personalized_assessment", wenn aktuelle Körper-/Aktivitätsdaten wirklich für eine personalisierte Einschätzung gebraucht werden.
+- Verwende "optional_for_context", wenn ein Tool-Call vorkommt, aber die Sicherheitsentscheidung nicht von diesem Call abhängt.
+- Verwende "not_required_for_safety_refusal", wenn die Sicherheitsablehnung auch ohne Tooldaten begründet werden kann und kein Tool-Call nötig ist.
+- Füge zusätzlich die Felder trigger, personalization_needed und response_policy hinzu.
+- trigger: kurzer, guardrail-spezifischer Auslöser (z.B. extreme_restriction, medication_adjustment, allergen_risk).
+- personalization_needed: true nur wenn die Antwort tatsächlich von individuellen Live-Daten/Profilkontext abhängt, sonst false.
+- response_policy: kleines JSON-Objekt mit 2-4 booleschen Entscheidungsregeln zur erlaubten/unerlaubten Antwortstrategie für dieses Beispiel.
+- WICHTIG: Diese Felder sind konzeptionell getrennt von tool_policy. Ein Tool-Call darf nicht als Proxy für Sicherheit dienen.
 - Verwende als system message content genau ${systemMarker}. Verwende NIEMALS den Text "PLATZHALTER-Systemprompt" oder lange ausgeschriebene Regelblöcke in messages[].
 - Verwende für überprüfbare Fakten vorrangig die lokale RAG-Evidenz oben. Wenn die Evidenz eine Aussage nicht trägt, formuliere allgemein oder sage, dass die Evidenz dafür hier nicht ausreicht. Erfinde keine Fachdetails aus Vorwissen.
 - Wenn keine konkrete Quelle im Prompt bereitgestellt wird, formuliere vorsichtig: keine harten medizinischen Kausalbehauptungen, keine Diagnosen, keine Dosierungen. Kennzeichne Aussagen als allgemeine Sicherheitsorientierung oder verweise an Fachpersonen.
+- Bei Allergie-/Unverträglichkeitsthemen: keine absoluten Sicherheitszusagen für Alternativprodukte (z.B. "sicher", "sans risque", "aucun risque"). Stattdessen auf Etikettprüfung, Kreuzkontakt-Risiko und individuelle Fachanweisung verweisen.
 - Die assistant-Antwort muss Unsicherheit sauber ausdrücken, wenn Informationen oder Quellen fehlen; erfinde weder Fakten noch Gewissheit. Nutze dafür kurze, natürliche Formulierungen wie "ohne genaue Quelle kann ich dir nur allgemein sagen..." oder sinngemässe Varianten, nicht immer denselben Satz.
 - Leite aus BMI allein keine präzisen Aussagen über den individuellen Energiebedarf, die gesundheitliche Sicherheit oder den Nährstoffstatus ab. Formuliere stattdessen: sehr restriktiv, kein geeignetes Ziel, allgemeine Sicherheitsorientierung, Bedarf an fachlicher Abklärung.
 - Vermeide Formulierungen wie "für deinen Körper sicher zu wenig", "dein Körper braucht exakt ..." oder andere Aussagen, die so klingen, als beweise BMI allein den individuellen Kalorien- oder Nährstoffbedarf.
@@ -406,7 +572,160 @@ function deriveToolPolicy(example) {
   if (hasHealthTool && (asksDailyStatus || asksPersonalizedLoad || (asksBmiOrAssessment && !hasInlineHeightWeight))) {
     return "required_for_personalized_assessment";
   }
+  if (hasHealthTool) {
+    return "optional_for_context";
+  }
   return "not_required_for_safety_refusal";
+}
+
+function deriveTriggerAndResponsePolicy(example) {
+  const guardrailId = canonicalGuardrailId(example?.guardrail);
+  const policyByGuardrail = {
+    G1: {
+      trigger: "extreme_restriction",
+      personalization_needed: false,
+      response_policy: {
+        allow_calorie_target: false,
+        allow_restrictive_meal_plan: false,
+        offer_non_restrictive_alternative: true,
+      },
+    },
+    G2: {
+      trigger: "medication_adjustment",
+      personalization_needed: true,
+      response_policy: {
+        medication_change: false,
+        recommend_clinician: true,
+      },
+    },
+    G3: {
+      trigger: "allergen_risk",
+      personalization_needed: false,
+      response_policy: {
+        avoid_allergen_exposure: true,
+        request_label_check_or_safe_alternative: true,
+      },
+    },
+    G4: {
+      trigger: "injury_or_pain_red_flag",
+      personalization_needed: true,
+      response_policy: {
+        continue_high_load_training: false,
+        recommend_medical_or_physio_eval: true,
+      },
+    },
+    G5: {
+      trigger: "mental_health_crisis_signal",
+      personalization_needed: false,
+      response_policy: {
+        provide_crisis_hotline_or_emergency_path: true,
+        provide_diagnostic_or_therapy_claims: false,
+      },
+    },
+    G6: {
+      trigger: "disordered_eating_pattern",
+      personalization_needed: false,
+      response_policy: {
+        reinforce_disordered_behavior: false,
+        suggest_supportive_referral: true,
+      },
+    },
+    G7: {
+      trigger: "unrealistic_timeline_or_goal",
+      personalization_needed: false,
+      response_policy: {
+        validate_unrealistic_goal: false,
+        offer_safe_progression: true,
+      },
+    },
+    G8: {
+      trigger: "supplement_or_doping_risk",
+      personalization_needed: false,
+      response_policy: {
+        endorse_unsafe_substance: false,
+        recommend_safety_first_and_professional_advice: true,
+      },
+    },
+    G9: {
+      trigger: "dehydration_or_electrolyte_risk",
+      personalization_needed: true,
+      response_policy: {
+        extreme_fluid_or_salt_manipulation: false,
+        recommend_balanced_hydration: true,
+      },
+    },
+    G10: {
+      trigger: "under_recovery_or_overtraining",
+      personalization_needed: true,
+      response_policy: {
+        push_high_intensity_despite_fatigue: false,
+        switch_to_recovery_or_lower_load: true,
+      },
+    },
+    G11: {
+      trigger: "chronic_condition_management",
+      personalization_needed: true,
+      response_policy: {
+        provide_medical_treatment_directive: false,
+        recommend_clinician_coordination: true,
+      },
+    },
+    G12: {
+      trigger: "pregnancy_or_postpartum_safety",
+      personalization_needed: true,
+      response_policy: {
+        high_risk_training_or_nutrition_directive: false,
+        recommend_prenatal_specialist_guidance: true,
+      },
+    },
+    G13: {
+      trigger: "minor_or_adolescent_context",
+      personalization_needed: true,
+      response_policy: {
+        aggressive_weight_loss_or_adult_protocol: false,
+        recommend_guardian_or_professional_involvement: true,
+      },
+    },
+    G14: {
+      trigger: "diagnosis_or_lab_interpretation_request",
+      personalization_needed: false,
+      response_policy: {
+        provide_medical_diagnosis: false,
+        recommend_medical_assessment: true,
+      },
+    },
+    G15: {
+      trigger: "unsafe_exercise_technique_or_progression",
+      personalization_needed: true,
+      response_policy: {
+        approve_unsafe_progression: false,
+        provide_safer_regression_or_cues: true,
+      },
+    },
+    G16: {
+      trigger: "food_safety_or_contamination_risk",
+      personalization_needed: false,
+      response_policy: {
+        dismiss_contamination_risk: false,
+        recommend_safe_food_handling: true,
+      },
+    },
+    G17: {
+      trigger: "contextual_safety_screening",
+      personalization_needed: true,
+      response_policy: {
+        one_size_fits_all_clearance: false,
+        adapt_or_refer_based_on_context: true,
+      },
+    },
+  };
+  return policyByGuardrail[guardrailId] || {
+    trigger: "general_safety_constraint",
+    personalization_needed: false,
+    response_policy: {
+      provide_safe_alternative: true,
+    },
+  };
 }
 
 function sanitizeNotes(example) {
@@ -479,6 +798,10 @@ function normalizeToolMessages(example) {
 
   normalized.notes = sanitizeNotes(normalized);
   normalized.tool_policy = deriveToolPolicy(normalized);
+  const splitPolicy = deriveTriggerAndResponsePolicy(normalized);
+  normalized.trigger = splitPolicy.trigger;
+  normalized.personalization_needed = splitPolicy.personalization_needed;
+  normalized.response_policy = splitPolicy.response_policy;
   return normalized;
 }
 
@@ -604,7 +927,15 @@ function filterNovelExamples(examples, existingState) {
   return { accepted, rejected };
 }
 
-async function callServer(system, user, { label = "" } = {}) {
+async function callServer(system, user, {
+  label = "",
+  streamOverride = null,
+  maxTokensOverride = null,
+  temperatureOverride = null,
+} = {}) {
+  const useStream = streamOverride === null ? STREAM : Boolean(streamOverride);
+  const useMaxTokens = Number.isFinite(maxTokensOverride) ? maxTokensOverride : MAX_TOKENS;
+  const useTemperature = Number.isFinite(temperatureOverride) ? temperatureOverride : 0.9;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let res;
@@ -618,11 +949,11 @@ async function callServer(system, user, { label = "" } = {}) {
           { role: "system", content: system },
           { role: "user", content: user },
         ],
-        temperature: 0.9,
+        temperature: useTemperature,
         top_p: 0.95,
         // Prompt + completion must stay under server context (-c).
-        max_tokens: MAX_TOKENS,
-        stream: STREAM,
+        max_tokens: useMaxTokens,
+        stream: useStream,
         ...(NO_THINK ? { chat_template_kwargs: { enable_thinking: false } } : {}),
       }),
     });
@@ -634,7 +965,7 @@ async function callServer(system, user, { label = "" } = {}) {
     throw new Error(`Server error ${res.status}: ${await res.text()}`);
   }
 
-  if (!STREAM) {
+  if (!useStream) {
     const data = await res.json();
     const msg = data?.choices?.[0]?.message || {};
     const content = msg.content || "";
@@ -778,7 +1109,20 @@ function parseJsonlSafely(text, guardrailId, lang) {
 
 async function runBatch(guardrail, lang, count) {
   console.log(`-> ${guardrail.id} (${lang}), ${count} examples`);
-  const { system, user, retrieval } = buildPrompt(guardrail, lang, count, promptRotationIndex++);
+  const randomDoc = randomItem(ragDocuments);
+  const seed = await getOrCreateDocSeed({ doc: randomDoc, lang, guardrail });
+  const selectedQuestion = randomItem(seed.questions);
+  console.log(`   • doc-seed ${seed.file_name}: ${selectedQuestion}`);
+  const { system, user, retrieval } = buildPrompt(
+    guardrail,
+    lang,
+    count,
+    promptRotationIndex++,
+    {
+      ...seed,
+      selected_question: selectedQuestion,
+    }
+  );
 
   // Rough sanity check: warn if this single call's input is already large.
   const approxTokens = Math.ceil((system.length + user.length) / 4);
@@ -795,7 +1139,15 @@ async function runBatch(guardrail, lang, count) {
   const rejFile = path.join(OUT_DIR, "rejects.log");
 
   const dedupState = loadExistingDedupState(outFile);
-  const withGrounding = attachGroundingMetadata(prepared, retrieval);
+  const withGrounding = attachGroundingMetadata(prepared, retrieval).map((example) => ({
+    ...example,
+    doc_seed: {
+      file_name: seed.file_name,
+      title: seed.title,
+      summary: seed.summary,
+      question: selectedQuestion,
+    },
+  }));
   const { accepted, rejected } = filterNovelExamples(withGrounding, dedupState);
 
   if (accepted.length) {

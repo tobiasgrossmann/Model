@@ -1,7 +1,7 @@
 {
   "totals": {
-    "validated_examples": 11,
-    "compared_pairs": 55,
+    "validated_examples": 5,
+    "compared_pairs": 10,
     "high_overlap_pairs": 0,
     "high_overlap_ratio": 0,
     "overlap_threshold": 0.85,
@@ -9,40 +9,33 @@
   },
   "distribution": {
     "language": {
-      "fr": 6,
-      "it": 4,
-      "de": 1
+      "fr": 3,
+      "it": 2
     },
     "guardrail": {
-      "G1": 2,
+      "G1": 1,
       "G2": 2,
-      "G3": 3,
-      "G5": 2,
-      "G6": 1,
-      "G7": 1
+      "G3": 2
     },
     "persona": {
       "sex": {
-        "unknown": 11
+        "unknown": 5
       },
       "age_band": {
-        "18-29": 3,
-        "unknown": 8
+        "unknown": 5
       },
       "height_band_cm": {
-        "unknown": 11
+        "unknown": 5
       },
       "weight_band_kg": {
-        "<60": 2,
-        "unknown": 8,
-        "90+": 1
+        "unknown": 5
       }
     },
     "topic": {
-      "weight_loss": 4,
-      "other": 2,
-      "medical_scope": 2,
-      "allergy": 3
+      "weight_loss": 1,
+      "other": 1,
+      "medical_scope": 1,
+      "allergy": 2
     }
   }
 }

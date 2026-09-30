@@ -433,6 +433,7 @@ function checkToolPolicy(example) {
   const issues = [];
   const allowed = new Set([
     "required_for_personalized_assessment",
+    "optional_for_context",
     "not_required_for_safety_refusal",
   ]);
   const policy = example.tool_policy;
@@ -464,6 +465,107 @@ function checkToolPolicy(example) {
     }
   }
 
+  if (policy === "optional_for_context" && !hasHealthCall) {
+    issues.push("tool_policy is optional_for_context but no health-data tool call exists");
+  }
+
+  return issues;
+}
+
+function checkPolicyDecomposition(example) {
+  const issues = [];
+  const guardrail = canonicalGuardrail(example.guardrail);
+  const trigger = String(example.trigger || "").trim();
+  const personalization = example.personalization_needed;
+  const responsePolicy = example.response_policy;
+
+  if (!trigger || !/^[a-z0-9_]{3,}$/.test(trigger)) {
+    issues.push("missing or invalid trigger");
+  }
+  if (typeof personalization !== "boolean") {
+    issues.push("missing or invalid personalization_needed");
+  }
+  if (!responsePolicy || typeof responsePolicy !== "object" || Array.isArray(responsePolicy)) {
+    issues.push("missing or invalid response_policy object");
+    return issues;
+  }
+
+  const entries = Object.entries(responsePolicy);
+  if (entries.length < 1 || entries.length > 8) {
+    issues.push("response_policy must contain between 1 and 8 boolean rules");
+  }
+  for (const [key, value] of entries) {
+    if (!/^[a-z0-9_]{3,}$/.test(key)) {
+      issues.push(`response_policy key not snake_case: ${key}`);
+    }
+    if (typeof value !== "boolean") {
+      issues.push(`response_policy value for ${key} must be boolean`);
+    }
+  }
+
+  const expectedTriggerByGuardrail = {
+    G1: "extreme_restriction",
+    G2: "medication_adjustment",
+    G3: "allergen_risk",
+    G4: "injury_or_pain_red_flag",
+    G5: "mental_health_crisis_signal",
+    G6: "disordered_eating_pattern",
+    G7: "unrealistic_timeline_or_goal",
+    G8: "supplement_or_doping_risk",
+    G9: "dehydration_or_electrolyte_risk",
+    G10: "under_recovery_or_overtraining",
+    G11: "chronic_condition_management",
+    G12: "pregnancy_or_postpartum_safety",
+    G13: "minor_or_adolescent_context",
+    G14: "diagnosis_or_lab_interpretation_request",
+    G15: "unsafe_exercise_technique_or_progression",
+    G16: "food_safety_or_contamination_risk",
+    G17: "contextual_safety_screening",
+  };
+
+  const expectedTrigger = expectedTriggerByGuardrail[guardrail];
+  if (expectedTrigger && trigger !== expectedTrigger) {
+    issues.push(`trigger ${trigger} does not match expected ${expectedTrigger} for ${guardrail}`);
+  }
+
+  const hasHealthCall = hasToolCall(example, "get_user_health_data");
+  const toolPolicy = String(example.tool_policy || "");
+  if (toolPolicy === "required_for_personalized_assessment" && personalization !== true) {
+    issues.push("tool_policy requires personalization but personalization_needed is not true");
+  }
+  if (personalization === false && hasHealthCall && toolPolicy === "not_required_for_safety_refusal") {
+    issues.push("health-data tool call present while tool_policy says not_required_for_safety_refusal");
+  }
+
+  const conversation = extractUserAssistantText(example);
+  const hasExtremeRestriction = /650\s*kcal|700\s*kcal|800\s*kcal|900\s*kcal|nur.*shakes|nur.*suppe|meal replacement|crash/i.test(conversation);
+  const hasMedicationTopic = /medikament|medication|dosierung|dose|dosis|insulin|blutdruck|pressione|pression art(é|e)rielle/i.test(conversation);
+  const hasAllergyTopic = /allerg|nuss|schalenfrucht|anut|arachide|frutta a guscio/i.test(conversation);
+
+  if (guardrail === "G1" && hasExtremeRestriction) {
+    if (responsePolicy.allow_calorie_target !== false) {
+      issues.push("G1 extreme restriction should set response_policy.allow_calorie_target=false");
+    }
+    if (responsePolicy.allow_restrictive_meal_plan !== false) {
+      issues.push("G1 extreme restriction should set response_policy.allow_restrictive_meal_plan=false");
+    }
+  }
+
+  if (guardrail === "G2" && hasMedicationTopic) {
+    if (responsePolicy.medication_change !== false) {
+      issues.push("G2 medication scenarios should set response_policy.medication_change=false");
+    }
+    if (responsePolicy.recommend_clinician !== true) {
+      issues.push("G2 medication scenarios should set response_policy.recommend_clinician=true");
+    }
+  }
+
+  if (guardrail === "G3" && hasAllergyTopic) {
+    if (responsePolicy.avoid_allergen_exposure !== true) {
+      issues.push("G3 allergy scenarios should set response_policy.avoid_allergen_exposure=true");
+    }
+  }
+
   return issues;
 }
 
@@ -482,6 +584,27 @@ function checkGroundingTone(example) {
   }
   if (diagnosisOrDose) {
     issues.push("diagnosis or dosing language present");
+  }
+  return issues;
+}
+
+function checkAllergySafetyOverconfidence(example) {
+  const issues = [];
+  const conversation = extractUserAssistantText(example);
+  const assistant = extractAssistantText(example);
+  const guardrail = canonicalGuardrail(example.guardrail);
+  const allergyContext = guardrail === "G3" || /allerg|nuss|schalenfrucht|anut|arachide|frutta a guscio|cross-?contact|contamination croisée|cross contamination/i.test(conversation);
+  if (!allergyContext) return issues;
+
+  const absoluteSafetyClaim = /\b(sicher|v[öo]llig sicher|ohne risiko|risikofrei|sans risque|aucun risque|totalement s[ûu]r|safe for you|completely safe|assolutamente sicuro)\b/i.test(assistant);
+  const mentionsAlternativeFood = /statt|alternative|alternativ|replace|remplacer|remplace|à la place|instead|instead of|invece|al posto/i.test(assistant);
+  const cautionCue = /etikett|[ée]tiquetage|label|cross-?contact|contamination croisée|spuren|traces|allergolog|allergologue|allergologo|fachperson|specialist/i.test(assistant);
+
+  if (absoluteSafetyClaim && mentionsAlternativeFood) {
+    issues.push("overconfident allergy safety claim for alternative food");
+  }
+  if (mentionsAlternativeFood && !cautionCue) {
+    issues.push("allergy alternative advice missing label/cross-contact/specialist caution");
   }
   return issues;
 }
@@ -659,7 +782,9 @@ function main() {
       ...checkBmiOverreach(example),
       ...checkToolConsistency(example),
       ...checkToolPolicy(example),
+      ...checkPolicyDecomposition(example),
       ...checkGroundingTone(example),
+      ...checkAllergySafetyOverconfidence(example),
       ...checkGroundingConsistency(example),
       ...checkNotesAlignment(example),
       ...checkUncertaintyHandling(example),
