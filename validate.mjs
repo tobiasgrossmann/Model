@@ -30,6 +30,22 @@ function normalizeText(s) {
     .trim();
 }
 
+function tokens(text) {
+  return normalizeText(text).split(/\s+/).filter(Boolean);
+}
+
+function unique(values) {
+  return [...new Set(values)];
+}
+
+const SUPPORT_STOPWORDS = new Set([
+  "der", "die", "das", "und", "oder", "aber", "eine", "einer", "einem", "einen", "ein",
+  "mit", "ohne", "ist", "sind", "war", "were", "pour", "avec", "sans", "con", "senza",
+  "this", "that", "your", "dein", "deine", "deiner", "deinem", "ton", "ta", "tes", "tuo", "tua",
+  "bei", "für", "vom", "von", "im", "in", "auf", "zu", "je", "par", "pro", "per",
+  "kg", "cm", "kcal", "bmi", "imc",
+]);
+
 function toNgrams(text, n = 3) {
   const tokens = normalizeText(text).split(" ").filter(Boolean);
   if (tokens.length < n) return new Set(tokens.length ? [tokens.join(" ")] : []);
@@ -46,6 +62,17 @@ function jaccard(a, b) {
   for (const x of a) if (b.has(x)) inter++;
   const union = a.size + b.size - inter;
   return union === 0 ? 0 : inter / union;
+}
+
+function contentTokens(text) {
+  return unique(tokens(text).filter((token) => token.length > 2 && !SUPPORT_STOPWORDS.has(token)));
+}
+
+function sentenceSplit(text) {
+  return String(text || "")
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
 }
 
 function extractAssistantText(example) {
@@ -74,6 +101,12 @@ function hasToolResult(example) {
 
 function hasAnyAssistantToolCalls(example) {
   return (example.messages || []).some((m) => Array.isArray(m.tool_calls) && m.tool_calls.length > 0);
+}
+
+function groundingExcerpts(example) {
+  return (example.grounding?.sources || [])
+    .map((source) => source?.excerpt)
+    .filter((excerpt) => typeof excerpt === "string" && excerpt.trim());
 }
 
 function inc(map, key) {
@@ -113,7 +146,7 @@ function extractAnthropometrics(text) {
   const jsonAge = parseNumericFromText(text, "age");
 
   const inlineHeightWeight = text.match(/(\d+(?:[.,]\d+)?)\s*kg\D{0,30}(\d+(?:[.,]\d+)?)\s*cm/i);
-  const inlineWeightHeight = text.match(/(\d+(?:[.,]\d+)?)\s*cm\D{0,30}(\d+(?:[.,]\d+)?)\s*kg/i);
+  const inlineWeightHeight = text.match(/(\d{2,3}(?:[.,]\d+)?)\s*cm\D{0,30}(\d+(?:[.,]\d+)?)\s*kg/i);
   const inlineWeightHeightLoose = text.match(/(\d+(?:[.,]\d+)?)\D{0,20}(?:cm\s*)?(?:gro(?:ss|ß)|gross)\D{0,20}(\d+(?:[.,]\d+)?)\s*kg/i);
   const inlineHeightOnlyLoose = text.match(/(\d{3})\s*(?:cm)?\s*(?:gro(?:ss|ß)|gross)/i);
   const metricHeight = text.match(/(?:\b|[^\d])(1(?:[.,]\d{1,2})?)\s*m\b|(?:\b|[^\d])(1)m(\d{2})\b/i);
@@ -130,7 +163,8 @@ function extractAnthropometrics(text) {
       height = height ?? parseFloat(inlineWeightHeight[1].replace(",", "."));
       weight = weight ?? parseFloat(inlineWeightHeight[2].replace(",", "."));
     } else if (inlineWeightHeightLoose) {
-      height = height ?? parseFloat(inlineWeightHeightLoose[1].replace(",", "."));
+      const looseHeight = parseFloat(inlineWeightHeightLoose[1].replace(",", "."));
+      height = height ?? (looseHeight < 3 ? looseHeight * 100 : looseHeight);
       weight = weight ?? parseFloat(inlineWeightHeightLoose[2].replace(",", "."));
     }
   }
@@ -395,6 +429,44 @@ function checkToolConsistency(example) {
   return issues;
 }
 
+function checkToolPolicy(example) {
+  const issues = [];
+  const allowed = new Set([
+    "required_for_personalized_assessment",
+    "not_required_for_safety_refusal",
+  ]);
+  const policy = example.tool_policy;
+  if (!allowed.has(policy)) {
+    issues.push("missing or invalid tool_policy");
+    return issues;
+  }
+
+  const conversation = extractUserAssistantText(example);
+  const hasHealthCall = hasToolCall(example, "get_user_health_data");
+  const dims = extractAnthropometrics(extractText(example) + "\n" + conversation);
+  const hasInlineHeightWeight = dims.height != null && dims.weight != null;
+  const asksDailyStatus = /wie war mein tag|heute|today|aujourd|oggi|ring|hrv|resting heart|schlaf|sleep|exercise minutes|stand hours/i.test(conversation);
+  const asksPersonalizedLoad = /hiit|cardio|spr(ü|u)nge|sauts|salti|belastung|intensit|tempo/i.test(conversation);
+  const asksBmiOrAssessment = /\bBMI\b|\bIMC\b|untergewicht|normalgewicht|sous le seuil|sottopeso/i.test(conversation);
+
+  if (policy === "required_for_personalized_assessment") {
+    if (!hasHealthCall) {
+      issues.push("tool_policy says personalized assessment required but no health-data tool call exists");
+    }
+    if (!asksDailyStatus && !asksPersonalizedLoad && !(asksBmiOrAssessment && !hasInlineHeightWeight)) {
+      issues.push("tool_policy says personalized assessment required but the example does not clearly justify the tool call");
+    }
+  }
+
+  if (policy === "not_required_for_safety_refusal") {
+    if (hasHealthCall && hasInlineHeightWeight && /700\s*kcal|800\s*kcal|900\s*kcal|650\s*kcal|nur noch shakes|nur suppe|meal replacement|crash/i.test(conversation)) {
+      issues.push("tool_policy says tool not required for safety refusal but a likely non-essential health-data tool call was still made");
+    }
+  }
+
+  return issues;
+}
+
 function checkGroundingTone(example) {
   const issues = [];
   const assistant = extractAssistantText(example);
@@ -519,6 +591,47 @@ function checkUncertaintyHandling(example) {
   return issues;
 }
 
+function checkGroundingConsistency(example) {
+  const issues = [];
+  const excerpts = groundingExcerpts(example);
+  if (!excerpts.length) return issues;
+
+  const evidenceTokenSets = excerpts.map((excerpt) => new Set(contentTokens(excerpt)));
+  const assistant = extractAssistantText(example);
+  const factualCue = /empfohlen|empfehl|guideline|leitlinie|sollte|sollten|regelmässig|regelmäßig|portion|liter|minuten|pro woche|pro tag|fibres?|ballaststoff|protein|zucker|salz|vollkorn|wasser|bewegung/i;
+  const userSpecific = /dein bmi|ton imc|il tuo bmi|bei deiner gr(ö|o)sse|avec tes .*kg|con i tuoi .*kg|dein gewicht|ton poids|tuo peso/i;
+
+  for (const sentence of sentenceSplit(assistant)) {
+    if (!factualCue.test(sentence)) continue;
+    if (userSpecific.test(sentence)) continue;
+    const sentenceTokens = contentTokens(sentence);
+    if (!sentenceTokens.length) continue;
+
+    let best = 0;
+    for (const evidenceTokens of evidenceTokenSets) {
+      const overlap = jaccard(new Set(sentenceTokens), evidenceTokens);
+      if (overlap > best) best = overlap;
+    }
+
+    if (best < 0.08) {
+      issues.push("grounded factual claim may not be supported by attached retrieved sources");
+      break;
+    }
+  }
+
+  const assistantNumbers = assistant.match(/\d+(?:[.,]\d+)?/g) || [];
+  const evidenceNumbers = new Set(excerpts.flatMap((excerpt) => excerpt.match(/\d+(?:[.,]\d+)?/g) || []));
+  const explicitSourceClaim = /laut|gem(ä|a)ss|selon|secondo|according to/i.test(assistant);
+  if (explicitSourceClaim) {
+    const unsupported = assistantNumbers.filter((num) => !evidenceNumbers.has(num));
+    if (unsupported.length >= 2) {
+      issues.push("source-backed numeric claim may contradict attached retrieved sources");
+    }
+  }
+
+  return issues;
+}
+
 function main() {
   const inFile = path.join(OUT_DIR, "generated.jsonl");
   const raw = fs.readFileSync(inFile, "utf8");
@@ -545,7 +658,9 @@ function main() {
       ...checkAssistantBmiSupport(example),
       ...checkBmiOverreach(example),
       ...checkToolConsistency(example),
+      ...checkToolPolicy(example),
       ...checkGroundingTone(example),
+      ...checkGroundingConsistency(example),
       ...checkNotesAlignment(example),
       ...checkUncertaintyHandling(example),
       ...checkInventedMeasurements(example),

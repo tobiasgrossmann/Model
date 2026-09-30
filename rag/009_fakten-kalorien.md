@@ -1,46 +1,6 @@
 # 009_fakten-kalorien
 
 Fakten über Kalorien: Mythen und Wahrheit | Migros iMpuls
-Internet Explorer wird nicht mehr unterstützt
-Für ein optimales Website-Erlebnis bitten wir dich einen aktuellen Webbrowser zu nutzen.
-Gesünder leben?
-Coach
-Gesünder leben?
-Coach
-Ernährung
-Bewegung
-Entspannung
-Medizin
-Services
-Mein iMpuls
-Mein iMpuls
-Analysieren
-Lernen
-Optimieren
-Mein Profil
-Standorte
-Meist gesuchte Seitenbereiche
-Standorte
-Newsletter
-Ernährung
-Bewegung
-Entspannung
-Medizin
-Services
-Mein iMpuls
-Menü
-Zurück
-Home
-Bewegung
-Sportwissen
-Kalorien-Fakten
-Die wichtigsten Fakten rund um Kalorien
-Was sind eigentlich Kalorien und was bedeuten Grundumsatz oder Nachbrenneffekt? Die Antworten auf die wichtigsten Fragen.
-Von
-Petra Koci
-und Carmen Schmidli, 20.08.2026
-Geprüft von
-Pia Teichmann
 Was ist eine Kalorie?
 Werden alle Kalorien vom Körper gleich verwertet?
 Was genau ist der Grundumsatz?

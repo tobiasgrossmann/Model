@@ -1,38 +1,6 @@
 # 011_wie-oft-wie-lange-trainieren
 
 Wie oft und wie lange Ausdauer trainieren? | Migros iMpuls
-Internet Explorer wird nicht mehr unterstützt
-Für ein optimales Website-Erlebnis bitten wir dich einen aktuellen Webbrowser zu nutzen.
-Gesünder leben?
-Coach
-Gesünder leben?
-Coach
-Ernährung
-Bewegung
-Entspannung
-Medizin
-Services
-Mein iMpuls
-Mein iMpuls
-Analysieren
-Lernen
-Optimieren
-Mein Profil
-Standorte
-Meist gesuchte Seitenbereiche
-Standorte
-Newsletter
-Ernährung
-Bewegung
-Entspannung
-Medizin
-Services
-Mein iMpuls
-Menü
-Zurück
-Home
-Bewegung
-Fitness
 Ausdauertraining
 Richtig trainieren
 Ausdauertraining: wie oft und wie lange trainieren?
@@ -74,68 +42,3 @@ Diejenige, die Freude macht und die man regelmässig ausführt. Gelenkschonende 
 Und wenn man gerne laufen will?
 Dann kann man mit der Belastung variieren: Aufwärts joggen verursacht weniger Schläge als geradeaus und abwärts. Ohne Schläge sind Velofahren und Aquajogging, dann kommen in aufsteigender Reihenfolge: Crosstrainer und AMT (Adaptive Motion Trainer), Stepper, Laufband und zum Schluss das Laufen draussen. Bei Problemen mit dem Rücken empfiehlt sich zusätzliches Krafttraining, etwa Übungen mit dem eigenen Körpergewicht, so dass man für das Ausdauertraining mit Schlägen gestärkt ist.
 * Dr. med. Patrik Noack, Facharzt für Allgemeine Innere Medizin und Sportmedizin SGSM am Medbase Zentrum für Medizin und Sport in Abtwil. Chief Medical Officer Swiss Olympic Team und Swiss Cycling, Verbandsarzt Swiss Athletics, Swiss Triathlon und Swiss Ski Langlauf und Swiss Sliding.
-Weiterlesen
-Ausdauertraining
-Richtig trainieren
-Herz-/Kreislauf
-Teilen!
-Home
-Bewegung
-Fitness
-Ausdauertraining
-Richtig trainieren
-Das könnte dich interessieren:
-Einkaufen & Services
-Supermarkt
-Migros Online
-Freizeitanlagen
-Klubschule
-Medbase
-Standorte
-Vorteile & Inspirationen
-iMpuls Newsletter
-Cumulus
-Famigros
-Migipedia
-Wettbewerbe der Migros
-Migros-Magazin
-Migusto
-Migros App
-Kontakt & Hilfe
-Oft gestellte Fragen zu iMpuls
-Kundendienst & Kontakt
-Rechtliche Informationen
-Verhaltenskodex und Meldestelle
-Impressum & Haftungsausschluss
-Über uns
-Werbung
-Datenschutz
-Die Migros
-Karriere
-Medien
-Geschäftsbericht
-Migros-Gruppe
-Geschichte
-Genossenschaften
-Migros-Engagement
-Nachhaltigkeit
-Newsletter
-abonnieren
-Beliebte Seiten
-Oft gestellte Fragen zu iMpuls
-Kundendienst & Kontakt
-Gesundheitsfinder
-Über uns
-Impressum & Haftungsausschluss
-Verhaltenskodex und Meldestelle
-Datenschutz
-Bleib in Kontakt
-Facebook
-Instagram
-YouTube
-© 2026 Migros-Genossenschafts-Bund
-DE
-FR
-IT
-Newsletter abonnieren und 50 Franken gewinnen
-Jetzt abonnieren

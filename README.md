@@ -4,6 +4,11 @@ Stateless Node.js client for a local llama.cpp server. Generates one small
 batch of training conversations per call, so no single request ever carries
 more than one guardrail + a compact behavior summary + 1-2 style examples.
 
+The generator now includes a local RAG step: before each batch, it retrieves
+relevant snippets from the workspace `rag/` documents and passes only those
+evidence passages into the generation prompt. This lets the teacher model see
+local evidence instead of relying purely on pretrained knowledge.
+
 ## Setup
 
 1. Put the six spec files in `./specs/`:
@@ -29,12 +34,19 @@ more than one guardrail + a compact behavior summary + 1-2 style examples.
    that didn't parse as JSON goes to `./out/rejects.log` instead of silently
    corrupting the dataset.
 
+4. Optional local-RAG settings:
+   - `RAG_DIR=./rag` points the retriever at your local markdown corpus.
+   - Each accepted example gets a compact `grounding` metadata block listing
+     the retrieved source documents used for that batch.
+
 ## Why this fixes the context problem
 
 Each call sends only:
 - a **compact** behavior summary (principle, numeric limits, the one tool,
   write rules) — a few hundred tokens, not the full 5k-token spec file
 - **one** guardrail object (~150–300 tokens), not all 17
+- **top retrieved evidence snippets** from the local `rag/` corpus, not the
+  whole knowledge base
 - **1–2** pilot examples as style reference, not the whole pilot file
 - a request for a **small** batch (10 examples), not "generate everything"
 
@@ -45,6 +57,8 @@ with no conversation history, so context never accumulates across batches.
 
 ## Extending
 
+- **Local RAG tuning:** edit the retriever in `local_rag.mjs` to change chunk
+  size, lexical scoring, preferred-doc boosts, or snippet count.
 - **Grounded/citation examples:** load `kb_source_catalog.json`, pick ONE
   document object (not the array) per call, and add it to the prompt the same
   way `guardrail` is added. Never paste the full 107-document catalog into a

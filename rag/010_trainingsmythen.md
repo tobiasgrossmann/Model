@@ -1,39 +1,5 @@
 # 010_trainingsmythen
-
 10 Trainings-Mythen im Check | Migros iMpuls
-Internet Explorer wird nicht mehr unterstützt
-Für ein optimales Website-Erlebnis bitten wir dich einen aktuellen Webbrowser zu nutzen.
-Gesünder leben?
-Coach
-Gesünder leben?
-Coach
-Ernährung
-Bewegung
-Entspannung
-Medizin
-Services
-Mein iMpuls
-Mein iMpuls
-Analysieren
-Lernen
-Optimieren
-Mein Profil
-Standorte
-Meist gesuchte Seitenbereiche
-Standorte
-Newsletter
-Ernährung
-Bewegung
-Entspannung
-Medizin
-Services
-Mein iMpuls
-Menü
-Zurück
-Home
-Bewegung
-Sportwissen
-Richtig trainieren
 Trainings-Mythen
 Wahr oder falsch? 10 Trainings-Mythen im Check
 Rund um Fitness und Training kursieren viele Mythen. Wir zeigen dir, an welchen Aussagen und Annahmen wirklich was dran ist und welche du getrost ignorieren kannst.

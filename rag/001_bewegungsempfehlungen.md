@@ -1,20 +1,4 @@
 # 001_bewegungsempfehlungen
-
-Bewegungsempfehlungen
-Zum Hauptinhalt springen
-Alle Schweizer Bundesbehörden
-Sprach Dropdown Deutsch ausgewählt
-DE
-FR
-IT
-Bundesamt für Sport BASPO
-BASPO
-Bundesamt für Sport BASPO
-Suche
-Suche
-Startseite
-Kontakt
-Offene Stellen
 Veröffentlicht am 26. Oktober 2023
 Bewegungsempfehlungen
 Das neue Grundlagendokument zu den Schweizer Bewegungsempfehlungen des Netzwerks hepa.ch liegt vor. In den vorhergehenden Empfehlungen galt die Grundlage, dass ein Bewegungsabschnitt mindestens zehn Minuten dauern muss. Die neuen Bewegungsempfehlungen räumen mit dieser Vorgabe auf.
@@ -61,17 +45,3 @@ Hauptstrasse 247
 info@baspo.admin.ch
 Bundesamt für Sport BASPO
 Das BASPO fördert den Sport und die Bewegung in der Schweiz und deren positive, nützliche und notwendige Rolle in der Gesellschaft.
-Social Media
-Instagram
-LinkedIn
-Websites des BASPO
-Eidg. Hochschule für Sport Magglingen EHSM
-Jugend+Sport
-mobilesport.ch
-Nationales Jugendsportzentrum Tenero
-Erwachsenensport Schweiz
-hepa.ch
-Rechtliches
-Impressum
-Barrierefreiheit
-Kundenportal BASPO

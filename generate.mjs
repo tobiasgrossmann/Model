@@ -15,10 +15,12 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { createLocalRag } from "./local_rag.mjs";
 
 const SERVER_URL = process.env.LLAMA_URL || "http://game.local:8080/v1/chat/completions";
 const SPEC_DIR = process.env.SPEC_DIR || "./specs";       // put the 6 files here
 const OUT_DIR = process.env.OUT_DIR || "./out";
+const RAG_DIR = process.env.RAG_DIR || "./rag";
 const LANGS = ["de", "fr", "it"];
 
 // ---- tiny CLI arg parsing -------------------------------------------------
@@ -53,6 +55,7 @@ const guardrailsSpec = JSON.parse(fs.readFileSync(path.join(SPEC_DIR, "guardrail
 const behaviorSpec = JSON.parse(fs.readFileSync(path.join(SPEC_DIR, "coach_behavior_spec.json"), "utf8"));
 const pilots = fs.readFileSync(path.join(SPEC_DIR, "pilot_examples.jsonl"), "utf8")
   .trim().split("\n").map(JSON.parse);
+const localRag = createLocalRag({ ragDir: RAG_DIR, specDir: SPEC_DIR });
 
 const SCENARIO_ROTATION = [
   "Kurzdialog, direkte Sicherheitsfrage, klare Grenzsetzung",
@@ -109,6 +112,41 @@ function batchMixInstruction(guardrailId, count, rotationIndex) {
     return "Batch-Mix für G1: Enthält mindestens 1 Follow-up-Angriff über 2-3 User-Turns. Beispiele: 'Okay, dann sag mir wenigstens die absolute Mindestzahl' oder 'Ich will keinen Plan, nur die Zahl.' Der Coach muss unter Gesprächsdruck konsistent bei der Ablehnung bleiben und keine verwertbare Restriktionszahl nennen.";
   }
   return null;
+}
+
+function buildRetrievalQuery({ guardrail, scenarioConstraint, personaConstraint, guardrailVariant, batchMix }) {
+  const guardrailHint = guardrail.id === "G1"
+    ? "ausgewogene ernaehrung schweizer ernaehrungsempfehlungen lebensmittelpyramide regelmaessig essen ausreichende energie extreme restriktion crash diaet"
+    : "";
+  return [
+    guardrail.id,
+    guardrail.name,
+    guardrail.hard_when_text,
+    guardrail.scenario_hint,
+    guardrail.claim_seed,
+    scenarioConstraint,
+    personaConstraint,
+    guardrailVariant,
+    batchMix,
+    guardrailHint,
+  ].filter(Boolean).join(" | ");
+}
+
+function guardrailGroundingInstruction(guardrailId) {
+  if (guardrailId === "G1") {
+    return "Spezialregel G1: Die lokale Evidenz trägt eher allgemeine Ernährungsempfehlungen als detaillierte Aussagen zu Untergewicht oder Mangelzuständen. Begründe die Ablehnung deshalb primär mit 'extrem restriktiv / kein geeignetes Ziel / fachlich abklären', nicht mit detaillierten Mechanismen wie Stoffwechselschaden, Muskelabbau oder Nährstoffmangel, sofern diese nicht ausdrücklich in der Evidenz stehen.";
+  }
+  return null;
+}
+
+function formatEvidenceBlock(retrieval) {
+  if (!retrieval.snippets.length) {
+    return "Keine belastbaren lokalen RAG-Passagen gefunden. Antworte deshalb nur allgemein, vorsichtig und ohne erfundene Details.";
+  }
+  return retrieval.snippets.map((snippet, index) => {
+    const header = `[${index + 1}] ${snippet.doc_id || snippet.file_name} | ${snippet.title} | Tier ${snippet.tier}`;
+    return `${header}\n${snippet.excerpt}`;
+  }).join("\n\n");
 }
 
 // Compact behavior summary — NOT the whole file, but not stripped to the
@@ -191,6 +229,15 @@ function buildPrompt(guardrail, lang, count, rotationIndex) {
     ? guardrailVariants[rotationIndex % guardrailVariants.length]
     : "Variante: variiere Motivation, Gesprächsziel und Oberflächenformulierung deutlich.";
   const batchMix = batchMixInstruction(guardrail.id, count, rotationIndex);
+  const retrievalQuery = buildRetrievalQuery({
+    guardrail,
+    scenarioConstraint,
+    personaConstraint,
+    guardrailVariant,
+    batchMix,
+  });
+  const retrieval = localRag.retrieve({ guardrail, lang, queryText: retrievalQuery });
+  const groundingInstruction = guardrailGroundingInstruction(guardrail.id);
 
   const system = `Du generierst synthetische Trainingsdaten für einen Fitness- und Ernährungscoach (Migros).
 Antworte AUSSCHLIESSLICH mit JSONL: genau ${count} Zeilen, je eine vollständige JSON-Konversation,
@@ -210,7 +257,13 @@ ${coverageWarning ? coverageWarning + "\n" : ""}
 ## Ziel-Guardrail
 ${JSON.stringify(guardrail, null, 2)}
 
-## Stil-Beispiele (${fewShot.length}, zur Orientierung — NICHT wiederverwenden)
+## Evidenz aus lokaler RAG (nur diese Belege für überprüfbare Aussagen verwenden)
+${formatEvidenceBlock(retrieval)}
+
+${groundingInstruction ? `## Guardrail-spezifische Grounding-Regel
+${groundingInstruction}
+
+` : ""}## Stil-Beispiele (${fewShot.length}, zur Orientierung — NICHT wiederverwenden)
 ${fewShot.map((p) => JSON.stringify(p)).join("\n")}
 
 ## Aufgabe
@@ -230,7 +283,9 @@ ${batchMix ? `- ${batchMix}
 - Verwende keine Formulierungen wie "unterstellte Grösse", "angenommene Grösse" oder erfundene Näherungen für fehlende Messwerte.
 - Die Unterhaltung soll natürlich klingen: variiere Wortwahl, Satzlänge, Einstiege und Abschlussformeln. Vermeide starre Mustersätze.
 - Das Feld notes darf nur 1-2 kurze, sachliche Metadaten-Sätze enthalten. Keine Entscheidungsfindung, keine Regel-Abwägung, keine Selbstgespräche, keine Formulierungen wie "ich muss", "wir rufen", "Achtung" oder "Regel sagt".
+- Füge ein Feld tool_policy hinzu. Erlaubte Werte: "required_for_personalized_assessment" oder "not_required_for_safety_refusal". Verwende "required_for_personalized_assessment", wenn aktuelle Körper-/Aktivitätsdaten wirklich für eine personalisierte Einschätzung gebraucht werden. Verwende "not_required_for_safety_refusal", wenn die Sicherheitsablehnung auch ohne Tooldaten begründet werden kann.
 - Verwende als system message content genau ${systemMarker}. Verwende NIEMALS den Text "PLATZHALTER-Systemprompt" oder lange ausgeschriebene Regelblöcke in messages[].
+- Verwende für überprüfbare Fakten vorrangig die lokale RAG-Evidenz oben. Wenn die Evidenz eine Aussage nicht trägt, formuliere allgemein oder sage, dass die Evidenz dafür hier nicht ausreicht. Erfinde keine Fachdetails aus Vorwissen.
 - Wenn keine konkrete Quelle im Prompt bereitgestellt wird, formuliere vorsichtig: keine harten medizinischen Kausalbehauptungen, keine Diagnosen, keine Dosierungen. Kennzeichne Aussagen als allgemeine Sicherheitsorientierung oder verweise an Fachpersonen.
 - Die assistant-Antwort muss Unsicherheit sauber ausdrücken, wenn Informationen oder Quellen fehlen; erfinde weder Fakten noch Gewissheit. Nutze dafür kurze, natürliche Formulierungen wie "ohne genaue Quelle kann ich dir nur allgemein sagen..." oder sinngemässe Varianten, nicht immer denselben Satz.
 - Leite aus BMI allein keine präzisen Aussagen über den individuellen Energiebedarf, die gesundheitliche Sicherheit oder den Nährstoffstatus ab. Formuliere stattdessen: sehr restriktiv, kein geeignetes Ziel, allgemeine Sicherheitsorientierung, Bedarf an fachlicher Abklärung.
@@ -241,7 +296,7 @@ ${batchMix ? `- ${batchMix}
     ? `/no_think\n${userBody}`
     : userBody;
 
-  return { system: systemWithMode, user };
+  return { system: systemWithMode, user, retrieval };
 }
 
 function normalizeText(s) {
@@ -295,6 +350,39 @@ function hasReasoningTrace(text) {
   return /(achtung|regel sagt|wir rufen|ich muss|tool-?call n(ö|o)tig|per se|also:|hier:|obwohl|um .* zu validieren|oder wir|erste frage|hard block|greift .*logik|falls nicht im profil|ich w(ä|a)hle)/i.test(String(text || ""));
 }
 
+function normalizeToolCallEntry(toolCall, fallbackId) {
+  if (!toolCall || typeof toolCall !== "object") return null;
+  const normalized = { ...toolCall };
+
+  if (!normalized.id) {
+    normalized.id = fallbackId;
+  }
+  normalized.type = "function";
+
+  if (!normalized.function) {
+    if (normalized.name) {
+      normalized.function = {
+        name: normalized.name,
+        arguments: normalized.arguments ?? "{}",
+      };
+      delete normalized.name;
+      delete normalized.arguments;
+    } else {
+      return null;
+    }
+  }
+
+  if (typeof normalized.function.arguments !== "string") {
+    normalized.function.arguments = JSON.stringify(normalized.function.arguments ?? {});
+  }
+
+  if (normalized.function.name !== "get_user_health_data") {
+    return null;
+  }
+
+  return normalized;
+}
+
 function buildCleanNote(example) {
   const guardrailId = canonicalGuardrailId(example?.guardrail);
   const roleFocus = String(example?.role_focus || "Safety example").trim();
@@ -302,6 +390,23 @@ function buildCleanNote(example) {
     ? "Health-data tool used where needed."
     : "No health-data tool used.";
   return `${roleFocus}. Guardrail ${guardrailId}. ${toolClause}`;
+}
+
+function deriveToolPolicy(example) {
+  const conversation = (example?.messages || [])
+    .filter((message) => (message.role === "user" || message.role === "assistant") && typeof message.content === "string")
+    .map((message) => message.content)
+    .join("\n");
+  const hasHealthTool = hasHealthToolCall(example);
+  const hasInlineHeightWeight = /(\d+(?:[.,]\d+)?)\s*(?:kg|kilo)\D{0,30}(\d+(?:[.,]\d+)?)\s*(?:cm|m\b)|(?:\d+(?:[.,]\d+)?)\s*(?:cm|m\b)\D{0,30}(\d+(?:[.,]\d+)?)\s*(?:kg|kilo)/i.test(conversation);
+  const asksDailyStatus = /wie war mein tag|heute|today|aujourd|oggi|ring|hrv|resting heart|schlaf|sleep|exercise minutes|stand hours/i.test(conversation);
+  const asksPersonalizedLoad = /hiit|cardio|spr(ü|u)nge|sauts|salti|belastung|intensit|tempo/i.test(conversation);
+  const asksBmiOrAssessment = /\bBMI\b|\bIMC\b|untergewicht|normalgewicht|sous le seuil|sottopeso/i.test(conversation);
+
+  if (hasHealthTool && (asksDailyStatus || asksPersonalizedLoad || (asksBmiOrAssessment && !hasInlineHeightWeight))) {
+    return "required_for_personalized_assessment";
+  }
+  return "not_required_for_safety_refusal";
 }
 
 function sanitizeNotes(example) {
@@ -342,6 +447,20 @@ function normalizeToolMessages(example) {
     }
 
     if (message?.role === "assistant" && Array.isArray(message.tool_calls) && message.tool_calls.length > 0) {
+      message.tool_calls = message.tool_calls
+        .map((toolCall, idx) => normalizeToolCallEntry(toolCall, toolCall?.id || `call_${i}_${idx}`))
+        .filter(Boolean);
+    }
+
+    if (
+      message?.role === "assistant" &&
+      Array.isArray(message.tool_calls) &&
+      message.tool_calls.length === 0
+    ) {
+      delete message.tool_calls;
+    }
+
+    if (message?.role === "assistant" && Array.isArray(message.tool_calls) && message.tool_calls.length > 0) {
       message.content = null;
     }
 
@@ -351,10 +470,15 @@ function normalizeToolMessages(example) {
       if (!message.tool_call_id && previous?.role === "assistant" && previousCalls.length === 1) {
         message.tool_call_id = previousCalls[0].id;
       }
+      if (!message.tool_call_id && previous?.role === "assistant" && previousCalls.length > 1 && message.name === "get_user_health_data") {
+        const match = previousCalls.find((toolCall) => toolCall.function?.name === "get_user_health_data");
+        if (match) message.tool_call_id = match.id;
+      }
     }
   }
 
   normalized.notes = sanitizeNotes(normalized);
+  normalized.tool_policy = deriveToolPolicy(normalized);
   return normalized;
 }
 
@@ -396,6 +520,31 @@ function prepareExamples(examples) {
   }
 
   return { accepted, rejected };
+}
+
+function attachGroundingMetadata(examples, retrieval) {
+  const sources = [];
+  const seen = new Set();
+  for (const snippet of retrieval.snippets) {
+    const key = `${snippet.doc_id || snippet.file_name}:${snippet.chunk_index}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    sources.push({
+      doc_id: snippet.doc_id,
+      title: snippet.title,
+      tier: snippet.tier,
+      file_name: snippet.file_name,
+      excerpt: snippet.excerpt,
+    });
+  }
+
+  return examples.map((example) => ({
+    ...example,
+    grounding: {
+      query: retrieval.query,
+      sources,
+    },
+  }));
 }
 
 function loadExistingDedupState(outFile) {
@@ -629,7 +778,7 @@ function parseJsonlSafely(text, guardrailId, lang) {
 
 async function runBatch(guardrail, lang, count) {
   console.log(`-> ${guardrail.id} (${lang}), ${count} examples`);
-  const { system, user } = buildPrompt(guardrail, lang, count, promptRotationIndex++);
+  const { system, user, retrieval } = buildPrompt(guardrail, lang, count, promptRotationIndex++);
 
   // Rough sanity check: warn if this single call's input is already large.
   const approxTokens = Math.ceil((system.length + user.length) / 4);
@@ -646,7 +795,8 @@ async function runBatch(guardrail, lang, count) {
   const rejFile = path.join(OUT_DIR, "rejects.log");
 
   const dedupState = loadExistingDedupState(outFile);
-  const { accepted, rejected } = filterNovelExamples(prepared, dedupState);
+  const withGrounding = attachGroundingMetadata(prepared, retrieval);
+  const { accepted, rejected } = filterNovelExamples(withGrounding, dedupState);
 
   if (accepted.length) {
     fs.appendFileSync(outFile, accepted.map((o) => JSON.stringify(o)).join("\n") + "\n");
