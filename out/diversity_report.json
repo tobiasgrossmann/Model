@@ -1,7 +1,7 @@
 {
   "totals": {
-    "validated_examples": 3,
-    "compared_pairs": 3,
+    "validated_examples": 6,
+    "compared_pairs": 15,
     "high_overlap_pairs": 0,
     "high_overlap_ratio": 0,
     "overlap_threshold": 0.85,
@@ -9,28 +9,29 @@
   },
   "distribution": {
     "language": {
-      "de": 2,
-      "fr": 1
+      "de": 3,
+      "fr": 3
     },
     "guardrail": {
-      "G1": 3
+      "G1": 6
     },
     "persona": {
       "sex": {
-        "unknown": 3
+        "unknown": 6
       },
       "age_band": {
-        "18-29": 3
+        "18-29": 6
       },
       "height_band_cm": {
-        "unknown": 3
+        "unknown": 6
       },
       "weight_band_kg": {
-        "<60": 3
+        "<60": 6
       }
     },
     "topic": {
-      "weight_loss": 2,
+      "weight_loss": 4,
+      "allergy": 1,
       "other": 1
     }
   }

@@ -94,6 +94,23 @@ const GUARDRAIL_VARIANTS = {
 
 let promptRotationIndex = 0;
 
+function batchMixInstruction(guardrailId, count, rotationIndex) {
+  if (guardrailId === "G1") {
+    const pattern = rotationIndex % 3;
+    if (pattern === 0) {
+      if (count >= 3) {
+        return "Batch-Mix für G1: Erzeuge nach Möglichkeit 1 Fall mit BMI <= 18.5, 1 Grenzfall nahe 18.5 und 1 Fall mit normalem BMI, bei dem die extreme Restriktion TROTZDEM abgelehnt wird. Im Normal-BMI-Fall darf die Ablehnung nicht mit Untergewicht begründet werden, sondern mit der extremen Restriktion selbst.";
+      }
+      return "Batch-Mix für G1: Mische wenn möglich mindestens 1 Untergewichtsfall und 1 Normal-BMI-Fall. Beim Normal-BMI-Fall die extreme Restriktion ablehnen, aber nicht fälschlich Untergewicht behaupten.";
+    }
+    if (pattern === 1) {
+      return "Batch-Mix für G1: Enthält mindestens 1 negative/control example ohne Verstoss: Die Person möchte ausgewogene Mahlzeiten planen, regelmäßig essen oder die Ernährung vernünftig strukturieren. In diesem Kontrollfall soll der Coach hilfreich unterstützen statt reflexartig abzulehnen. Die übrigen Beispiele bleiben G1-relevant.";
+    }
+    return "Batch-Mix für G1: Enthält mindestens 1 Follow-up-Angriff über 2-3 User-Turns. Beispiele: 'Okay, dann sag mir wenigstens die absolute Mindestzahl' oder 'Ich will keinen Plan, nur die Zahl.' Der Coach muss unter Gesprächsdruck konsistent bei der Ablehnung bleiben und keine verwertbare Restriktionszahl nennen.";
+  }
+  return null;
+}
+
 // Compact behavior summary — NOT the whole file, but not stripped to the
 // point of losing safety-relevant instructions either. Left out on purpose:
 // the other 8 agent-role descriptions, the full scenario templates, the
@@ -173,6 +190,7 @@ function buildPrompt(guardrail, lang, count, rotationIndex) {
   const guardrailVariant = guardrailVariants.length
     ? guardrailVariants[rotationIndex % guardrailVariants.length]
     : "Variante: variiere Motivation, Gesprächsziel und Oberflächenformulierung deutlich.";
+  const batchMix = batchMixInstruction(guardrail.id, count, rotationIndex);
 
   const system = `Du generierst synthetische Trainingsdaten für einen Fitness- und Ernährungscoach (Migros).
 Antworte AUSSCHLIESSLICH mit JSONL: genau ${count} Zeilen, je eine vollständige JSON-Konversation,
@@ -202,7 +220,8 @@ Erzeuge ${count} NEUE Trainingsbeispiele für Guardrail ${guardrail.id} in der S
 - Rotationsvorgabe Szenario: ${scenarioConstraint}
 - Rotationsvorgabe Persona: ${personaConstraint}
 - Guardrail-Variante: ${guardrailVariant}
-- Halte dich an die deterministischen Grenzwerte und die Guardrail-Regel.
+${batchMix ? `- ${batchMix}
+` : ""}- Halte dich an die deterministischen Grenzwerte und die Guardrail-Regel.
 - Rufe get_user_health_data nur auf, wenn Alter/Gewicht/Aktivität tatsächlich gebraucht werden.
 - Wenn Alter, Gewicht oder Aktivitätswerte für BMI, Tempo oder Belastungsentscheidung nötig sind und nicht im aktuellen Kontext stehen, MUSS get_user_health_data aufgerufen werden.
 - Wenn alle nötigen Fakten bereits im aktuellen Kontext stehen, DARF get_user_health_data NICHT aufgerufen werden.
@@ -303,6 +322,23 @@ function normalizeToolMessages(example) {
         message.tool_calls = embeddedToolCalls.tool_calls;
         message.content = null;
       }
+    }
+
+    if (
+      message?.role === "assistant" &&
+      typeof message.content === "string" &&
+      /^tool_call$/i.test(message.content.trim()) &&
+      !message.tool_calls
+    ) {
+      message.tool_calls = [{
+        id: `call_${i}`,
+        type: "function",
+        function: {
+          name: "get_user_health_data",
+          arguments: "{}",
+        },
+      }];
+      message.content = null;
     }
 
     if (message?.role === "assistant" && Array.isArray(message.tool_calls) && message.tool_calls.length > 0) {
@@ -518,13 +554,71 @@ function parseJsonlSafely(text, guardrailId, lang) {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
   const good = [];
   const bad = [];
-  for (const line of lines) {
+
+  function tryParse(candidate) {
     try {
-      good.push(JSON.parse(line));
+      return JSON.parse(candidate);
     } catch {
+      return null;
+    }
+  }
+
+  for (const line of lines) {
+    const parsed = tryParse(line);
+    if (parsed) {
+      good.push(parsed);
+    } else {
       bad.push(line);
     }
   }
+
+  if (!good.length && text.includes("{")) {
+    bad.length = 0;
+    const recovered = [];
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let start = -1;
+
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (ch === "\\") {
+          escaped = true;
+        } else if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+      if (ch === "{") {
+        if (depth === 0) start = i;
+        depth += 1;
+        continue;
+      }
+      if (ch === "}") {
+        depth -= 1;
+        if (depth === 0 && start !== -1) {
+          const candidate = text.slice(start, i + 1).trim();
+          const parsed = tryParse(candidate);
+          if (parsed) recovered.push(parsed);
+          else bad.push(candidate);
+          start = -1;
+        }
+      }
+    }
+
+    if (recovered.length) {
+      return { good: recovered, bad };
+    }
+  }
+
   if (bad.length) {
     console.warn(
       `  ! ${bad.length} unparseable line(s) for ${guardrailId}/${lang} — saved to reject log`
