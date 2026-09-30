@@ -28,7 +28,23 @@ function argVal(name, fallback) {
 }
 const ONLY_GUARDRAIL = argVal("guardrail", null);
 const ONLY_LANG = argVal("lang", null);
-const COUNT = parseInt(argVal("count", "10"), 10);
+const REQUESTED_COUNT = parseInt(argVal("count", "10"), 10);
+const MAX_EXAMPLES_PER_RUN = 3;
+const COUNT = Math.min(REQUESTED_COUNT, MAX_EXAMPLES_PER_RUN);
+const STREAM = process.argv.includes("--no-stream") ? false : true;
+const NO_THINK = process.argv.includes("--think") ? false : true;
+const REQUEST_TIMEOUT_MS = parseInt(argVal("timeout-ms", "180000"), 10);
+const MAX_TOKENS = parseInt(argVal("max-tokens", "12000"), 10);
+
+if (!Number.isFinite(REQUESTED_COUNT) || REQUESTED_COUNT < 1) {
+  throw new Error("--count must be a positive integer");
+}
+
+if (REQUESTED_COUNT > MAX_EXAMPLES_PER_RUN) {
+  console.warn(
+    `  ! requested --count ${REQUESTED_COUNT} exceeds per-run cap ${MAX_EXAMPLES_PER_RUN}; using ${COUNT}`
+  );
+}
 
 // ---- load specs once, keep only what's needed per call --------------------
 const guardrailsSpec = JSON.parse(fs.readFileSync(path.join(SPEC_DIR, "guardrails_spec.json"), "utf8"));
@@ -91,7 +107,11 @@ Antworte AUSSCHLIESSLICH mit JSONL: genau ${count} Zeilen, je eine vollständige
 im selben Format wie die Beispiele. Keine Erklärungen, kein Markdown, keine Codeblöcke.
 Erfinde NIE eine Quelle, Studie, URL oder Publikation, die dir nicht explizit gegeben wurde.`;
 
-  const user = `## Verhaltensregeln (kompakt)
+  const systemWithMode = NO_THINK
+    ? `/no_think\n${system}`
+    : system;
+
+  const userBody = `## Verhaltensregeln (kompakt)
 ${JSON.stringify(behavior, null, 2)}
 
 ${coverageWarning ? coverageWarning + "\n" : ""}
@@ -109,31 +129,106 @@ Erzeuge ${count} NEUE Trainingsbeispiele für Guardrail ${guardrail.id} in der S
 - Rufe get_user_health_data nur auf, wenn Alter/Gewicht/Aktivität tatsächlich gebraucht werden.
 - Ausgabe: ${count} Zeilen JSONL, gleiche Struktur wie die Stil-Beispiele (messages[], tools[], id, language, guardrail, notes).`;
 
-  return { system, user };
+  const user = NO_THINK
+    ? `/no_think\n${userBody}`
+    : userBody;
+
+  return { system: systemWithMode, user };
 }
 
-async function callServer(system, user) {
-  const res = await fetch(SERVER_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      temperature: 0.9,
-      top_p: 0.95,
-      // Cap output; raise if your examples are long or count is high.
-      // Prompt + this must stay under your server's -c value.
-      max_tokens: 4096,
-      stream: false,
-    }),
-  });
+async function callServer(system, user, { label = "" } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(SERVER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        temperature: 0.9,
+        top_p: 0.95,
+        // Prompt + completion must stay under server context (-c).
+        max_tokens: MAX_TOKENS,
+        stream: STREAM,
+        ...(NO_THINK ? { chat_template_kwargs: { enable_thinking: false } } : {}),
+      }),
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+
   if (!res.ok) {
     throw new Error(`Server error ${res.status}: ${await res.text()}`);
   }
-  const data = await res.json();
-  return data.choices[0].message.content;
+
+  if (!STREAM) {
+    const data = await res.json();
+    const msg = data?.choices?.[0]?.message || {};
+    const content = msg.content || "";
+    const reasoning = msg.reasoning_content || "";
+    const finishReason = data?.choices?.[0]?.finish_reason;
+
+    if (!content.trim() && reasoning.trim()) {
+      console.warn(
+        `  ! empty content for ${label} (finish=${finishReason}, reasoning chars=${reasoning.length}). ` +
+        `This model may be stuck in think mode; defaulting to /no_think helps.`
+      );
+    }
+
+    return content;
+  }
+
+  // --- streaming: print tokens live, accumulate full text to return ---
+  let full = "";
+  let reasoningChars = 0;
+  let buffer = "";
+  process.stdout.write(`\n--- streaming ${label} ---\n`);
+  for await (const chunk of res.body) {
+    buffer += Buffer.from(chunk).toString("utf8");
+    // SSE frames are separated by blank lines (\n\n or \r\n\r\n).
+    let idx;
+    while ((idx = buffer.search(/\r?\n\r?\n/)) !== -1) {
+      const frame = buffer.slice(0, idx).trim();
+      const sepLen = buffer.startsWith("\r\n\r\n", idx) ? 4 : 2;
+      buffer = buffer.slice(idx + sepLen);
+      const dataLines = frame
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim());
+      const payload = dataLines.join("\n");
+      if (!payload) continue;
+      if (payload === "[DONE]") continue;
+      let json;
+      try {
+        json = JSON.parse(payload);
+      } catch {
+        continue; // partial/malformed frame, skip
+      }
+      const delta = json.choices?.[0]?.delta?.content;
+      if (delta) {
+        process.stdout.write(delta);
+        full += delta;
+      }
+
+      const reasoningDelta = json.choices?.[0]?.delta?.reasoning_content;
+      if (reasoningDelta) {
+        reasoningChars += reasoningDelta.length;
+      }
+    }
+  }
+  if (!full.trim() && reasoningChars > 0) {
+    console.warn(
+      `\n  ! no assistant content for ${label}, but received ${reasoningChars} reasoning chars. ` +
+      `Try keeping /no_think enabled or raising max_tokens.`
+    );
+  }
+  process.stdout.write(`\n--- end ${label} ---\n\n`);
+  return full;
 }
 
 function parseJsonlSafely(text, guardrailId, lang) {
@@ -165,7 +260,7 @@ async function runBatch(guardrail, lang, count) {
     console.warn(`  ! prompt ~${approxTokens} tokens — consider trimming behavior/fewshot`);
   }
 
-  const raw = await callServer(system, user);
+  const raw = await callServer(system, user, { label: `${guardrail.id}/${lang}` });
   const { good, bad } = parseJsonlSafely(raw, guardrail.id, lang);
 
   fs.mkdirSync(OUT_DIR, { recursive: true });
@@ -177,6 +272,12 @@ async function runBatch(guardrail, lang, count) {
   }
   if (bad.length) {
     fs.appendFileSync(rejFile, `--- ${guardrail.id}/${lang} ---\n${bad.join("\n")}\n`);
+  }
+  if (good.length < count) {
+    console.warn(
+      `  ! only ${good.length}/${count} parseable examples for ${guardrail.id}/${lang}. ` +
+      `Consider increasing --max-tokens or reducing --count.`
+    );
   }
   console.log(`   ✓ ${good.length} written, ${bad.length} rejected`);
 }
