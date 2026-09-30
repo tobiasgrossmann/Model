@@ -1,0 +1,872 @@
+{
+ "meta": {
+  "description": "Katalog der 107 kuratierten Dokumente der Wissensbasis (Titel im Original Deutsch). Jeder Chunk in der Wissensbasis trägt die Quell-URL.",
+  "tier_scale": "1 = höchste Priorität, 8 = niedrigste (siehe guardrails_spec.json, source_priority)",
+  "duplicate_note": "Einträge mit gleicher duplicate_group sind identische oder sehr wahrscheinlich inhaltsgleiche Dokumente. G-01 und N-06 haben dieselbe URL. Für Trainingsdaten nur eines je Gruppe verwenden, sonst wird der Inhalt überbetont."
+ },
+ "documents": [
+  {
+   "id": "F-01",
+   "title": "BASPO Bewegungsempfehlungen - Übersicht",
+   "organisation": "BASPO",
+   "category": "Movement & Fitness",
+   "tier": 2,
+   "url": "https://www.baspo.admin.ch/de/bewegungsempfehlungen"
+  },
+  {
+   "id": "F-02",
+   "title": "hepa Bewegungsempfehlungen Schweiz - Grundlagen",
+   "organisation": "hepa (Bund)",
+   "category": "Movement & Fitness",
+   "tier": 2,
+   "url": "https://www.hepa.admin.ch/dam/de/sd-web/ctDpaHOOgso1/bewegungsempfehlungen_schweiz_grundlagen_de.pdf"
+  },
+  {
+   "id": "F-03",
+   "title": "Sport Schweiz 2020 - Forschungsbericht",
+   "organisation": "BASPO",
+   "category": "Movement & Fitness",
+   "tier": 2,
+   "url": "https://www.baspo.admin.ch/dam/de/sd-web/LPWWI4E3JNOe/Forschungsbericht-Sport-Schweiz-light-2022_DE.pdf"
+  },
+  {
+   "id": "F-04",
+   "title": "Sport Schweiz 2020 - Factsheets",
+   "organisation": "BASPO",
+   "category": "Movement & Fitness",
+   "tier": 2,
+   "url": "https://www.baspo.admin.ch/dam/de/sd-web/yf5AyqbGaegB/Sport-Schweiz2020-factsheets_DE.pdf"
+  },
+  {
+   "id": "F-05",
+   "title": "Gesundheitswirksame Bewegung - Grundlagendokument",
+   "organisation": "Gesundheitsförderung Schweiz",
+   "category": "Movement & Fitness",
+   "tier": 2,
+   "url": "https://gesundheitsfoerderung.ch/sites/default/files/migration/documents/Gesundheitswirksame_Bewegung_-_Grundlagendokument.pdf"
+  },
+  {
+   "id": "F-06",
+   "title": "Förderung der regelmässigen Bewegung",
+   "organisation": "Gesundheitsförderung Schweiz",
+   "category": "Movement & Fitness",
+   "tier": 2,
+   "url": "https://gesundheitsfoerderung.ch/kantonale-aktionsprogramme/themen-und-publikationen/themen/foerderung-der-regelmaessigen-bewegung"
+  },
+  {
+   "id": "G-11",
+   "title": "Hot Topic: Ernährung während dem Sport (Trinkmenge)",
+   "organisation": "Swiss Sports Nutrition Society",
+   "category": "Movement & Fitness",
+   "tier": 2,
+   "url": "https://www.ssns.ch/wp-content/uploads/2023/12/HotTopic_Ernaehrung_waehrend_Sport_2.5.pdf"
+  },
+  {
+   "id": "G-12",
+   "title": "Supplementguide: Sportgetränke",
+   "organisation": "Swiss Sports Nutrition Society",
+   "category": "Movement & Fitness",
+   "tier": 2,
+   "url": "https://www.ssns.ch/wp-content/uploads/2022/10/SG-FB-Sportgetraenke_V3.1.pdf"
+  },
+  {
+   "id": "M-01",
+   "title": "Fakten über Kalorien: Mythen und Wahrheit",
+   "organisation": "Migros iMpuls",
+   "category": "Movement & Fitness",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/bewegung/sportwissen/kalorien-verbrennen/fakten-kalorien"
+  },
+  {
+   "id": "M-02",
+   "title": "10 Trainings-Mythen im Check",
+   "organisation": "Migros iMpuls",
+   "category": "Movement & Fitness",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/bewegung/sportwissen/richtig-trainieren/trainingsmythen"
+  },
+  {
+   "id": "M-03",
+   "title": "Wie oft und wie lange Ausdauer trainieren?",
+   "organisation": "Migros iMpuls",
+   "category": "Movement & Fitness",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/bewegung/fitness/ausdauertraining/wie-oft-wie-lange-trainieren"
+  },
+  {
+   "id": "M-04",
+   "title": "Was verbrennt wie viele Kalorien?",
+   "organisation": "Migros iMpuls",
+   "category": "Movement & Fitness",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/bewegung/sportwissen/bewegung-im-alltag/kalorienverbrennung"
+  },
+  {
+   "id": "M-05",
+   "title": "Wie Schlaf die Regeneration fördert: Tipps für Sportler",
+   "organisation": "Migros iMpuls",
+   "category": "Movement & Fitness",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/bewegung/sportwissen/regeneration/schlafen-foerdert-regeneration"
+  },
+  {
+   "id": "M-06",
+   "title": "Regeneration: Darum braucht der Körper Pausen nach dem Sport",
+   "organisation": "Migros iMpuls",
+   "category": "Movement & Fitness",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/bewegung/sportwissen/regeneration/pausen-im-sport"
+  },
+  {
+   "id": "M-07",
+   "title": "Übertraining: Auswirkungen & Gefahren",
+   "organisation": "Migros iMpuls",
+   "category": "Movement & Fitness",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/bewegung/sportwissen/regeneration/uebertraining"
+  },
+  {
+   "id": "M-08",
+   "title": "Krafttraining: Mit und ohne Geräte Muskeln aufbauen",
+   "organisation": "Migros iMpuls",
+   "category": "Movement & Fitness",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/bewegung/fitness/krafttraining"
+  },
+  {
+   "id": "M-09",
+   "title": "Muskelaufbau: wie komme ich zu mehr Muskeln?",
+   "organisation": "Migros iMpuls",
+   "category": "Movement & Fitness",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/bewegung/fitness/krafttraining/muskelaufbau"
+  },
+  {
+   "id": "M-10",
+   "title": "Ausdauer verbessern mit dem richtigen Training",
+   "organisation": "Migros iMpuls",
+   "category": "Movement & Fitness",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/bewegung/fitness/ausdauertraining"
+  },
+  {
+   "id": "M-11",
+   "title": "Zwei Minuten Training ist so gut wie 30 Minuten",
+   "organisation": "Migros iMpuls",
+   "category": "Movement & Fitness",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/bewegung/sportwissen/richtig-trainieren/2-min-training-so-gut-wie-30"
+  },
+  {
+   "id": "M-12",
+   "title": "Muskelverletzungen: Die Reha macht den Unterschied",
+   "organisation": "Migros iMpuls",
+   "category": "Movement & Fitness",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/medizin/sportmedizin/therapie/reha-training"
+  },
+  {
+   "id": "G-28",
+   "title": "Österreichische Bewegungsempfehlungen (Wissensband 17)",
+   "organisation": "Fonds Gesundes Österreich",
+   "category": "Movement & Fitness",
+   "tier": 3,
+   "url": "https://fgoe.org/sites/fgoe.org/files/2020-06/WB17_bewegungsempfehlungen_bfrei.pdf"
+  },
+  {
+   "id": "F-07",
+   "title": "Bewegungsförderung über die Arztpraxis",
+   "organisation": "Paprica",
+   "category": "Movement & Fitness",
+   "tier": 7,
+   "url": "https://www.paprica.ch/de/category/aerzte/"
+  },
+  {
+   "id": "N-09",
+   "title": "Praxisleitfaden Adipositas (BAG-Seite)",
+   "organisation": "BAG",
+   "category": "Nutrition & Weight Management",
+   "tier": 1,
+   "url": "https://www.bag.admin.ch/de/praxisleitfaden-adipositas",
+   "duplicate_group": "praxisleitfaden-adipositas"
+  },
+  {
+   "id": "N-10",
+   "title": "Praxisleitfaden Consensus Adipositas",
+   "organisation": "SGED / ASEMO",
+   "category": "Nutrition & Weight Management",
+   "tier": 1,
+   "url": "https://www.sgedssed.ch/SgedSsed/fileadmin/1_ueber_uns/15_ASEMO/praxisleitfaden-consensus-adipositas-druck-de.pdf",
+   "duplicate_group": "praxisleitfaden-adipositas"
+  },
+  {
+   "id": "N-11",
+   "title": "Swiss obesity clinical practice guidance (SMW 2026)",
+   "organisation": "SGED/ASEMO/SMOB/AKJ",
+   "category": "Nutrition & Weight Management",
+   "tier": 1,
+   "url": "https://www.sgedssed.ch/SgedSsed/fileadmin/9_Adipositas/smw-2026-5415.pdf"
+  },
+  {
+   "id": "G-01",
+   "title": "Schweizer Ernährungsempfehlungen für Erwachsene – Langversion",
+   "organisation": "BLV / SGE",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://www.blv.admin.ch/dam/blv/de/dokumente/lebensmittel-und-ernaehrung/ernaehrung/schweizer-ernaehrungsempfehlungen-lang.pdf.download.pdf/Schweizer%20Ern%C3%A4hrungsempfehlungen_Langversion_DE.pdf",
+   "duplicate_group": "schweizer-ernaehrungsempfehlungen-langversion"
+  },
+  {
+   "id": "G-02",
+   "title": "Salzreduktion – Strategie & Empfehlung (5 g/Tag, WHO)",
+   "organisation": "BLV",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://www.blv.admin.ch/blv/de/home/lebensmittel-und-ernaehrung/ernaehrung/produktzusammensetzung/salzstrategie.html"
+  },
+  {
+   "id": "G-04",
+   "title": "Zuckerreduktion – Strategie & Empfehlung (<10% Energie)",
+   "organisation": "BLV",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://www.blv.admin.ch/blv/de/home/lebensmittel-und-ernaehrung/ernaehrung/produktzusammensetzung/zuckerreduktion.html"
+  },
+  {
+   "id": "M-13",
+   "title": "Blutzucker senken oder stabil halten: 9 Tipps",
+   "organisation": "Migros iMpuls",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/ernaehrung/idealgewicht/ernaehrungsberatung/blutzucker-tipps"
+  },
+  {
+   "id": "M-14",
+   "title": "Was du über den Blutzucker wissen solltest",
+   "organisation": "Migros iMpuls",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/ernaehrung/idealgewicht/ernaehrungsberatung/blutzucker-wissen"
+  },
+  {
+   "id": "M-15",
+   "title": "6 Zuckermythen zu Zucker und Zuckerersatz",
+   "organisation": "Migros iMpuls",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/ernaehrung/ernaehrungsformen/zuckerfreie-ernaehrung/zuckermythen"
+  },
+  {
+   "id": "M-16",
+   "title": "Was essen vor und nach dem Sport? Die besten Tipps",
+   "organisation": "Migros iMpuls",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/ernaehrung/ernaehrungswissen/was-essen-vor-und-nach-dem-training"
+  },
+  {
+   "id": "M-17",
+   "title": "Studie: Wie man sein Herzinfarktrisiko senkt",
+   "organisation": "Migros iMpuls",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/ernaehrung/naehrstoffe-vitamine-co/fette/herzinfarkt-und-fettarme-ernaehrung"
+  },
+  {
+   "id": "M-18",
+   "title": "Diäten zum Abnehmen: Überblick und Vergleich",
+   "organisation": "Migros iMpuls",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/ernaehrung/idealgewicht/diaeten/diaeten-auf-dem-pruefstand"
+  },
+  {
+   "id": "M-19",
+   "title": "Fasten im Check: Wirkung, Vorteile, Risiken und Methoden",
+   "organisation": "Migros iMpuls",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/ernaehrung/idealgewicht/fasten/fasten-vor-und-nachteile"
+  },
+  {
+   "id": "M-20",
+   "title": "Was bringt Intervallfasten (intermittierendes Fasten)?",
+   "organisation": "Migros iMpuls",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/ernaehrung/idealgewicht/fasten/intervallfasten-wirkung-von-intermittierendem-fasten"
+  },
+  {
+   "id": "M-21",
+   "title": "Wie beeinflussen Hormone unser Gewicht und das Abnehmen?",
+   "organisation": "Migros iMpuls",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/ernaehrung/idealgewicht/gesund-abnehmen/hormone-gewicht"
+  },
+  {
+   "id": "M-22",
+   "title": "Körperfett messen: Methoden und gesunde Werte",
+   "organisation": "Migros iMpuls",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/ernaehrung/idealgewicht/gewicht-halten/koerperfett-messen"
+  },
+  {
+   "id": "M-23",
+   "title": "14 Abnehm-Mythen – und was dran ist",
+   "organisation": "Migros iMpuls",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/ernaehrung/idealgewicht/gesund-abnehmen/abnehm-mythen"
+  },
+  {
+   "id": "M-24",
+   "title": "Optimale Ernährung für Muskelaufbau",
+   "organisation": "Migros iMpuls",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/ernaehrung/ernaehrungswissen/ernaehrung-muskelaufbau"
+  },
+  {
+   "id": "M-25",
+   "title": "Jo-Jo-Effekt vermeiden: So hältst du dein Gewicht stabil",
+   "organisation": "Migros iMpuls",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/ernaehrung/idealgewicht/diaeten/jo-jo-effekt"
+  },
+  {
+   "id": "M-26",
+   "title": "Glykämischer Index: Wie Zucker den Körper beeinflusst",
+   "organisation": "Migros iMpuls",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/ernaehrung/ernaehrungsformen/zuckerfreie-ernaehrung/glykaemischer-index"
+  },
+  {
+   "id": "N-01",
+   "title": "Schweizer Ernährungsempfehlungen - Kurzversion",
+   "organisation": "BLV / SGE",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://www.sge-ssn.ch/media/e23asbw5/schweizer-ernaehrungsempfehlungen_kurzversion_de-1.pdf"
+  },
+  {
+   "id": "N-02",
+   "title": "Schweizer Ernährungsempfehlungen - Langversion",
+   "organisation": "SGE",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://www.sge-ssn.ch/media/ytunwxgr/schweizer-ernaehrungsempfehlungen_langversion_de.pdf",
+   "duplicate_group": "schweizer-ernaehrungsempfehlungen-langversion"
+  },
+  {
+   "id": "N-05",
+   "title": "FAQ Schweizer Ernährungsempfehlungen",
+   "organisation": "BLV / SGE",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://www.blv.admin.ch/dam/blv/de/dokumente/lebensmittel-und-ernaehrung/ernaehrung/faq-schweizer-ernaehrungsempfehlungen.pdf.download.pdf/FAQ%20Schweizer%20Ern%C3%A4hrungsempfehlungen.pdf"
+  },
+  {
+   "id": "N-06",
+   "title": "Schweizer Ernährungsempfehlungen - Langversion (BLV)",
+   "organisation": "BLV",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://www.blv.admin.ch/dam/blv/de/dokumente/lebensmittel-und-ernaehrung/ernaehrung/schweizer-ernaehrungsempfehlungen-lang.pdf.download.pdf/Schweizer%20Ern%C3%A4hrungsempfehlungen_Langversion_DE.pdf",
+   "duplicate_group": "schweizer-ernaehrungsempfehlungen-langversion"
+  },
+  {
+   "id": "N-07",
+   "title": "Ernährungsempfehlungen - Wiss. Hauptbericht 2023",
+   "organisation": "BLV",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://www.blv.admin.ch/dam/blv/de/dokumente/lebensmittel-und-ernaehrung/ernaehrung/ch-ernaehrungsempfehlungs-bericht.pdf.download.pdf/BLV_Main%20report_20230628.pdf"
+  },
+  {
+   "id": "N-08",
+   "title": "Ernährungsempfehlungen - Annex 2023",
+   "organisation": "BLV",
+   "category": "Nutrition & Weight Management",
+   "tier": 2,
+   "url": "https://www.blv.admin.ch/dam/blv/de/dokumente/lebensmittel-und-ernaehrung/ernaehrung/ch-ernaerungs-bericht-annex.pdf.download.pdf/Annex_20230628.pdf"
+  },
+  {
+   "id": "G-14",
+   "title": "Konsensuspapier Zuckerzufuhr (DAG/DDG/DGE 2018)",
+   "organisation": "DGE/DAG/DDG",
+   "category": "Nutrition & Weight Management",
+   "tier": 3,
+   "url": "https://www.dge.de/fileadmin/dok/wissenschaft/stellungnahmen/Konsensuspapier_Zucker_DAG_DDG_DGE_2018.pdf"
+  },
+  {
+   "id": "G-15",
+   "title": "Evidenzbasierte Leitlinie Fettzufuhr (2015)",
+   "organisation": "DGE",
+   "category": "Nutrition & Weight Management",
+   "tier": 3,
+   "url": "https://www.dge.de/fileadmin/dok/wissenschaft/leitlinien/fette/Gesamt-DGE-Leitlinie-Fett-2015.pdf"
+  },
+  {
+   "id": "G-16",
+   "title": "Evidenzbasierte Leitlinie Kohlenhydratzufuhr",
+   "organisation": "DGE",
+   "category": "Nutrition & Weight Management",
+   "tier": 3,
+   "url": "https://www.dge.de/fileadmin/dok/wissenschaft/leitlinien/kohlenhydrate/DGE-Leitlinie-KH-ohne-Anhang_Tabellen.pdf"
+  },
+  {
+   "id": "G-17",
+   "title": "DACH-Referenzwerte: Protein",
+   "organisation": "DGE",
+   "category": "Nutrition & Weight Management",
+   "tier": 3,
+   "url": "https://www.dge.de/wissenschaft/referenzwerte/protein/"
+  },
+  {
+   "id": "G-21",
+   "title": "Neubewertung DGE-Position vegane Ernährung (2024)",
+   "organisation": "DGE",
+   "category": "Nutrition & Weight Management",
+   "tier": 3,
+   "url": "https://www.dge.de/wissenschaft/stellungnahmen-und-positionspapiere/positionen/neubewertung-der-position-zu-veganer-ernaehrung/"
+  },
+  {
+   "id": "G-22",
+   "title": "FAQ Speisesalz (DGE)",
+   "organisation": "DGE",
+   "category": "Nutrition & Weight Management",
+   "tier": 3,
+   "url": "https://www.dge.de/gesunde-ernaehrung/faq/speisesalz/"
+  },
+  {
+   "id": "G-27",
+   "title": "Österreichische Ernährungsempfehlungen (Pyramide)",
+   "organisation": "BMSGPK / AGES",
+   "category": "Nutrition & Weight Management",
+   "tier": 3,
+   "url": "https://www.sozialministerium.gv.at/Themen/Gesundheit/Ern%C3%A4hrung/%C3%96sterreichische-Ern%C3%A4hrungsempfehlungen-NEU.html"
+  },
+  {
+   "id": "G-29",
+   "title": "WHO Zucker-Empfehlungen in allen Lebensphasen",
+   "organisation": "AGES",
+   "category": "Nutrition & Weight Management",
+   "tier": 3,
+   "url": "https://www.ages.at/mensch/ernaehrung-lebensmittel/ernaehrungsempfehlungen/who-zucker-empfehlungen"
+  },
+  {
+   "id": "N-04",
+   "title": "Gut essen und trinken - DGE-Empfehlungen",
+   "organisation": "DGE",
+   "category": "Nutrition & Weight Management",
+   "tier": 3,
+   "url": "https://www.dge.de/gesunde-ernaehrung/gut-essen-und-trinken/dge-empfehlungen/"
+  },
+  {
+   "id": "N-03",
+   "title": "Ernährungs- & Gesundheitsmythen",
+   "organisation": "EUFIC",
+   "category": "Nutrition & Weight Management",
+   "tier": 4,
+   "url": "https://www.eufic.org/de/"
+  },
+  {
+   "id": "N-12",
+   "title": "WHO Healthy Diet - Fact Sheet",
+   "organisation": "WHO",
+   "category": "Nutrition & Weight Management",
+   "tier": 4,
+   "url": "https://www.who.int/news-room/fact-sheets/detail/healthy-diet"
+  },
+  {
+   "id": "N-13",
+   "title": "WHO Obesity and Overweight - Fact Sheet",
+   "organisation": "WHO",
+   "category": "Nutrition & Weight Management",
+   "tier": 4,
+   "url": "https://www.who.int/news-room/fact-sheets/detail/obesity-and-overweight"
+  },
+  {
+   "id": "M-27",
+   "title": "10 Fakten zu Übergewicht: Was du wissen musst",
+   "organisation": "Migros iMpuls",
+   "category": "Obesity Medicine",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/medizin/krankheiten/adipositas/fakten-uebergewicht"
+  },
+  {
+   "id": "M-28",
+   "title": "Adipositas: Ursachen, Folgen und Behandlung",
+   "organisation": "Migros iMpuls",
+   "category": "Obesity Medicine",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/medizin/krankheiten/adipositas/adipositas-ursachen-behandlung"
+  },
+  {
+   "id": "M-29",
+   "title": "Studie: Übergewicht und Adipositas in der Schweiz",
+   "organisation": "Migros iMpuls",
+   "category": "Obesity Medicine",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/medizin/krankheiten/adipositas/adipositas-studie"
+  },
+  {
+   "id": "M-30",
+   "title": "Übergewicht: Das Zusammenspiel von Psyche und Gewicht",
+   "organisation": "Migros iMpuls",
+   "category": "Obesity Medicine",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/medizin/krankheiten/adipositas/gewicht-und-psyche"
+  },
+  {
+   "id": "M-31",
+   "title": "Adipositas und Übergewicht bei Kindern",
+   "organisation": "Migros iMpuls",
+   "category": "Obesity Medicine",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/medizin/krankheiten/adipositas/adipositas-uebergewicht-kinder"
+  },
+  {
+   "id": "A-01",
+   "title": "S3 Leitlinie Adipositas - Prävention & Therapie (050-001)",
+   "organisation": "AWMF (DAG)",
+   "category": "Obesity Medicine",
+   "tier": 3,
+   "url": "https://register.awmf.org/de/leitlinien/detail/050-001",
+   "duplicate_group": "s3-leitlinie-adipositas"
+  },
+  {
+   "id": "G-24",
+   "title": "Patientenleitlinie Adipositas (0,5 kg/Woche)",
+   "organisation": "DAG / AWMF",
+   "category": "Obesity Medicine",
+   "tier": 3,
+   "url": "https://adipositas-gesellschaft.de/wp-content/uploads/2020/06/Patientenleitlinie_Adipositas.pdf"
+  },
+  {
+   "id": "G-25",
+   "title": "S3-Leitlinie Prävention & Therapie der Adipositas (2024)",
+   "organisation": "DAG / AWMF",
+   "category": "Obesity Medicine",
+   "tier": 3,
+   "url": "https://register.awmf.org/assets/guidelines/050-001l_S3_Praevention-Therapie-Adipositas_2024-10.pdf",
+   "duplicate_group": "s3-leitlinie-adipositas"
+  },
+  {
+   "id": "A-06",
+   "title": "GLP-1-Agonisten in der Adipositas-Therapie",
+   "organisation": "Rosenfluh / Ars Medici",
+   "category": "Obesity Medicine",
+   "tier": 7,
+   "url": "https://www.rosenfluh.ch/media/arsmedici/2025/09/Gewicht-verlieren-Begleiterkrankungen-verbessern-GLP-1-Agonisten-in-der-Therapie-der-Adipositas.pdf"
+  },
+  {
+   "id": "D-03",
+   "title": "SGED Empfehlungen Diabetes mellitus Typ 2 (2023)",
+   "organisation": "SGED/SSED",
+   "category": "Diabetes & Metabolism",
+   "tier": 1,
+   "url": "https://www.sgedssed.ch/SgedSsed/fileadmin/6_Diabetologie/61_Empfehlungen_Facharzt/SGED-SSED_long_Recommendations_2023_de.pdf"
+  },
+  {
+   "id": "M-32",
+   "title": "Diabetes: Typen, Symptome und Behandlung",
+   "organisation": "Migros iMpuls",
+   "category": "Diabetes & Metabolism",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/medizin/krankheiten/diabetes/diabetes-allgemein"
+  },
+  {
+   "id": "M-33",
+   "title": "Wie ernährt man sich bei Diabetes Typ 2?",
+   "organisation": "Migros iMpuls",
+   "category": "Diabetes & Metabolism",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/medizin/krankheiten/diabetes/was-essen-bei-diabetes-mellitus-typ-2"
+  },
+  {
+   "id": "M-34",
+   "title": "Diabetes Typ 2: Ursachen und Symptome",
+   "organisation": "Migros iMpuls",
+   "category": "Diabetes & Metabolism",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/medizin/krankheiten/diabetes/diabetes-typ2"
+  },
+  {
+   "id": "M-35",
+   "title": "Diabetes Typ 1 – Insulin und gute Betreuung sind essentiell",
+   "organisation": "Migros iMpuls",
+   "category": "Diabetes & Metabolism",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/medizin/krankheiten/diabetes/diabetes-typ-1"
+  },
+  {
+   "id": "D-01",
+   "title": "S3 Therapie des Typ-1-Diabetes (057-013)",
+   "organisation": "AWMF",
+   "category": "Diabetes & Metabolism",
+   "tier": 3,
+   "url": "https://register.awmf.org/assets/guidelines/057-013l_S3-Therapie-Typ-1-Diabetes_2023-09_1.pdf"
+  },
+  {
+   "id": "S-01",
+   "title": "Schlafapnoe - Diagnose & Therapie",
+   "organisation": "SGSSC / BAG",
+   "category": "Sleep Medicine",
+   "tier": 1,
+   "url": "https://www.bag.admin.ch/dam/de/sd-web/88loGSyIjW0f/Empfehlungen%20der%20SSSSC%20zu%20Diagnose%20und%20Therapie%20der%20Schlafapnoe.pdf"
+  },
+  {
+   "id": "M-36",
+   "title": "Durchschlafstörungen: Ursachen, Symptome und was hilft",
+   "organisation": "Migros iMpuls",
+   "category": "Sleep Medicine",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/entspannung/schlafen/besser-schlafen/durchschlafstoerungen"
+  },
+  {
+   "id": "M-37",
+   "title": "10 Schlaf-Mythen im Check",
+   "organisation": "Migros iMpuls",
+   "category": "Sleep Medicine",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/entspannung/schlafen/besser-schlafen/schlafmythen"
+  },
+  {
+   "id": "M-38",
+   "title": "Was essen vor dem Schlafen? Tipps für deine Nachtruhe",
+   "organisation": "Migros iMpuls",
+   "category": "Sleep Medicine",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/entspannung/schlafen/besser-schlafen/besser-essen-besser-schlafen"
+  },
+  {
+   "id": "M-39",
+   "title": "10 Tipps für besseren Tiefschlaf",
+   "organisation": "Migros iMpuls",
+   "category": "Sleep Medicine",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/entspannung/schlafen/besser-schlafen/schlaftipps"
+  },
+  {
+   "id": "M-40",
+   "title": "Schlaflosigkeit: Ursachen, Auswirkungen und Tipps",
+   "organisation": "Migros iMpuls",
+   "category": "Sleep Medicine",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/entspannung/schlafen/schlafstoerungen/schlaflosigkeit"
+  },
+  {
+   "id": "M-41",
+   "title": "Schlafapnoe: Symptome und Behandlung",
+   "organisation": "Migros iMpuls",
+   "category": "Sleep Medicine",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/entspannung/schlafen/schlafstoerungen/apnoe"
+  },
+  {
+   "id": "S-02",
+   "title": "Schlafapnoe (Patienteninfo)",
+   "organisation": "Lungenliga",
+   "category": "Sleep Medicine",
+   "tier": 8,
+   "url": "https://www.lungenliga.ch/krankheiten-therapien/schlafapnoe"
+  },
+  {
+   "id": "M-42",
+   "title": "Welche Rolle spielen Stress und Schlaf bei Übergewicht?",
+   "organisation": "Migros iMpuls",
+   "category": "Stress & Relaxation",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/entspannung/stress/stresssymptome/stress-schlaf-uebergewicht"
+  },
+  {
+   "id": "M-43",
+   "title": "Stresssymptome: Körperliche & psychische Anzeichen erkennen",
+   "organisation": "Migros iMpuls",
+   "category": "Stress & Relaxation",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/entspannung/stress/stresssymptome/auswirkungen-von-stress"
+  },
+  {
+   "id": "M-44",
+   "title": "Stress abbauen: 12 Methoden für mehr Entspannung",
+   "organisation": "Migros iMpuls",
+   "category": "Stress & Relaxation",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/entspannung/stress/stressmanagement/das-hilft-gegen-stress"
+  },
+  {
+   "id": "M-45",
+   "title": "Burnout vorbeugen: Symptome, Prävention und Behandlung",
+   "organisation": "Migros iMpuls",
+   "category": "Stress & Relaxation",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/entspannung/work-life-balance/burnout/burnout-vorbeugen"
+  },
+  {
+   "id": "M-46",
+   "title": "Meditation: In der Ruhe liegt die Kraft",
+   "organisation": "Migros iMpuls",
+   "category": "Stress & Relaxation",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/entspannung/entspannungstechniken/meditation"
+  },
+  {
+   "id": "M-47",
+   "title": "Autogenes Training: Entspannung durch Selbstbeeinflussung",
+   "organisation": "Migros iMpuls",
+   "category": "Stress & Relaxation",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/entspannung/entspannungstechniken/meditation/autogenes-training"
+  },
+  {
+   "id": "M-48",
+   "title": "Mehr Achtsamkeit im Alltag: Tipps und Übungen",
+   "organisation": "Migros iMpuls",
+   "category": "Stress & Relaxation",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/entspannung/entspannungstechniken/achtsamkeit/achtsamkeit-tipps"
+  },
+  {
+   "id": "E-01",
+   "title": "Psychosoziale Risiken am Arbeitsplatz",
+   "organisation": "SECO",
+   "category": "Stress & Relaxation",
+   "tier": 8,
+   "url": "https://www.seco.admin.ch/seco/de/home/Arbeit/Arbeitsbedingungen/gesundheitsschutz-am-arbeitsplatz/Psychosoziale-Risiken-am-Arbeitsplatz.html"
+  },
+  {
+   "id": "E-02",
+   "title": "Psychische Gesundheit",
+   "organisation": "BAG",
+   "category": "Stress & Relaxation",
+   "tier": 8,
+   "url": "https://www.bag.admin.ch/de/psychische-gesundheit"
+  },
+  {
+   "id": "E-03",
+   "title": "Belastungen am Arbeitsplatz / Stress & Ressourcen",
+   "organisation": "SUVA",
+   "category": "Stress & Relaxation",
+   "tier": 8,
+   "url": "https://www.suva.ch/de-ch/praevention/beratung-kurse-und-angebote/praeventionsberatung/bgm-betriebliches-gesundheitsmanagement/work-life-balance-stress-und-ressourcen"
+  },
+  {
+   "id": "G-06",
+   "title": "Empfehlungen zu Vitamin D (600 IE Erw., 800 IE ab 60)",
+   "organisation": "BLV",
+   "category": "Cross-cutting",
+   "tier": 2,
+   "url": "https://www.blv.admin.ch/dam/blv/de/dokumente/lebensmittel-und-ernaehrung/ernaehrung/empfehlungen-vitamin-d.pdf.download.pdf/empfehlungen-vitamin-d.pdf"
+  },
+  {
+   "id": "G-07",
+   "title": "Fachinformation zu Vitamin D",
+   "organisation": "BLV",
+   "category": "Cross-cutting",
+   "tier": 2,
+   "url": "https://www.blv.admin.ch/dam/blv/de/dokumente/lebensmittel-und-ernaehrung/ernaehrung/fachinformation-vitamin-d.pdf.download.pdf/fachinformation-vitamin-d.pdf"
+  },
+  {
+   "id": "G-08",
+   "title": "Empfehlungen zu risikoarmem Alkoholkonsum 2021",
+   "organisation": "Sucht Schweiz / EKAL",
+   "category": "Cross-cutting",
+   "tier": 2,
+   "url": "https://www.suchtschweiz.ch/wp-content/uploads/2023/07/Drinking-Guidelines-2021.pdf"
+  },
+  {
+   "id": "G-09",
+   "title": "Gesundheitliche Risiken des Alkoholkonsums",
+   "organisation": "BAG",
+   "category": "Cross-cutting",
+   "tier": 2,
+   "url": "https://www.bag.admin.ch/de/gesundheitliche-risiken-des-alkoholkonsums"
+  },
+  {
+   "id": "G-10",
+   "title": "FAQ Ernährung rund um Schwangerschaft und Stillzeit",
+   "organisation": "BLV",
+   "category": "Cross-cutting",
+   "tier": 2,
+   "url": "https://www.blv.admin.ch/dam/blv/de/dokumente/lebensmittel-und-ernaehrung/ernaehrung/faq-ernaehrung-rund-um-schwangerschaft-und-stillzeit.pdf.download.pdf/FAQ_Ern%C3%A4hrung_rund_um_Schwangerschaft_und_Stillzeit_DE.pdf"
+  },
+  {
+   "id": "G-13",
+   "title": "Bluthochdruck – Patientenratgeber",
+   "organisation": "Schweizerische Herzstiftung",
+   "category": "Cross-cutting",
+   "tier": 2,
+   "url": "https://rehasportmedizin.insel.ch/fileadmin/Rehasportmedizin/Dokumente/Patientenportal/Schweizer_Herzstiftung/Deutsch/1.037_Bluthochdruck_DE_2021.pdf"
+  },
+  {
+   "id": "M-49",
+   "title": "Der Body-Mass-Index sagt nicht alles",
+   "organisation": "Migros iMpuls",
+   "category": "Cross-cutting",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/medizin/medizinisches-wissen/koerperwerte/bmi-hinterfragt"
+  },
+  {
+   "id": "M-50",
+   "title": "Resilienz, das Krafttraining für die Psyche",
+   "organisation": "Migros iMpuls",
+   "category": "Cross-cutting",
+   "tier": 2,
+   "url": "https://impuls.migros.ch/de/medizin/gesund-im-alltag/psychische-gesundheit/resilienz"
+  },
+  {
+   "id": "G-18",
+   "title": "DACH-Referenzwerte: Vitamin D",
+   "organisation": "DGE",
+   "category": "Cross-cutting",
+   "tier": 3,
+   "url": "https://www.dge.de/wissenschaft/referenzwerte/vitamin-d/"
+  },
+  {
+   "id": "G-19",
+   "title": "DACH-Referenzwerte: Eisen",
+   "organisation": "DGE",
+   "category": "Cross-cutting",
+   "tier": 3,
+   "url": "https://www.dge.de/wissenschaft/referenzwerte/eisen/"
+  },
+  {
+   "id": "G-20",
+   "title": "DACH-Referenzwerte: Folat",
+   "organisation": "DGE",
+   "category": "Cross-cutting",
+   "tier": 3,
+   "url": "https://www.dge.de/wissenschaft/referenzwerte/folat/"
+  },
+  {
+   "id": "G-23",
+   "title": "BfR Höchstmengen Vitamine & Mineralstoffe (2024)",
+   "organisation": "BfR",
+   "category": "Cross-cutting",
+   "tier": 3,
+   "url": "https://www.bfr.bund.de/cm/343/aktualisierte-hoechstmengenvorschlaege-fuer-vitamine-und-mineralstoffe-in-nahrungsergaenzungsmitteln-und-angereicherten-lebensmitteln-2024.pdf"
+  },
+  {
+   "id": "G-26",
+   "title": "Fakten zum Rauchen: Gewichtszunahme durch Rauchstopp",
+   "organisation": "DKFZ",
+   "category": "Cross-cutting",
+   "tier": 3,
+   "url": "https://www.dkfz.de/fileadmin/user_upload/Krebspraevention/Download/pdf/FzR/FzR_2011_Gewichtszunahme-durch-einen-Rauchstopp.pdf"
+  },
+  {
+   "id": "U-02",
+   "title": "Gesundheitsförderung & Prävention",
+   "organisation": "BAG",
+   "category": "Cross-cutting",
+   "tier": 8,
+   "url": "https://www.bag.admin.ch/de/gesundheitsfoerderung-praevention"
+  }
+ ]
+}

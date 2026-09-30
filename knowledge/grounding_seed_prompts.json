@@ -1,0 +1,493 @@
+{
+  "meta": {
+    "description": "30 allgemeine Ernährungs- und Bewegungsfragen als Seeds für belegte Antworten, mit den im Test zitierten Katalog-Dokumenten und einer Qualitätsbewertung der Quellen (0–10, LLM-Bewertung, nur richtungsweisend).",
+    "catalog": "kb_source_catalog.json",
+    "usage": [
+      "Die Originalantworten sind NICHT als Trainingsziel geeignet: viele Aussagen sind durch die zitierten Passagen nicht gedeckt, Quellen hingen nur separat an und jede Antwort endet mit einer Angebotsfrage ('Möchtest du …?').",
+      "Als Seeds nur die Fragen verwenden, umformulieren und mit handverlesenen, passenden Passagen (bessere Dokumente siehe better_docs_in_catalog) beantworten lassen.",
+      "Fragen stammen aus einem Sourcing-Test; nicht 1:1 ins Training übernehmen."
+    ],
+    "reply_style_observed": "3–6 Sätze, Alltagssprache, endet mit Angebot zu Tipps oder Plan"
+  },
+  "seeds": [
+    {
+      "id": "Q01",
+      "prompt": "Warum ist ausreichend Protein wichtig, wenn ich abnehmen möchte?",
+      "topic": "Protein beim Abnehmen",
+      "cited_docs": [
+        "M-25"
+      ],
+      "better_docs_in_catalog": [
+        "G-17"
+      ],
+      "source_quality": {
+        "given_kb": 5,
+        "absolute": 3
+      },
+      "issue": "Ein Verbraucherartikel doppelt zitiert, belegt nur den Muskelerhalt; Sättigung und Stoffwechsel ungestützt."
+    },
+    {
+      "id": "Q02",
+      "prompt": "Wie viele Ballaststoffe sollte ich täglich essen und warum?",
+      "topic": "Ballaststoffe pro Tag",
+      "cited_docs": [
+        "G-25",
+        "G-16"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 7,
+        "absolute": 7
+      },
+      "issue": "Autoritative Quellen, aber die Zahl 25–30 g steht nicht in den zitierten Passagen."
+    },
+    {
+      "id": "Q03",
+      "prompt": "Sind Vollkornprodukte gesünder als Weißmehlprodukte?",
+      "topic": "Vollkorn",
+      "cited_docs": [
+        "N-04",
+        "G-16"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 8,
+        "absolute": 8
+      },
+      "issue": null
+    },
+    {
+      "id": "Q04",
+      "prompt": "Welche Rolle spielt Zucker bei der Gewichtszunahme?",
+      "topic": "Zucker und Gewicht",
+      "cited_docs": [
+        "M-21",
+        "N-04"
+      ],
+      "better_docs_in_catalog": [
+        "G-04",
+        "G-14"
+      ],
+      "source_quality": {
+        "given_kb": 6,
+        "absolute": 5
+      },
+      "issue": "Insulin-Fettspeicherung vereinfacht dargestellt."
+    },
+    {
+      "id": "Q05",
+      "prompt": "Wie viel Wasser sollte ich am Tag trinken?",
+      "topic": "Wasser",
+      "cited_docs": [
+        "G-01",
+        "N-04",
+        "G-27"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 9,
+        "absolute": 8
+      },
+      "issue": null
+    },
+    {
+      "id": "Q06",
+      "prompt": "Was sind gesunde Fette und warum braucht mein Körper sie?",
+      "topic": "Fette",
+      "cited_docs": [
+        "G-15"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 7,
+        "absolute": 6
+      },
+      "issue": "Belegt Herzgesundheit, nicht Vitaminaufnahme oder Gehirnfunktion."
+    },
+    {
+      "id": "Q07",
+      "prompt": "Hilft Intervallfasten beim Abnehmen?",
+      "topic": "Intervallfasten",
+      "cited_docs": [
+        "M-20"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 5,
+        "absolute": 3
+      },
+      "issue": "Ein Verbraucherartikel dreifach zitiert, davon eine Leserumfrage; Nutzen überzeichnet. Die Antwort nennt keine Kontraindikationen (relevant für G5/G13)."
+    },
+    {
+      "id": "Q08",
+      "prompt": "Wie wirkt sich Alkohol auf mein Abnehmziel aus?",
+      "topic": "Alkohol",
+      "cited_docs": [
+        "M-01",
+        "M-23",
+        "G-25"
+      ],
+      "better_docs_in_catalog": [
+        "G-08",
+        "G-09"
+      ],
+      "source_quality": {
+        "given_kb": 7,
+        "absolute": 5
+      },
+      "issue": "Mechanismus schwach belegt."
+    },
+    {
+      "id": "Q09",
+      "prompt": "Warum ist eine ballaststoffreiche Ernährung gut für die Verdauung?",
+      "topic": "Ballaststoffe und Verdauung",
+      "cited_docs": [
+        "G-16"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 3,
+        "absolute": 3
+      },
+      "issue": "Zitiert eine Inhaltsverzeichnis-Zeile statt Inhalt."
+    },
+    {
+      "id": "Q10",
+      "prompt": "Sind zuckerhaltige Getränke ein Problem beim Abnehmen?",
+      "topic": "Zuckergetränke",
+      "cited_docs": [
+        "G-25",
+        "G-16",
+        "M-04"
+      ],
+      "better_docs_in_catalog": [
+        "G-04",
+        "G-14"
+      ],
+      "source_quality": {
+        "given_kb": 5,
+        "absolute": 5
+      },
+      "issue": "M-04 behandelt Kalorienverbrauch (themenfremd)."
+    },
+    {
+      "id": "Q11",
+      "prompt": "Wie viel körperliche Aktivität pro Woche wird für Erwachsene empfohlen?",
+      "topic": "Aktivitätsempfehlung",
+      "cited_docs": [
+        "G-28"
+      ],
+      "better_docs_in_catalog": [
+        "F-02",
+        "F-01"
+      ],
+      "source_quality": {
+        "given_kb": 3,
+        "absolute": 4
+      },
+      "issue": "Richtiges Dokument, falsche Seite (Kostenschätzung); 150 Minuten nicht belegt."
+    },
+    {
+      "id": "Q12",
+      "prompt": "Hilft Krafttraining, beim Abnehmen Muskelmasse zu erhalten?",
+      "topic": "Krafttraining",
+      "cited_docs": [
+        "M-25",
+        "M-02",
+        "M-01",
+        "M-23"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 7,
+        "absolute": 5
+      },
+      "issue": "Vier passende, aber ausschliesslich Verbraucherartikel."
+    },
+    {
+      "id": "Q13",
+      "prompt": "Ist Ausdauertraining oder Krafttraining besser zum Abnehmen?",
+      "topic": "Ausdauer vs. Kraft",
+      "cited_docs": [
+        "M-02",
+        "M-23"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 5,
+        "absolute": 5
+      },
+      "issue": "Ein Anker doppelt zitiert."
+    },
+    {
+      "id": "Q14",
+      "prompt": "Warum sind Ruhetage zwischen den Trainingseinheiten wichtig?",
+      "topic": "Ruhetage",
+      "cited_docs": [
+        "M-06",
+        "M-02"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 7,
+        "absolute": 5
+      },
+      "issue": null
+    },
+    {
+      "id": "Q15",
+      "prompt": "Was bringt tägliches Spazierengehen für die Gesundheit?",
+      "topic": "Spazieren",
+      "cited_docs": [
+        "G-27",
+        "F-02"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 5,
+        "absolute": 5
+      },
+      "issue": "Allgemeine Bewegungsdokumente, nicht spaziergangsspezifisch."
+    },
+    {
+      "id": "Q16",
+      "prompt": "Wie wirkt sich regelmäßige Bewegung auf das Herz-Kreislauf-System aus?",
+      "topic": "Bewegung und Herz-Kreislauf",
+      "cited_docs": [
+        "M-10",
+        "F-05",
+        "G-13",
+        "G-28"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 6,
+        "absolute": 6
+      },
+      "issue": "Einzelne unpassende Anker (z. B. 'Grad 3 schwer' aus dem Bluthochdruck-Ratgeber)."
+    },
+    {
+      "id": "Q17",
+      "prompt": "Hilft Bewegung dabei, Stress abzubauen?",
+      "topic": "Bewegung und Stress",
+      "cited_docs": [
+        "M-42",
+        "F-02"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 5,
+        "absolute": 4
+      },
+      "issue": "Endorphin-Aussage populärwissenschaftlich."
+    },
+    {
+      "id": "Q18",
+      "prompt": "Wie schnell ist es gesund, pro Woche abzunehmen?",
+      "topic": "Abnehmtempo",
+      "cited_docs": [
+        "M-18"
+      ],
+      "better_docs_in_catalog": [
+        "G-24",
+        "N-09",
+        "N-10",
+        "N-11",
+        "G-25"
+      ],
+      "source_quality": {
+        "given_kb": 4,
+        "absolute": 4
+      },
+      "issue": "Nur ein Verbraucher-Anker ohne Tempozahl. Die Antwort nannte 0.5–1 kg/Woche, der Energieplan erlaubt maximal 0.75 (0.5 bei Vorerkrankungen)."
+    },
+    {
+      "id": "Q19",
+      "prompt": "Was ist der Jo-Jo-Effekt und wie kann ich ihn vermeiden?",
+      "topic": "Jo-Jo-Effekt",
+      "cited_docs": [
+        "M-25",
+        "M-01",
+        "M-22"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 7,
+        "absolute": 5
+      },
+      "issue": null
+    },
+    {
+      "id": "Q20",
+      "prompt": "Ist ein Kaloriendefizit der Schlüssel zum Abnehmen?",
+      "topic": "Kaloriendefizit",
+      "cited_docs": [
+        "M-01",
+        "M-04",
+        "M-25"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 6,
+        "absolute": 5
+      },
+      "issue": "Energiebilanz gut etabliert, aber nur mit Verbraucherquellen belegt."
+    },
+    {
+      "id": "Q21",
+      "prompt": "Warum nehme ich manchmal trotz Sport nicht ab?",
+      "topic": "Kein Abnehmen trotz Sport",
+      "cited_docs": [
+        "M-42",
+        "M-25",
+        "M-21"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 6,
+        "absolute": 4
+      },
+      "issue": "Multifaktorielle Aussage, lose belegt."
+    },
+    {
+      "id": "Q22",
+      "prompt": "Wie hängen Schlaf und Gewicht zusammen?",
+      "topic": "Schlaf und Gewicht",
+      "cited_docs": [
+        "M-42",
+        "M-37"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 6,
+        "absolute": 5
+      },
+      "issue": "Drei von vier Zitaten aus einem Artikel. Die Antwort enthielt ungefragt eine Quizfrage (Micro Learner)."
+    },
+    {
+      "id": "Q23",
+      "prompt": "Warum sind Crash-Diäten keine gute Idee?",
+      "topic": "Crash-Diäten",
+      "cited_docs": [
+        "M-25",
+        "M-18",
+        "M-01"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 7,
+        "absolute": 5
+      },
+      "issue": null
+    },
+    {
+      "id": "Q24",
+      "prompt": "Wie viel Schlaf brauchen Erwachsene für die Gesundheit?",
+      "topic": "Schlafdauer",
+      "cited_docs": [
+        "M-37",
+        "M-05",
+        "M-42"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 6,
+        "absolute": 5
+      },
+      "issue": "Die Zahl 7–9 h ist nicht autoritativ belegt (Anker ist der '8 Stunden'-Mythos)."
+    },
+    {
+      "id": "Q25",
+      "prompt": "Wie wirkt sich chronischer Stress auf das Gewicht aus?",
+      "topic": "Stress und Gewicht",
+      "cited_docs": [
+        "M-22",
+        "M-42"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 6,
+        "absolute": 4
+      },
+      "issue": "Cortisol und Bauchfett differenzierter als dargestellt."
+    },
+    {
+      "id": "Q26",
+      "prompt": "Warum kann zu wenig Schlaf Heißhunger fördern?",
+      "topic": "Schlafmangel und Heißhunger",
+      "cited_docs": [
+        "M-42",
+        "M-37"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 7,
+        "absolute": 6
+      },
+      "issue": null
+    },
+    {
+      "id": "Q27",
+      "prompt": "Hilft langsames, achtsames Essen beim Sättigungsgefühl?",
+      "topic": "Achtsames Essen",
+      "cited_docs": [
+        "N-04"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 6,
+        "absolute": 6
+      },
+      "issue": null
+    },
+    {
+      "id": "Q28",
+      "prompt": "Wie kann ich Heißhungerattacken vorbeugen?",
+      "topic": "Heißhunger vorbeugen",
+      "cited_docs": [
+        "M-21",
+        "M-42",
+        "M-37",
+        "G-01"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 7,
+        "absolute": 5
+      },
+      "issue": null
+    },
+    {
+      "id": "Q29",
+      "prompt": "Warum ist ein regelmäßiger Essrhythmus sinnvoll?",
+      "topic": "Essrhythmus",
+      "cited_docs": [
+        "M-21",
+        "M-42"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 4,
+        "absolute": 3
+      },
+      "issue": "Keine Quelle zum Essrhythmus; Aussage selbst schwach belegt. Aussagen zu Mahlzeitenzeiten und Blutzucker nicht als gesichert formulieren."
+    },
+    {
+      "id": "Q30",
+      "prompt": "Welche Vorteile hat eine überwiegend pflanzliche Ernährung?",
+      "topic": "Pflanzliche Ernährung",
+      "cited_docs": [
+        "M-33",
+        "G-25",
+        "G-16",
+        "M-30"
+      ],
+      "better_docs_in_catalog": [],
+      "source_quality": {
+        "given_kb": 4,
+        "absolute": 4
+      },
+      "issue": "Die zitierten Passagen stützen Krebs- und Umweltaussagen nicht."
+    }
+  ]
+}
