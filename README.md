@@ -85,3 +85,7 @@ Given `Qwen3-27B` at `Q8_0` with `-c 65536`:
 - **Set `max_tokens` in the request** (already done in `generate.mjs`,
   `4096`) so a single runaway generation can't itself consume the rest of the
   context window. Lower it if you request fewer examples per batch.
+
+
+#RUN
+node run_generation_campaign.mjs --target 2000 --count 3
