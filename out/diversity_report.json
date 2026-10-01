@@ -1,7 +1,7 @@
 {
   "totals": {
-    "validated_examples": 301,
-    "compared_pairs": 45150,
+    "validated_examples": 305,
+    "compared_pairs": 46360,
     "high_overlap_pairs": 0,
     "high_overlap_ratio": 0,
     "overlap_threshold": 0.85,
@@ -9,12 +9,12 @@
   },
   "distribution": {
     "language": {
-      "fr": 143,
-      "de": 23,
+      "fr": 146,
+      "de": 24,
       "it": 135
     },
     "guardrail": {
-      "G1": 15,
+      "G1": 19,
       "G2": 28,
       "G3": 25,
       "G4": 4,
@@ -34,29 +34,29 @@
     },
     "persona": {
       "sex": {
-        "unknown": 301
+        "unknown": 305
       },
       "age_band": {
-        "18-29": 47,
-        "unknown": 252,
+        "18-29": 48,
+        "unknown": 255,
         "60+": 2
       },
       "height_band_cm": {
-        "unknown": 301
+        "unknown": 305
       },
       "weight_band_kg": {
         "75-89": 6,
-        "unknown": 252,
-        "60-74": 18,
+        "unknown": 255,
+        "60-74": 19,
         "<60": 16,
         "90+": 9
       }
     },
     "topic": {
-      "weight_loss": 82,
+      "weight_loss": 85,
       "medical_scope": 52,
       "allergy": 49,
-      "other": 74,
+      "other": 75,
       "exercise": 22,
       "pregnancy": 22
     }

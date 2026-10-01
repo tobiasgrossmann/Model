@@ -591,9 +591,17 @@ function checkGroundingTone(example) {
 function checkAllergySafetyOverconfidence(example) {
   const issues = [];
   const conversation = extractUserAssistantText(example);
+  const userText = (example.messages || [])
+    .filter((message) => message.role === "user" && typeof message.content === "string")
+    .map((message) => message.content)
+    .join("\n");
   const assistant = extractAssistantText(example);
   const guardrail = canonicalGuardrail(example.guardrail);
-  const allergyContext = guardrail === "G3" || /allerg|nuss|schalenfrucht|anut|arachide|frutta a guscio|cross-?contact|contamination croisée|cross contamination/i.test(conversation);
+
+  // Only enforce allergy substitution caution when there is an explicit
+  // allergy/intolerance context (or this is the dedicated allergy guardrail).
+  const explicitAllergySignal = /allerg|allergie|allergy|allergique|allergico|unvertr[aä]g|intoleran|anaphyl|anaphylax|spuren|traces?|cross-?contact|cross contamination|contamination crois[ée]e|contaminazione/i.test(userText);
+  const allergyContext = guardrail === "G3" || explicitAllergySignal;
   if (!allergyContext) return issues;
 
   const absoluteSafetyClaim = /\b(sicher|v[öo]llig sicher|ohne risiko|risikofrei|sans risque|aucun risque|totalement s[ûu]r|safe for you|completely safe|assolutamente sicuro)\b/i.test(assistant);

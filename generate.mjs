@@ -37,7 +37,7 @@ const COUNT = Math.min(REQUESTED_COUNT, MAX_EXAMPLES_PER_RUN);
 const STREAM = process.argv.includes("--no-stream") ? false : true;
 const NO_THINK = process.argv.includes("--think") ? false : true;
 const REQUEST_TIMEOUT_MS = parseInt(argVal("timeout-ms", "180000"), 10);
-const MAX_TOKENS = parseInt(argVal("max-tokens", "12000"), 10);
+const MAX_TOKENS = parseInt(argVal("max-tokens", "24000"), 10);
 const DEDUP_NGRAM = parseInt(argVal("dedup-ngram", "3"), 10);
 const DEDUP_THRESHOLD = Number(argVal("dedup-threshold", "0.88"));
 
@@ -120,9 +120,41 @@ function batchMixInstruction(guardrailId, count, rotationIndex) {
   return null;
 }
 
-function buildRetrievalQuery({ guardrail, scenarioConstraint, personaConstraint, guardrailVariant, batchMix }) {
+function healthyPlanningMixInstruction(count, rotationIndex) {
+  // Ensure the dataset keeps positive coaching behavior (healthy-person planning)
+  // and not only refusal-heavy guardrail behavior.
+  if (count >= 3) {
+    return {
+      forceControl: true,
+      text: "Datensatz-Balance (Pflicht): Enthält mindestens 1 klaren Healthy-Control-Fall ohne Red-Flags. In diesem Fall gibt der Coach KEINE Sicherheitsablehnung, sondern einen konkreten, umsetzbaren Plan (z. B. 3-7 Tage Struktur mit Einheiten/Intensität oder Tagesstruktur mit Mahlzeitenbausteinen und Portionslogik).",
+    };
+  }
+
+  if (count === 2) {
+    const forceControl = rotationIndex % 2 === 1;
+    return {
+      forceControl,
+      text: forceControl
+        ? "Datensatz-Balance (Pflicht in diesem Batch): 1 Beispiel als Healthy-Control-Fall ohne Red-Flags mit konkretem Trainings- oder Ernährungsplan."
+        : "Datensatz-Balance (optional in diesem Batch): Wenn möglich 1 Healthy-Control-Fall mit konkretem Plan ergänzen.",
+    };
+  }
+
+  const forceControl = rotationIndex % 4 === 3;
+  return {
+    forceControl,
+    text: forceControl
+      ? "Datensatz-Balance (Pflicht in diesem Batch): Dieses einzelne Beispiel ist ein Healthy-Control-Fall ohne Red-Flags und enthält einen konkreten, strukturierten Plan statt Ablehnung."
+      : "Datensatz-Balance: Bei Single-Example-Batches wird periodisch ein Healthy-Control-Fall erzwungen.",
+  };
+}
+
+function buildRetrievalQuery({ guardrail, scenarioConstraint, personaConstraint, guardrailVariant, batchMix, healthyMix }) {
   const guardrailHint = guardrail.id === "G1"
     ? "ausgewogene ernaehrung schweizer ernaehrungsempfehlungen lebensmittelpyramide regelmaessig essen ausreichende energie extreme restriktion crash diaet"
+    : "";
+  const healthyHint = healthyMix?.forceControl
+    ? "gesunde person trainingsplan wochenstruktur kraft ausdauer regeneration ausgewogene ernaehrung mahlzeitenstruktur portionen alltagstauglich"
     : "";
   return [
     guardrail.id,
@@ -134,7 +166,9 @@ function buildRetrievalQuery({ guardrail, scenarioConstraint, personaConstraint,
     personaConstraint,
     guardrailVariant,
     batchMix,
+    healthyMix?.text,
     guardrailHint,
+    healthyHint,
   ].filter(Boolean).join(" | ");
 }
 
@@ -380,12 +414,14 @@ function buildPrompt(guardrail, lang, count, rotationIndex, docSeed) {
     ? guardrailVariants[rotationIndex % guardrailVariants.length]
     : "Variante: variiere Motivation, Gesprächsziel und Oberflächenformulierung deutlich.";
   const batchMix = batchMixInstruction(guardrail.id, count, rotationIndex);
+  const healthyMix = healthyPlanningMixInstruction(count, rotationIndex);
   const retrievalQuery = buildRetrievalQuery({
     guardrail,
     scenarioConstraint,
     personaConstraint,
     guardrailVariant,
     batchMix,
+    healthyMix,
   });
   const retrieval = localRag.retrieve({ guardrail, lang, queryText: retrievalQuery });
   const groundingInstruction = guardrailGroundingInstruction(guardrail.id);
@@ -432,6 +468,10 @@ Erzeuge ${count} NEUE Trainingsbeispiele für Guardrail ${guardrail.id} in der S
 - Guardrail-Variante: ${guardrailVariant}
 ${batchMix ? `- ${batchMix}
 ` : ""}- Halte dich an die deterministischen Grenzwerte und die Guardrail-Regel.
+- ${healthyMix.text}
+- Wenn ein Beispiel ein Healthy-Control-Fall ist, markiere es zusätzlich mit "example_mode": "healthy_plan".
+- Für "example_mode": "healthy_plan" gilt: keine unnötige Sicherheitswarnung; stattdessen konkrete, praktische Planung (z. B. Wochenschema, Satz/Wiederholungs- oder Zeitvorgaben, Progression, Erholungsplanung bzw. Mahlzeitenstruktur mit realistischen Portions- und Timing-Hinweisen).
+- Für "example_mode": "guardrail" (oder ohne Feld) gilt: normale Guardrail-Logik mit sicherer Begrenzung.
 - Rufe get_user_health_data nur auf, wenn Alter/Gewicht/Aktivität tatsächlich gebraucht werden.
 - Wenn Alter, Gewicht oder Aktivitätswerte für BMI, Tempo oder Belastungsentscheidung nötig sind und nicht im aktuellen Kontext stehen, MUSS get_user_health_data aufgerufen werden.
 - Wenn alle nötigen Fakten bereits im aktuellen Kontext stehen, DARF get_user_health_data NICHT aufgerufen werden.

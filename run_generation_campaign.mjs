@@ -27,6 +27,7 @@ function argVal(name, fallback) {
 
 const TARGET_PER_LANG = parseInt(argVal("target", "2000"), 10);
 const COUNT_PER_RUN = parseInt(argVal("count", "3"), 10);
+const MAX_TOKENS = parseInt(argVal("max-tokens", "24000"), 10);
 const FRESH = process.argv.includes("--fresh");
 const SKIP_WARMUP = process.argv.includes("--skip-warmup");
 
@@ -35,6 +36,9 @@ if (!Number.isFinite(TARGET_PER_LANG) || TARGET_PER_LANG < 1) {
 }
 if (!Number.isFinite(COUNT_PER_RUN) || COUNT_PER_RUN < 1) {
   throw new Error("--count must be a positive integer");
+}
+if (!Number.isFinite(MAX_TOKENS) || MAX_TOKENS < 512) {
+  throw new Error("--max-tokens must be an integer >= 512");
 }
 
 function loadGuardrailIds() {
@@ -85,7 +89,13 @@ function runNode(args, label) {
 }
 
 function runBatch(guardrail, lang, count) {
-  runNode(["generate.mjs", "--guardrail", guardrail, "--lang", lang, "--count", String(count)],
+  runNode([
+    "generate.mjs",
+    "--guardrail", guardrail,
+    "--lang", lang,
+    "--count", String(count),
+    "--max-tokens", String(MAX_TOKENS),
+  ],
     `generate ${guardrail}/${lang}`);
   runNode(["validate.mjs"], `validate after ${guardrail}/${lang}`);
 }
@@ -113,6 +123,7 @@ function main() {
 
   console.log(`Target per language (validated): ${TARGET_PER_LANG}`);
   console.log(`Count per run: ${COUNT_PER_RUN}`);
+  console.log(`Generate max tokens: ${MAX_TOKENS}`);
   console.log(`Guardrails: ${guardrails.length}`);
 
   if (FRESH) {
