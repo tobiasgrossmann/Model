@@ -51,7 +51,25 @@ The model acts as an advanced "Personal AI Fitness Trainer." It relies on two lo
 - Generate [INSERT NUMBER, e.g., 40] total diverse conversation logs.
 
 
-
-
 ### Results:
-Add to Folder training
+use folder out for training results
+
+### iOS App
+Create the iOS iPhone app in the App folder.
+
+The app should provide:
+
+A simple chat interface for interacting with the trained model.
+The company logo.
+An “About Us” section.
+Model and health data
+
+The app will run the trained model and implement the get_user_health_data function. The model should be able to call this function when it needs the user’s health data.
+
+#### RAG and references
+
+The app will also use the RAG system and the files located in the RAG folder.
+
+When the model uses information retrieved through RAG, it should present the relevant references to the user. The user should be able to tap a reference and open the corresponding .md file directly within the app.
+
+The Markdown files should be rendered and formatted properly in the app rather than displayed as raw Markdown text.

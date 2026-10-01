@@ -1,7 +1,7 @@
 {
   "totals": {
-    "validated_examples": 5,
-    "compared_pairs": 10,
+    "validated_examples": 301,
+    "compared_pairs": 45150,
     "high_overlap_pairs": 0,
     "high_overlap_ratio": 0,
     "overlap_threshold": 0.85,
@@ -9,33 +9,56 @@
   },
   "distribution": {
     "language": {
-      "fr": 3,
-      "it": 2
+      "fr": 143,
+      "de": 23,
+      "it": 135
     },
     "guardrail": {
-      "G1": 1,
-      "G2": 2,
-      "G3": 2
+      "G1": 15,
+      "G2": 28,
+      "G3": 25,
+      "G4": 4,
+      "G6": 10,
+      "G8": 20,
+      "G9": 22,
+      "G10": 1,
+      "G11": 26,
+      "G12": 30,
+      "G13": 16,
+      "G14": 10,
+      "G15": 26,
+      "G16": 26,
+      "G17": 19,
+      "G5": 12,
+      "G7": 11
     },
     "persona": {
       "sex": {
-        "unknown": 5
+        "unknown": 301
       },
       "age_band": {
-        "unknown": 5
+        "18-29": 47,
+        "unknown": 252,
+        "60+": 2
       },
       "height_band_cm": {
-        "unknown": 5
+        "unknown": 301
       },
       "weight_band_kg": {
-        "unknown": 5
+        "75-89": 6,
+        "unknown": 252,
+        "60-74": 18,
+        "<60": 16,
+        "90+": 9
       }
     },
     "topic": {
-      "weight_loss": 1,
-      "other": 1,
-      "medical_scope": 1,
-      "allergy": 2
+      "weight_loss": 82,
+      "medical_scope": 52,
+      "allergy": 49,
+      "other": 74,
+      "exercise": 22,
+      "pregnancy": 22
     }
   }
 }

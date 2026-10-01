@@ -46,6 +46,15 @@ const SINGLE_LINE_NOISE = [
 const FOOTER_START = [
   /^\s*(Ü|U)ber uns\s*$/i,
   /^\s*Bleiben Sie informiert\s*$/i,
+  /^\s*###\s*Home\b/i,
+  /^\s*-\s*Home\b/i,
+  /^\s*###\s*iMpuls Newsletter\b/i,
+  /^\s*iMpuls Newsletter\b/i,
+  /^\s*###\s*Das könnte dich interessieren:?\s*$/i,
+  /^\s*Beschreibung\s+Mehr zum Thema\b/i,
+  /^\s*###\s*Zum Dossier\s*$/i,
+  /^\s*###\s*Zum Angebot\s*$/i,
+  /^\s*###\s*Erfahre mehr zum\s*$/i,
 ];
 
 const FILE_HEADER_NOISE = [
@@ -378,17 +387,24 @@ function cleanLines(lines) {
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i].replace(/\s+$/g, "");
-    const text = raw.trim();
+    let text = raw.trim();
+
+    // Trim inline share/recommendation tails that often survive OCR extraction.
+    text = text
+      .replace(/\s+Weiterlesen\b.*$/i, "")
+      .replace(/\s+Teilen!?\s*$/i, "")
+      .replace(/\s+iMpuls Newsletter\b.*$/i, "")
+      .trim();
 
     if (FOOTER_START.some((re) => re.test(text))) {
       stopAtFooter = true;
     }
     if (stopAtFooter) break;
 
-    if (shouldDropLine(raw, i, firstContentLineSeen)) continue;
+    if (shouldDropLine(text, i, firstContentLineSeen)) continue;
 
     if (text) firstContentLineSeen = true;
-    cleaned.push(raw);
+    cleaned.push(text);
   }
 
   const deduped = [];
