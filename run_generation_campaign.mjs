@@ -28,6 +28,8 @@ function argVal(name, fallback) {
 const TARGET_PER_LANG = parseInt(argVal("target", "2000"), 10);
 const COUNT_PER_RUN = parseInt(argVal("count", "3"), 10);
 const MAX_TOKENS = parseInt(argVal("max-tokens", "24000"), 10);
+const GENERATE_RETRIES = parseInt(argVal("generate-retries", "3"), 10);
+const GENERATE_RETRY_WAIT_MS = parseInt(argVal("generate-retry-wait-ms", "1500"), 10);
 const FRESH = process.argv.includes("--fresh");
 const SKIP_WARMUP = process.argv.includes("--skip-warmup");
 
@@ -39,6 +41,12 @@ if (!Number.isFinite(COUNT_PER_RUN) || COUNT_PER_RUN < 1) {
 }
 if (!Number.isFinite(MAX_TOKENS) || MAX_TOKENS < 512) {
   throw new Error("--max-tokens must be an integer >= 512");
+}
+if (!Number.isFinite(GENERATE_RETRIES) || GENERATE_RETRIES < 1) {
+  throw new Error("--generate-retries must be an integer >= 1");
+}
+if (!Number.isFinite(GENERATE_RETRY_WAIT_MS) || GENERATE_RETRY_WAIT_MS < 100) {
+  throw new Error("--generate-retry-wait-ms must be an integer >= 100");
 }
 
 function loadGuardrailIds() {
@@ -88,15 +96,43 @@ function runNode(args, label) {
   }
 }
 
-function runBatch(guardrail, lang, count) {
-  runNode([
+function sleepSync(ms) {
+  const sab = new SharedArrayBuffer(4);
+  const arr = new Int32Array(sab);
+  Atomics.wait(arr, 0, 0, ms);
+}
+
+function runGenerateWithRetry(guardrail, lang, count) {
+  const args = [
     "generate.mjs",
     "--guardrail", guardrail,
     "--lang", lang,
     "--count", String(count),
     "--max-tokens", String(MAX_TOKENS),
-  ],
-    `generate ${guardrail}/${lang}`);
+  ];
+
+  let lastError;
+  for (let attempt = 1; attempt <= GENERATE_RETRIES; attempt++) {
+    try {
+      runNode(args, `generate ${guardrail}/${lang}`);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt >= GENERATE_RETRIES) break;
+      const waitMs = GENERATE_RETRY_WAIT_MS * Math.pow(2, attempt - 1);
+      console.warn(
+        `  ! generate ${guardrail}/${lang} attempt ${attempt}/${GENERATE_RETRIES} failed; ` +
+        `retrying in ${waitMs}ms`
+      );
+      sleepSync(waitMs);
+    }
+  }
+
+  throw lastError;
+}
+
+function runBatch(guardrail, lang, count) {
+  runGenerateWithRetry(guardrail, lang, count);
   runNode(["validate.mjs"], `validate after ${guardrail}/${lang}`);
 }
 
@@ -124,6 +160,7 @@ function main() {
   console.log(`Target per language (validated): ${TARGET_PER_LANG}`);
   console.log(`Count per run: ${COUNT_PER_RUN}`);
   console.log(`Generate max tokens: ${MAX_TOKENS}`);
+  console.log(`Generate retries: ${GENERATE_RETRIES}`);
   console.log(`Guardrails: ${guardrails.length}`);
 
   if (FRESH) {

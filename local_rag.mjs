@@ -208,7 +208,7 @@ export function createLocalRag({ ragDir, specDir, snippetCount = 4 }) {
     });
   }
 
-  function retrieve({ guardrail, lang, queryText }) {
+  function retrieve({ guardrail, lang, queryText, preferredFileName = null }) {
     const coverageDocs = coverageMap.get(guardrail.id) || [];
     const seedDocs = deriveSeedDocHints(seedHints, queryText);
     const supplementalDocs = SUPPLEMENTAL_GUARDRAIL_DOCS[guardrail.id] || [];
@@ -220,10 +220,11 @@ export function createLocalRag({ ragDir, specDir, snippetCount = 4 }) {
       const tierBoost = Math.max(0, 5 - (chunk.tier || 8)) * 0.04;
       const preferredBoost = chunk.docId && preferredDocIds.has(chunk.docId) ? 0.18 : 0;
       const supplementalBoost = chunk.docId && supplementalDocs.includes(chunk.docId) ? 0.14 : 0;
+      const fileBoost = preferredFileName && chunk.fileName === preferredFileName ? 0.4 : 0;
       const categoryBoost = /nutrition|obesity|diabetes|movement|sleep|stress/i.test(chunk.category || "") ? 0.02 : 0;
       return {
         ...chunk,
-        score: lexical + tierBoost + preferredBoost + supplementalBoost + categoryBoost,
+        score: lexical + tierBoost + preferredBoost + supplementalBoost + fileBoost + categoryBoost,
       };
     })
       .filter((chunk) => chunk.score > 0.03)
@@ -231,11 +232,28 @@ export function createLocalRag({ ragDir, specDir, snippetCount = 4 }) {
 
     const selected = [];
     const seenDocChunk = new Set();
-    for (const chunk of scored) {
+
+    function pushChunk(chunk) {
       const key = `${chunk.fileName}:${chunk.chunkIndex}`;
-      if (seenDocChunk.has(key)) continue;
+      if (seenDocChunk.has(key)) return false;
       selected.push(chunk);
       seenDocChunk.add(key);
+      return true;
+    }
+
+    if (preferredFileName) {
+      const preferredChunks = scored
+        .filter((chunk) => chunk.fileName === preferredFileName)
+        .slice(0, snippetCount);
+
+      for (const chunk of preferredChunks) {
+        pushChunk(chunk);
+        if (selected.length >= snippetCount) break;
+      }
+    }
+
+    for (const chunk of scored) {
+      pushChunk(chunk);
       if (selected.length >= snippetCount) break;
     }
 

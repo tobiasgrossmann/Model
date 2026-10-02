@@ -37,12 +37,20 @@ const COUNT = Math.min(REQUESTED_COUNT, MAX_EXAMPLES_PER_RUN);
 const STREAM = process.argv.includes("--no-stream") ? false : true;
 const NO_THINK = process.argv.includes("--think") ? false : true;
 const REQUEST_TIMEOUT_MS = parseInt(argVal("timeout-ms", "180000"), 10);
-const MAX_TOKENS = parseInt(argVal("max-tokens", "24000"), 10);
+const MAX_TOKENS = parseInt(argVal("max-tokens", "28000"), 10);
 const DEDUP_NGRAM = parseInt(argVal("dedup-ngram", "3"), 10);
 const DEDUP_THRESHOLD = Number(argVal("dedup-threshold", "0.88"));
+const FETCH_RETRIES = parseInt(argVal("fetch-retries", "3"), 10);
+const FETCH_RETRY_BASE_MS = parseInt(argVal("fetch-retry-base-ms", "1200"), 10);
 
 if (!Number.isFinite(REQUESTED_COUNT) || REQUESTED_COUNT < 1) {
   throw new Error("--count must be a positive integer");
+}
+if (!Number.isFinite(FETCH_RETRIES) || FETCH_RETRIES < 1) {
+  throw new Error("--fetch-retries must be an integer >= 1");
+}
+if (!Number.isFinite(FETCH_RETRY_BASE_MS) || FETCH_RETRY_BASE_MS < 100) {
+  throw new Error("--fetch-retry-base-ms must be an integer >= 100");
 }
 
 if (REQUESTED_COUNT > MAX_EXAMPLES_PER_RUN) {
@@ -149,26 +157,23 @@ function healthyPlanningMixInstruction(count, rotationIndex) {
   };
 }
 
-function buildRetrievalQuery({ guardrail, scenarioConstraint, personaConstraint, guardrailVariant, batchMix, healthyMix }) {
+function buildRetrievalQuery({ guardrail, docSeed }) {
   const guardrailHint = guardrail.id === "G1"
     ? "ausgewogene ernaehrung schweizer ernaehrungsempfehlungen lebensmittelpyramide regelmaessig essen ausreichende energie extreme restriktion crash diaet"
     : "";
-  const healthyHint = healthyMix?.forceControl
-    ? "gesunde person trainingsplan wochenstruktur kraft ausdauer regeneration ausgewogene ernaehrung mahlzeitenstruktur portionen alltagstauglich"
-    : "";
+  const topicHint = [
+    docSeed?.title,
+    docSeed?.summary,
+    docSeed?.selected_question,
+    guardrail.claim_seed,
+    guardrail.scenario_hint,
+  ].filter(Boolean).join(" | ");
   return [
     guardrail.id,
     guardrail.name,
     guardrail.hard_when_text,
-    guardrail.scenario_hint,
-    guardrail.claim_seed,
-    scenarioConstraint,
-    personaConstraint,
-    guardrailVariant,
-    batchMix,
-    healthyMix?.text,
+    topicHint,
     guardrailHint,
-    healthyHint,
   ].filter(Boolean).join(" | ");
 }
 
@@ -177,7 +182,7 @@ function guardrailGroundingInstruction(guardrailId) {
     return "Spezialregel G1: Die lokale Evidenz trägt eher allgemeine Ernährungsempfehlungen als detaillierte Aussagen zu Untergewicht oder Mangelzuständen. Begründe die Ablehnung deshalb primär mit 'extrem restriktiv / kein geeignetes Ziel / fachlich abklären', nicht mit detaillierten Mechanismen wie Stoffwechselschaden, Muskelabbau oder Nährstoffmangel, sofern diese nicht ausdrücklich in der Evidenz stehen.";
   }
   if (guardrailId === "G3") {
-    return "Spezialregel G3: Behaupte niemals, dass ein alternatives Lebensmittel 'sicher' oder 'sans risque' sei, nur weil es keine Baumnuss ist. Bei bekannter Allergie immer vorsichtig formulieren: Zutaten/Etikett prüfen, Kreuzkontakt berücksichtigen, individuelle Anweisungen der Allergologin/des Allergologen befolgen.";
+    return "Spezialregel G3: Behaupte niemals, dass ein alternatives Lebensmittel 'sicher' oder 'sans risque' sei, nur weil es keine Baumnuss ist. Bei bekannter Allergie immer vorsichtig formulieren: Zutaten/Etikett prüfen, Kreuzkontakt berücksichtigen, individuelle Anweisungen der Allergologin/des Allergologen befolgen. Wenn die Person eine Nuss-, Erdnuss- oder Schalenfruchtallergie nennt, darfst du in keinem Essensplan Nüsse, Erdnüsse, Erdnussbutter, Mandelprodukte oder ähnliche Auslöser aktiv empfehlen.";
   }
   return null;
 }
@@ -348,12 +353,54 @@ function normalizeSeedQuestions(value) {
     .slice(0, 2);
 }
 
+function normalizeSeedSummary(value) {
+  const summary = String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!summary) return "";
+
+  const lastSentenceEnd = Math.max(
+    summary.lastIndexOf("."),
+    summary.lastIndexOf("!"),
+    summary.lastIndexOf("?")
+  );
+
+  if (lastSentenceEnd >= 0) {
+    return summary.slice(0, lastSentenceEnd + 1).trim();
+  }
+
+  return "";
+}
+
+function guardrailContentContract(guardrailId) {
+  if (guardrailId === "G6") {
+    return "G6-Inhaltsvertrag: User-Problem MUSS sowohl (a) Adipositas-Kontext mit BMI >= 30 bzw. klarer entsprechender Angabe als auch (b) Body-Image-/Koerperbild-Thema enthalten. Reine Messmethoden-FAQ (z.B. DEXA vs BIA) ohne diese beiden Elemente ist ungueltig.";
+  }
+  if (guardrailId === "G8") {
+    return "G8-Inhaltsvertrag: Der Zielkonflikt MUSS aus Kontext-Turns kommen (mindestens 2 User-Turns). Spaeterer User-Turn widerspricht einem frueheren Ziel/Plan (z.B. Abnehmen vs Muskelaufbau, Safety vs schnelle Extreme). Einzelne allgemeine Frage ohne Kontextkonflikt ist ungueltig.";
+  }
+  if (guardrailId === "G16") {
+    return "G16-Inhaltsvertrag: Kontexttest MUSS explizit erkennbar sein (z.B. sinngemaess 'du kennst mich doch / as you know / comme tu sais'). Reine isolierte FAQ ohne Bezug auf vorigen Kontext ist ungueltig.";
+  }
+  return "";
+}
+
+function isUsableSeedSummary(value) {
+  const summary = normalizeSeedSummary(value);
+  if (!summary) return false;
+  const wordCount = summary.split(/\s+/).filter(Boolean).length;
+  return wordCount >= 8 && /[.!?]$/.test(summary);
+}
+
 async function getOrCreateDocSeed({ doc, lang, guardrail }) {
   const cache = loadDocSeedCache(DOC_SEED_CACHE_FILE);
   const key = docSeedCacheKey(doc, lang);
   const cached = cache.get(key);
-  if (cached && cached.summary && Array.isArray(cached.questions) && cached.questions.length >= 1) {
-    return cached;
+  if (cached && isUsableSeedSummary(cached.summary) && Array.isArray(cached.questions) && cached.questions.length >= 1) {
+    return {
+      ...cached,
+      summary: normalizeSeedSummary(cached.summary),
+    };
   }
 
   const system = `${NO_THINK ? "/no_think\n" : ""}Du erstellst kompakte Datenseeds für ein Fitness-Coaching-Trainingsset.
@@ -373,19 +420,24 @@ Aufgabe:
 2) Formuliere genau 2 verschiedene realistische User-Fragen in ${lang}, die direkt zu diesem Dokumentinhalt passen und als Start einer Coaching-Unterhaltung dienen.
 3) Fragen dürfen nicht identisch oder nur trivial umformuliert sein.`;
 
-  const raw = await callServer(system, user, {
-    label: `seed/${guardrail.id}/${lang}/${doc.file_name}`,
-    streamOverride: false,
-    maxTokensOverride: 900,
-    temperatureOverride: 0.6,
-  });
+  let summary = "";
+  let questions = [];
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const raw = await callServer(system, user, {
+      label: `seed/${guardrail.id}/${lang}/${doc.file_name}`,
+      streamOverride: false,
+      maxTokensOverride: 900,
+      temperatureOverride: 0.6,
+    });
 
-  const parsed = parseFirstJsonObject(raw) || {};
-  const questions = normalizeSeedQuestions(parsed.questions || parsed);
-  const summary = String(parsed.summary || "").trim();
+    const parsed = parseFirstJsonObject(raw) || {};
+    questions = normalizeSeedQuestions(parsed.questions || parsed);
+    summary = normalizeSeedSummary(parsed.summary || "");
+    if (isUsableSeedSummary(summary) && questions.length >= 1) break;
+  }
 
-  if (!summary || questions.length < 1) {
-    throw new Error(`Could not build seed questions for ${doc.file_name} (${lang})`);
+  if (!isUsableSeedSummary(summary) || questions.length < 1) {
+    throw new Error(`Could not build complete seed summary/questions for ${doc.file_name} (${lang})`);
   }
 
   const entry = {
@@ -417,19 +469,22 @@ function buildPrompt(guardrail, lang, count, rotationIndex, docSeed) {
   const healthyMix = healthyPlanningMixInstruction(count, rotationIndex);
   const retrievalQuery = buildRetrievalQuery({
     guardrail,
-    scenarioConstraint,
-    personaConstraint,
-    guardrailVariant,
-    batchMix,
-    healthyMix,
+    docSeed,
   });
-  const retrieval = localRag.retrieve({ guardrail, lang, queryText: retrievalQuery });
+  const retrieval = localRag.retrieve({
+    guardrail,
+    lang,
+    queryText: retrievalQuery,
+    preferredFileName: docSeed?.file_name || null,
+  });
   const groundingInstruction = guardrailGroundingInstruction(guardrail.id);
+  const contentContract = guardrailContentContract(guardrail.id);
 
   const system = `Du generierst synthetische Trainingsdaten für einen Fitness- und Ernährungscoach (Migros).
 Antworte AUSSCHLIESSLICH mit JSONL: genau ${count} Zeilen, je eine vollständige JSON-Konversation,
 im selben Format wie die Beispiele. Keine Erklärungen, kein Markdown, keine Codeblöcke.
-Erfinde NIE eine Quelle, Studie, URL oder Publikation, die dir nicht explizit gegeben wurde.`;
+Erfinde NIE eine Quelle, Studie, URL oder Publikation, die dir nicht explizit gegeben wurde.
+Gib niemals Generierungsanweisungen, Batch-Mix-Texte, Datensatz-Balance-Regeln oder Prompt-Hinweise als Feld im Output zurück.`;
 
   const systemWithMode = NO_THINK
     ? `/no_think\n${system}`
@@ -468,22 +523,29 @@ Erzeuge ${count} NEUE Trainingsbeispiele für Guardrail ${guardrail.id} in der S
 - Guardrail-Variante: ${guardrailVariant}
 ${batchMix ? `- ${batchMix}
 ` : ""}- Halte dich an die deterministischen Grenzwerte und die Guardrail-Regel.
+- ${contentContract || "Inhalt muss klar zum Guardrail passen; keine semantischen Fehl-Labels."}
 - ${healthyMix.text}
 - Wenn ein Beispiel ein Healthy-Control-Fall ist, markiere es zusätzlich mit "example_mode": "healthy_plan".
 - Für "example_mode": "healthy_plan" gilt: keine unnötige Sicherheitswarnung; stattdessen konkrete, praktische Planung (z. B. Wochenschema, Satz/Wiederholungs- oder Zeitvorgaben, Progression, Erholungsplanung bzw. Mahlzeitenstruktur mit realistischen Portions- und Timing-Hinweisen).
+- Für "example_mode": "healthy_plan" gilt zusätzlich: vermeide Formulierungen wie "laut Studie" mit konkreten Zahlen/Prozenten, ausser diese Zahl steht explizit in den bereitgestellten Evidenz-Exzerpten.
+- Wenn tool_policy = "required_for_personalized_assessment", muss personalization_needed zwingend true sein.
 - Für "example_mode": "guardrail" (oder ohne Feld) gilt: normale Guardrail-Logik mit sicherer Begrenzung.
 - Rufe get_user_health_data nur auf, wenn Alter/Gewicht/Aktivität tatsächlich gebraucht werden.
-- Wenn Alter, Gewicht oder Aktivitätswerte für BMI, Tempo oder Belastungsentscheidung nötig sind und nicht im aktuellen Kontext stehen, MUSS get_user_health_data aufgerufen werden.
-- Wenn alle nötigen Fakten bereits im aktuellen Kontext stehen, DARF get_user_health_data NICHT aufgerufen werden.
+- Wenn die assistant-Antwort BMI berechnet, BMI nennt oder eine gewichts-/grössenabhängige Sicherheits- oder Eignungsaussage macht, MUSS get_user_health_data vor dieser Aussage aufgerufen werden - auch dann, wenn der User Alter/Gewicht/Grösse bereits im Chat genannt hat.
+- Wenn Alter, Gewicht oder Aktivitätswerte nur für allgemeine Orientierung ohne BMI-/Risikobewertung nicht nötig sind, DARF get_user_health_data weggelassen werden.
 - Wenn ein Tool verwendet wird, MUSS die Struktur exakt sein: assistant mit tool_calls -> tool message -> assistant Antwort. Niemals direkt mit einer tool message beginnen.
+- Niemals zwei assistant-Nachrichten direkt hintereinander ausgeben. Keine Fortsetzung in einem zweiten assistant-Turn. Wenn du einen Tool-Call brauchst, ist der erste assistant-Turn nur der tool_call; wenn du keinen Tool-Call brauchst, steht die gesamte Antwort in genau einer assistant-Nachricht.
+- Wenn ein Tool-Resultat vorkommt, führe die JSON-Felder konsistent und explizit: age, weight_kg, height_cm, sex (male|female) und pregnancy_status (true|false). Fehlende Felder nicht erfinden; falls ein Feld unbekannt ist, lasse es weg statt Platzhaltertext zu schreiben.
+- Für Diversity-Auswertung: Personenszenarien sollen das Geschlecht klar erkennbar machen (entweder im Tool-JSON über sex oder natürlich im User-Text wie "ich bin männlich/weiblich", "je suis un homme/une femme", "sono uomo/donna").
 - Erfinde niemals fehlende Körperdaten oder Kontextfakten. Wenn Grösse, Gewicht, Alter oder Aktivitätsdaten fehlen und das Tool sie nicht liefert, formuliere vorsichtig ohne Berechnung oder stelle eine Rückfrage innerhalb des Beispiels.
 - Verwende keine Formulierungen wie "unterstellte Grösse", "angenommene Grösse" oder erfundene Näherungen für fehlende Messwerte.
 - Die Unterhaltung soll natürlich klingen: variiere Wortwahl, Satzlänge, Einstiege und Abschlussformeln. Vermeide starre Mustersätze.
 - Das Feld notes darf nur 1-2 kurze, sachliche Metadaten-Sätze enthalten. Keine Entscheidungsfindung, keine Regel-Abwägung, keine Selbstgespräche, keine Formulierungen wie "ich muss", "wir rufen", "Achtung" oder "Regel sagt".
-- Füge ein Feld tool_policy hinzu. Erlaubte Werte: "required_for_personalized_assessment", "optional_for_context" oder "not_required_for_safety_refusal".
+- Füge ein Feld tool_policy hinzu. Erlaubte Werte: "required_for_personalized_assessment", "optional_for_context", "not_required_for_safety_refusal" oder "not_required_for_general_guidance".
 - Verwende "required_for_personalized_assessment", wenn aktuelle Körper-/Aktivitätsdaten wirklich für eine personalisierte Einschätzung gebraucht werden.
 - Verwende "optional_for_context", wenn ein Tool-Call vorkommt, aber die Sicherheitsentscheidung nicht von diesem Call abhängt.
 - Verwende "not_required_for_safety_refusal", wenn die Sicherheitsablehnung auch ohne Tooldaten begründet werden kann und kein Tool-Call nötig ist.
+- Verwende "not_required_for_general_guidance", wenn kein Tool-Call nötig ist und die Antwort primär allgemeine, nicht-refusale Orientierung oder Planung gibt.
 - Füge zusätzlich die Felder trigger, personalization_needed und response_policy hinzu.
 - trigger: kurzer, guardrail-spezifischer Auslöser (z.B. extreme_restriction, medication_adjustment, allergen_risk).
 - personalization_needed: true nur wenn die Antwort tatsächlich von individuellen Live-Daten/Profilkontext abhängt, sonst false.
@@ -552,8 +614,49 @@ function hasHealthToolCall(example) {
   );
 }
 
+function isHealthyPlanExample(example) {
+  return String(example?.example_mode || "").trim().toLowerCase() === "healthy_plan";
+}
+
+function toolNeedSignals(example) {
+  const userConversation = (example?.messages || [])
+    .filter((message) => message.role === "user" && typeof message.content === "string")
+    .map((message) => message.content)
+    .join("\n");
+
+  const allConversation = (example?.messages || [])
+    .filter((message) => (message.role === "user" || message.role === "assistant") && typeof message.content === "string")
+    .map((message) => message.content)
+    .join("\n");
+
+  const hasInlineHeightWeight = /(\d+(?:[.,]\d+)?)\s*(?:kg|kilo)\D{0,30}(\d+(?:[.,]\d+)?)\s*(?:cm|m\b)|(?:\d+(?:[.,]\d+)?)\s*(?:cm|m\b)\D{0,30}(\d+(?:[.,]\d+)?)\s*(?:kg|kilo)/i.test(allConversation);
+  const asksDailyStatus = /wie war mein tag|heute|today|aujourd|oggi|ring|hrv|resting heart|schlaf|sleep|exercise minutes|stand hours/i.test(userConversation);
+  const asksPersonalizedLoad = /hiit|cardio|spr(ü|u)nge|sauts|salti|belastung|intensit|tempo/i.test(userConversation);
+  const asksBmiOrAssessment = /\bBMI\b|\bIMC\b|untergewicht|normalgewicht|sous le seuil|sottopeso/i.test(userConversation);
+
+  return {
+    hasInlineHeightWeight,
+    asksDailyStatus,
+    asksPersonalizedLoad,
+    asksBmiOrAssessment,
+  };
+}
+
 function hasReasoningTrace(text) {
   return /(achtung|regel sagt|wir rufen|ich muss|tool-?call n(ö|o)tig|per se|also:|hier:|obwohl|um .* zu validieren|oder wir|erste frage|hard block|greift .*logik|falls nicht im profil|ich w(ä|a)hle)/i.test(String(text || ""));
+}
+
+function assistantUsesBmiOrWeightReasoning(example) {
+  const assistantText = (example?.messages || [])
+    .filter((message) => message.role === "assistant" && typeof message.content === "string")
+    .map((message) => message.content)
+    .join("\n");
+
+  const explicitBmi = /\b(?:BMI|IMC)\b[^\n.]{0,30}\d{1,2}(?:[.,]\d+)?/i.test(assistantText);
+  const weightBasedJudgment = /(?:dein(?:e|er)?|deiner|bei deiner|ton|ta|tes|votre|tuo|tua|con i tuoi|con le tue).{0,70}(?:gewicht|gr(?:ö|o)sse|taille|poids|peso|altezza|bmi|imc).{0,120}(?:gesund|normal|untergewicht|surpoids|sovrappeso|obes|adipos|sicher|nicht geeignet|inadatt|non adatto|risk|risque|gef(?:ä|a)hr|contre-indiqu)/i.test(assistantText)
+    || /\b(?:BMI|IMC)\b.{0,120}(?:gesund|normal|untergewicht|surpoids|sovrappeso|obes|adipos|sicher|nicht geeignet|inadatt|non adatto|risk|risque|gef(?:ä|a)hr|contre-indiqu)/i.test(assistantText);
+
+  return explicitBmi || weightBasedJudgment;
 }
 
 function normalizeToolCallEntry(toolCall, fallbackId) {
@@ -599,22 +702,37 @@ function buildCleanNote(example) {
 }
 
 function deriveToolPolicy(example) {
-  const conversation = (example?.messages || [])
-    .filter((message) => (message.role === "user" || message.role === "assistant") && typeof message.content === "string")
+  const hasHealthTool = hasHealthToolCall(example);
+  const {
+    hasInlineHeightWeight,
+    asksDailyStatus,
+    asksPersonalizedLoad,
+    asksBmiOrAssessment,
+  } = toolNeedSignals(example);
+  const healthyPlan = isHealthyPlanExample(example);
+  const assistantText = (example?.messages || [])
+    .filter((message) => message.role === "assistant" && typeof message.content === "string")
     .map((message) => message.content)
     .join("\n");
-  const hasHealthTool = hasHealthToolCall(example);
-  const hasInlineHeightWeight = /(\d+(?:[.,]\d+)?)\s*(?:kg|kilo)\D{0,30}(\d+(?:[.,]\d+)?)\s*(?:cm|m\b)|(?:\d+(?:[.,]\d+)?)\s*(?:cm|m\b)\D{0,30}(\d+(?:[.,]\d+)?)\s*(?:kg|kilo)/i.test(conversation);
-  const asksDailyStatus = /wie war mein tag|heute|today|aujourd|oggi|ring|hrv|resting heart|schlaf|sleep|exercise minutes|stand hours/i.test(conversation);
-  const asksPersonalizedLoad = /hiit|cardio|spr(ü|u)nge|sauts|salti|belastung|intensit|tempo/i.test(conversation);
-  const asksBmiOrAssessment = /\bBMI\b|\bIMC\b|untergewicht|normalgewicht|sous le seuil|sottopeso/i.test(conversation);
+  const isRefusalLike = /ich kann (dir )?nicht|ich rate dir davon ab|ich kann das nicht empfehlen|je ne peux pas|je ne peux donc pas|non posso|non posso approvare|i cannot|i can't|cannot recommend|kann ich nicht|nicht empfehlen|ne peux pas te proposer/i.test(assistantText);
+  const trulyNeedsLiveData = asksDailyStatus || asksPersonalizedLoad || asksBmiOrAssessment || assistantUsesBmiOrWeightReasoning(example);
 
-  if (hasHealthTool && (asksDailyStatus || asksPersonalizedLoad || (asksBmiOrAssessment && !hasInlineHeightWeight))) {
+  if (hasHealthTool && trulyNeedsLiveData) {
     return "required_for_personalized_assessment";
   }
+
+  if (hasHealthTool && healthyPlan) {
+    return "optional_for_context";
+  }
+
   if (hasHealthTool) {
     return "optional_for_context";
   }
+
+  if (healthyPlan || !isRefusalLike) {
+    return "not_required_for_general_guidance";
+  }
+
   return "not_required_for_safety_refusal";
 }
 
@@ -778,6 +896,8 @@ function normalizeToolMessages(example) {
     messages: (example?.messages || []).map((message) => ({ ...message })),
   };
 
+  normalized.guardrail = canonicalGuardrailId(normalized.guardrail);
+
   for (let i = 0; i < normalized.messages.length; i++) {
     const message = normalized.messages[i];
     if (message?.role === "assistant" && Array.isArray(message.content)) {
@@ -836,11 +956,29 @@ function normalizeToolMessages(example) {
     }
   }
 
+  // Keep message schema strict for downstream training/validation.
+  normalized.messages = normalized.messages.map((message) => {
+    const sanitized = { role: message?.role };
+    if (Object.prototype.hasOwnProperty.call(message || {}, "content")) {
+      sanitized.content = message.content;
+    }
+    if (Object.prototype.hasOwnProperty.call(message || {}, "tool_calls")) {
+      sanitized.tool_calls = message.tool_calls;
+    }
+    if (Object.prototype.hasOwnProperty.call(message || {}, "tool_call_id")) {
+      sanitized.tool_call_id = message.tool_call_id;
+    }
+    return sanitized;
+  });
+
   normalized.notes = sanitizeNotes(normalized);
   normalized.tool_policy = deriveToolPolicy(normalized);
   const splitPolicy = deriveTriggerAndResponsePolicy(normalized);
   normalized.trigger = splitPolicy.trigger;
-  normalized.personalization_needed = splitPolicy.personalization_needed;
+  normalized.personalization_needed =
+    normalized.tool_policy === "required_for_personalized_assessment"
+      ? true
+      : splitPolicy.personalization_needed;
   normalized.response_policy = splitPolicy.response_policy;
   return normalized;
 }
@@ -848,6 +986,12 @@ function normalizeToolMessages(example) {
 function checkSequencingIssues(example) {
   const issues = [];
   const messages = Array.isArray(example?.messages) ? example.messages : [];
+  for (let i = 1; i < messages.length; i++) {
+    if (messages[i - 1]?.role === "assistant" && messages[i]?.role === "assistant") {
+      issues.push("consecutive assistant messages without intervening user/tool turn");
+      break;
+    }
+  }
   for (let i = 0; i < messages.length; i++) {
     const message = messages[i];
     if (message?.role !== "tool") continue;
@@ -864,6 +1008,19 @@ function checkSequencingIssues(example) {
     if (!knownIds.has(message.tool_call_id)) {
       issues.push("tool message tool_call_id does not match preceding assistant tool_calls");
     }
+  }
+  const lastMessage = messages.length ? messages[messages.length - 1] : null;
+  if (lastMessage?.role !== "assistant") {
+    issues.push("conversation does not end with assistant message");
+  }
+  if (lastMessage?.role === "assistant" && Array.isArray(lastMessage.tool_calls) && lastMessage.tool_calls.length > 0) {
+    issues.push("conversation ends with unresolved assistant tool_calls");
+  }
+  if (lastMessage?.role === "assistant" && (typeof lastMessage.content !== "string" || !lastMessage.content.trim())) {
+    issues.push("conversation ends with empty assistant content");
+  }
+  if (!hasHealthToolCall(example) && assistantUsesBmiOrWeightReasoning(example)) {
+    issues.push("assistant uses BMI/weight-dependent reasoning without health-data tool call");
   }
   return issues;
 }
@@ -967,15 +1124,36 @@ function filterNovelExamples(examples, existingState) {
   return { accepted, rejected };
 }
 
-async function callServer(system, user, {
-  label = "",
-  streamOverride = null,
-  maxTokensOverride = null,
-  temperatureOverride = null,
-} = {}) {
-  const useStream = streamOverride === null ? STREAM : Boolean(streamOverride);
-  const useMaxTokens = Number.isFinite(maxTokensOverride) ? maxTokensOverride : MAX_TOKENS;
-  const useTemperature = Number.isFinite(temperatureOverride) ? temperatureOverride : 0.9;
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableError(error) {
+  const code = error?.cause?.code || error?.code || "";
+  const status = error?.httpStatus;
+  const msg = String(error?.message || "").toLowerCase();
+
+  if (["ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "EPIPE", "EAI_AGAIN", "UND_ERR_SOCKET"].includes(code)) {
+    return true;
+  }
+  if (typeof status === "number" && [408, 425, 429, 500, 502, 503, 504].includes(status)) {
+    return true;
+  }
+  if (error?.name === "AbortError") {
+    return true;
+  }
+  if (msg.includes("terminated") || msg.includes("econnreset") || msg.includes("fetch failed") || msg.includes("socket")) {
+    return true;
+  }
+  return false;
+}
+
+async function callServerOnce(system, user, {
+  label,
+  useStream,
+  useMaxTokens,
+  useTemperature,
+}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let res;
@@ -991,7 +1169,6 @@ async function callServer(system, user, {
         ],
         temperature: useTemperature,
         top_p: 0.95,
-        // Prompt + completion must stay under server context (-c).
         max_tokens: useMaxTokens,
         stream: useStream,
         ...(NO_THINK ? { chat_template_kwargs: { enable_thinking: false } } : {}),
@@ -1002,7 +1179,10 @@ async function callServer(system, user, {
   }
 
   if (!res.ok) {
-    throw new Error(`Server error ${res.status}: ${await res.text()}`);
+    const text = await res.text();
+    const err = new Error(`Server error ${res.status}: ${text}`);
+    err.httpStatus = res.status;
+    throw err;
   }
 
   if (!useStream) {
@@ -1022,44 +1202,49 @@ async function callServer(system, user, {
     return content;
   }
 
-  // --- streaming: print tokens live, accumulate full text to return ---
   let full = "";
   let reasoningChars = 0;
   let buffer = "";
   process.stdout.write(`\n--- streaming ${label} ---\n`);
-  for await (const chunk of res.body) {
-    buffer += Buffer.from(chunk).toString("utf8");
-    // SSE frames are separated by blank lines (\n\n or \r\n\r\n).
-    let idx;
-    while ((idx = buffer.search(/\r?\n\r?\n/)) !== -1) {
-      const frame = buffer.slice(0, idx).trim();
-      const sepLen = buffer.startsWith("\r\n\r\n", idx) ? 4 : 2;
-      buffer = buffer.slice(idx + sepLen);
-      const dataLines = frame
-        .split(/\r?\n/)
-        .filter((line) => line.startsWith("data:"))
-        .map((line) => line.slice(5).trim());
-      const payload = dataLines.join("\n");
-      if (!payload) continue;
-      if (payload === "[DONE]") continue;
-      let json;
-      try {
-        json = JSON.parse(payload);
-      } catch {
-        continue; // partial/malformed frame, skip
-      }
-      const delta = json.choices?.[0]?.delta?.content;
-      if (delta) {
-        process.stdout.write(delta);
-        full += delta;
-      }
+  try {
+    for await (const chunk of res.body) {
+      buffer += Buffer.from(chunk).toString("utf8");
+      let idx;
+      while ((idx = buffer.search(/\r?\n\r?\n/)) !== -1) {
+        const frame = buffer.slice(0, idx).trim();
+        const sepLen = buffer.startsWith("\r\n\r\n", idx) ? 4 : 2;
+        buffer = buffer.slice(idx + sepLen);
+        const dataLines = frame
+          .split(/\r?\n/)
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).trim());
+        const payload = dataLines.join("\n");
+        if (!payload || payload === "[DONE]") continue;
 
-      const reasoningDelta = json.choices?.[0]?.delta?.reasoning_content;
-      if (reasoningDelta) {
-        reasoningChars += reasoningDelta.length;
+        let json;
+        try {
+          json = JSON.parse(payload);
+        } catch {
+          continue;
+        }
+
+        const delta = json.choices?.[0]?.delta?.content;
+        if (delta) {
+          process.stdout.write(delta);
+          full += delta;
+        }
+
+        const reasoningDelta = json.choices?.[0]?.delta?.reasoning_content;
+        if (reasoningDelta) {
+          reasoningChars += reasoningDelta.length;
+        }
       }
     }
+  } catch (error) {
+    process.stdout.write(`\n--- stream error ${label} ---\n`);
+    throw error;
   }
+
   if (!full.trim() && reasoningChars > 0) {
     console.warn(
       `\n  ! no assistant content for ${label}, but received ${reasoningChars} reasoning chars. ` +
@@ -1068,6 +1253,43 @@ async function callServer(system, user, {
   }
   process.stdout.write(`\n--- end ${label} ---\n\n`);
   return full;
+}
+
+async function callServer(system, user, {
+  label = "",
+  streamOverride = null,
+  maxTokensOverride = null,
+  temperatureOverride = null,
+} = {}) {
+  const useStream = streamOverride === null ? STREAM : Boolean(streamOverride);
+  const useMaxTokens = Number.isFinite(maxTokensOverride) ? maxTokensOverride : MAX_TOKENS;
+  const useTemperature = Number.isFinite(temperatureOverride) ? temperatureOverride : 0.9;
+  let lastError;
+  for (let attempt = 1; attempt <= FETCH_RETRIES; attempt++) {
+    const attemptStream = useStream && attempt === 1;
+    try {
+      return await callServerOnce(system, user, {
+        label,
+        useStream: attemptStream,
+        useMaxTokens,
+        useTemperature,
+      });
+    } catch (error) {
+      lastError = error;
+      const retryable = isRetryableError(error);
+      if (!retryable || attempt >= FETCH_RETRIES) {
+        throw error;
+      }
+      const waitMs = FETCH_RETRY_BASE_MS * Math.pow(2, attempt - 1);
+      const code = error?.cause?.code || error?.code || error?.httpStatus || "unknown";
+      console.warn(
+        `  ! call ${label || "(unlabeled)"} failed on attempt ${attempt}/${FETCH_RETRIES} ` +
+        `(${code}); retrying in ${waitMs}ms${attemptStream ? " with non-stream fallback" : ""}.`
+      );
+      await sleep(waitMs);
+    }
+  }
+  throw lastError;
 }
 
 function parseJsonlSafely(text, guardrailId, lang) {
@@ -1149,71 +1371,79 @@ function parseJsonlSafely(text, guardrailId, lang) {
 
 async function runBatch(guardrail, lang, count) {
   console.log(`-> ${guardrail.id} (${lang}), ${count} examples`);
-  const randomDoc = randomItem(ragDocuments);
-  const seed = await getOrCreateDocSeed({ doc: randomDoc, lang, guardrail });
-  const selectedQuestion = randomItem(seed.questions);
-  console.log(`   • doc-seed ${seed.file_name}: ${selectedQuestion}`);
-  const { system, user, retrieval } = buildPrompt(
-    guardrail,
-    lang,
-    count,
-    promptRotationIndex++,
-    {
-      ...seed,
-      selected_question: selectedQuestion,
-    }
-  );
-
-  // Rough sanity check: warn if this single call's input is already large.
-  const approxTokens = Math.ceil((system.length + user.length) / 4);
-  if (approxTokens > 8000) {
-    console.warn(`  ! prompt ~${approxTokens} tokens — consider trimming behavior/fewshot`);
-  }
-
-  const raw = await callServer(system, user, { label: `${guardrail.id}/${lang}` });
-  const { good, bad } = parseJsonlSafely(raw, guardrail.id, lang);
-  const { accepted: prepared, rejected: malformed } = prepareExamples(good);
-
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const outFile = path.join(OUT_DIR, "generated.jsonl");
   const rejFile = path.join(OUT_DIR, "rejects.log");
-
-  const dedupState = loadExistingDedupState(outFile);
-  const withGrounding = attachGroundingMetadata(prepared, retrieval).map((example) => ({
-    ...example,
-    doc_seed: {
-      file_name: seed.file_name,
-      title: seed.title,
-      summary: seed.summary,
-      question: selectedQuestion,
-    },
-  }));
-  const { accepted, rejected } = filterNovelExamples(withGrounding, dedupState);
-
-  if (accepted.length) {
-    fs.appendFileSync(outFile, accepted.map((o) => JSON.stringify(o)).join("\n") + "\n");
+  if (!fs.existsSync(outFile)) {
+    fs.writeFileSync(outFile, "", "utf8");
   }
-  if (bad.length || malformed.length || rejected.length) {
-    const rejectLines = [
+
+  const totalAccepted = [];
+  const totalRejectLines = [];
+  const dedupState = loadExistingDedupState(outFile);
+  const maxAttempts = 3;
+
+  for (let attempt = 1; attempt <= maxAttempts && totalAccepted.length < count; attempt++) {
+    const remaining = count - totalAccepted.length;
+    const randomDoc = randomItem(ragDocuments);
+    const seed = await getOrCreateDocSeed({ doc: randomDoc, lang, guardrail });
+    const selectedQuestion = randomItem(seed.questions);
+    console.log(`   • doc-seed ${seed.file_name}: ${selectedQuestion}`);
+    const { system, user, retrieval } = buildPrompt(
+      guardrail,
+      lang,
+      remaining,
+      promptRotationIndex++,
+      {
+        ...seed,
+        selected_question: selectedQuestion,
+      }
+    );
+
+    const approxTokens = Math.ceil((system.length + user.length) / 4);
+    if (approxTokens > 8000) {
+      console.warn(`  ! prompt ~${approxTokens} tokens — consider trimming behavior/fewshot`);
+    }
+
+    const raw = await callServer(system, user, { label: `${guardrail.id}/${lang}` });
+    const { good, bad } = parseJsonlSafely(raw, guardrail.id, lang);
+    const { accepted: prepared, rejected: malformed } = prepareExamples(good);
+    const withGrounding = attachGroundingMetadata(prepared, retrieval).map((example) => ({
+      ...example,
+      doc_seed: {
+        file_name: seed.file_name,
+        title: seed.title,
+        summary: seed.summary,
+        question: selectedQuestion,
+      },
+    }));
+    const { accepted, rejected } = filterNovelExamples(withGrounding, dedupState);
+
+    totalAccepted.push(...accepted);
+    totalRejectLines.push(
       ...bad,
       ...malformed.map((r) => JSON.stringify({ reason: r.reason, example: r.example })),
       ...rejected.map((r) => JSON.stringify({ reason: r.reason, example: r.example })),
-    ];
-    fs.appendFileSync(rejFile, `--- ${guardrail.id}/${lang} ---\n${rejectLines.join("\n")}\n`);
+    );
+
+    if (accepted.length && totalAccepted.length < count) {
+      console.warn(`  ! only ${totalAccepted.length}/${count} accepted so far for ${guardrail.id}/${lang}; retrying for remaining examples.`);
+    }
   }
-  if (accepted.length < count) {
+
+  if (totalAccepted.length) {
+    fs.appendFileSync(outFile, totalAccepted.map((o) => JSON.stringify(o)).join("\n") + "\n");
+  }
+  if (totalRejectLines.length) {
+    fs.appendFileSync(rejFile, `--- ${guardrail.id}/${lang} ---\n${totalRejectLines.join("\n")}\n`);
+  }
+  if (totalAccepted.length < count) {
     console.warn(
-      `  ! only ${accepted.length}/${count} accepted examples for ${guardrail.id}/${lang}. ` +
+      `  ! only ${totalAccepted.length}/${count} accepted examples for ${guardrail.id}/${lang}. ` +
       `Consider increasing --max-tokens or reducing --count.`
     );
   }
-  if (malformed.length) {
-    console.warn(`  ! ${malformed.length} malformed sequencing/meta example(s) filtered`);
-  }
-  if (rejected.length) {
-    console.warn(`  ! ${rejected.length} duplicate/near-duplicate example(s) filtered`);
-  }
-  console.log(`   ✓ ${accepted.length} written, ${bad.length + malformed.length + rejected.length} rejected`);
+  console.log(`   ✓ ${totalAccepted.length} written, ${totalRejectLines.length} rejected`);
 }
 
 async function main() {

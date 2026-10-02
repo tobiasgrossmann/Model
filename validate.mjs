@@ -6,8 +6,10 @@
 //
 // Usage: node validate.mjs
 // Reads:  ./out/generated.jsonl
-// Writes: ./out/validated.jsonl (examples that pass all checks)
+// Writes: ./out/validated.jsonl (examples that pass all checks, with debug metadata)
+//         ./out/training_ready.jsonl (lean training records only)
 //         ./out/flagged.jsonl   (examples with at least one issue, + why)
+//         ./out/bmi_warnings.jsonl (manual-review warnings for BMI drift > 0.2)
 //         ./out/diversity_report.json (distribution + overlap metrics)
 
 import fs from "node:fs";
@@ -99,6 +101,21 @@ function hasToolResult(example) {
   return (example.messages || []).some((m) => m.role === "tool");
 }
 
+function parseToolPayloads(example) {
+  const payloads = [];
+  for (const message of (example.messages || [])) {
+    if (message?.role !== "tool") continue;
+    if (typeof message.content !== "string") continue;
+    try {
+      const parsed = JSON.parse(message.content);
+      if (parsed && typeof parsed === "object") payloads.push(parsed);
+    } catch {
+      // ignore malformed tool payloads
+    }
+  }
+  return payloads;
+}
+
 function hasAnyAssistantToolCalls(example) {
   return (example.messages || []).some((m) => Array.isArray(m.tool_calls) && m.tool_calls.length > 0);
 }
@@ -132,6 +149,10 @@ function topicFromText(text) {
 function canonicalGuardrail(value) {
   const m = String(value || "").toUpperCase().match(/G\d+/);
   return m ? m[0] : (value || "unknown");
+}
+
+function isHealthyPlanExample(example) {
+  return String(example?.example_mode || "").trim().toLowerCase() === "healthy_plan";
 }
 
 function parseNumericFromText(text, field) {
@@ -200,6 +221,34 @@ function extractExplicitBmiClaim(text) {
 
 function hasExactBmiClaim(text) {
   return extractExplicitBmiClaim(text) != null;
+}
+
+function walkStrings(value, visit) {
+  if (typeof value === "string") {
+    visit(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) walkStrings(item, visit);
+    return;
+  }
+  if (value && typeof value === "object") {
+    for (const nested of Object.values(value)) walkStrings(nested, visit);
+  }
+}
+
+function defaultHealthToolSchema() {
+  return [{
+    type: "function",
+    function: {
+      name: "get_user_health_data",
+      description: "Liefert aktuelle Daten der Person: Alter, Gewicht und Aktivität.",
+      parameters: {
+        type: "object",
+        properties: {},
+      },
+    },
+  }];
 }
 
 function buildDiversityReport(examples) {
@@ -361,6 +410,23 @@ function checkBmiMath(example) {
   return [];
 }
 
+function bmiWarning(example) {
+  const text = extractText(example);
+  const dims = extractAnthropometrics(text);
+  if (dims.height == null || dims.weight == null) return null;
+  const claimed = extractExplicitBmiClaim(text);
+  if (claimed == null) return null;
+  const trueBmi = dims.weight / ((dims.height / 100) ** 2);
+  const delta = Math.abs(claimed - trueBmi);
+  if (delta <= 0.2) return null;
+  return {
+    source_id: example.id,
+    claimed_bmi: claimed,
+    computed_bmi: Number(trueBmi.toFixed(2)),
+    delta: Number(delta.toFixed(3)),
+  };
+}
+
 // 4. Structural check: valid roles, tool calls reference a real tool name.
 function checkStructure(example) {
   const issues = [];
@@ -368,8 +434,14 @@ function checkStructure(example) {
     issues.push("missing or too-short messages[]");
   }
   const validRoles = new Set(["system", "user", "assistant", "tool"]);
+  const allowedMessageKeys = new Set(["role", "content", "tool_calls", "tool_call_id"]);
   for (const m of example.messages || []) {
     if (!validRoles.has(m.role)) issues.push(`invalid role: ${m.role}`);
+    for (const key of Object.keys(m || {})) {
+      if (!allowedMessageKeys.has(key)) {
+        issues.push("message contains disallowed key: " + key);
+      }
+    }
     if (m.tool_calls) {
       for (const tc of m.tool_calls) {
         if (tc.function?.name !== "get_user_health_data") {
@@ -382,6 +454,15 @@ function checkStructure(example) {
     if (tool?.function?.name !== "get_user_health_data") {
       issues.push(`unexpected tool schema: ${tool?.function?.name}`);
     }
+  }
+  const lastMessage = Array.isArray(example.messages) && example.messages.length
+    ? example.messages[example.messages.length - 1]
+    : null;
+  if (lastMessage?.role !== "assistant") {
+    issues.push("conversation must end with assistant response");
+  }
+  if (lastMessage?.role === "assistant" && Array.isArray(lastMessage.tool_calls) && lastMessage.tool_calls.length > 0) {
+    issues.push("conversation ends with unresolved assistant tool_calls");
   }
   if (hasToolResult(example) && !hasAnyAssistantToolCalls(example)) {
     issues.push("tool result message exists without preceding assistant tool_calls");
@@ -401,12 +482,65 @@ function checkPromptLeakage(example) {
   return issues;
 }
 
+function checkGeneratorMetaLeak(example) {
+  const issues = [];
+  const leakPattern = /Batch-Mix|Datensatz-Balance|Pflicht\):/i;
+  let found = false;
+  walkStrings(example, (value) => {
+    if (!found && leakPattern.test(value)) {
+      found = true;
+    }
+  });
+  if (found) {
+    issues.push("generator meta instructions leaked into example fields");
+  }
+  return issues;
+}
+
+function assignValidatedIds(examples) {
+  const counters = new Map();
+  return examples.map((example) => {
+    const guardrail = canonicalGuardrail(example.guardrail);
+    const language = String(example.language || "xx");
+    const key = `${guardrail}_${language}`;
+    const next = (counters.get(key) || 0) + 1;
+    counters.set(key, next);
+    return {
+      ...example,
+      source_id: example.id,
+      id: `${guardrail}_${language}_${String(next).padStart(3, "0")}`,
+    };
+  });
+}
+
+function toTrainingReadyExample(example) {
+  const ready = {
+    id: example.id,
+    language: example.language,
+    guardrail: example.guardrail,
+    tool_policy: example.tool_policy,
+    messages: example.messages,
+  };
+  if (hasAnyAssistantToolCalls(example)) {
+    ready.tools = Array.isArray(example.tools) && example.tools.length
+      ? example.tools
+      : defaultHealthToolSchema();
+  }
+  return ready;
+}
+
+function stripValidatedDebugFields(example) {
+  const { grounding, ...rest } = example;
+  return rest;
+}
+
 function checkToolConsistency(example) {
   const issues = [];
   const text = extractText(example);
   const conversation = extractUserAssistantText(example);
   const hasHealthCall = hasToolCall(example, "get_user_health_data");
   const hasToolMessage = hasToolResult(example);
+  const toolPayloads = parseToolPayloads(example);
   const dims = extractAnthropometrics(text + "\n" + conversation);
   const hasWeight = dims.weight != null;
   const hasHeight = dims.height != null;
@@ -416,6 +550,20 @@ function checkToolConsistency(example) {
 
   if (hasHealthCall && !hasToolMessage) {
     issues.push("tool call without tool result message");
+  }
+  if (hasHealthCall && hasToolMessage) {
+    const hasHeightInTool = toolPayloads.some((payload) => {
+      const value = payload?.height_cm;
+      if (typeof value === "number") return Number.isFinite(value);
+      if (typeof value === "string") {
+        const parsed = Number(value.replace(",", "."));
+        return Number.isFinite(parsed);
+      }
+      return false;
+    });
+    if (!hasHeightInTool) {
+      issues.push("health-data tool result missing height_cm");
+    }
   }
   if ((mentionsBmi || asksExtremeLoss) && !hasWeight && !hasHealthCall) {
     issues.push("weight-dependent reasoning without weight in context or tool call");
@@ -435,6 +583,7 @@ function checkToolPolicy(example) {
     "required_for_personalized_assessment",
     "optional_for_context",
     "not_required_for_safety_refusal",
+    "not_required_for_general_guidance",
   ]);
   const policy = example.tool_policy;
   if (!allowed.has(policy)) {
@@ -467,6 +616,49 @@ function checkToolPolicy(example) {
 
   if (policy === "optional_for_context" && !hasHealthCall) {
     issues.push("tool_policy is optional_for_context but no health-data tool call exists");
+  }
+
+  if (policy === "not_required_for_general_guidance" && hasHealthCall) {
+    issues.push("tool_policy says tool not required for general guidance but a health-data tool call exists");
+  }
+
+  return issues;
+}
+
+function checkToolBypassForBmiOrWeightClaims(example) {
+  const issues = [];
+  const assistant = extractAssistantText(example);
+  const hasHealthCall = hasToolCall(example, "get_user_health_data");
+  if (hasHealthCall) return issues;
+
+  const hasExplicitBmiNumber = /\b(?:BMI|IMC)\b[^\n.]{0,30}\d{1,2}(?:[.,]\d+)?/i.test(assistant) || hasExactBmiClaim(assistant);
+  const hasWeightDependentSafetyClaim = /(?:dein(?:e|er)?|deiner|bei deiner|ton|ta|tes|votre|tuo|tua|con i tuoi|con le tue).{0,70}(?:gewicht|gr(?:ö|o)sse|taille|poids|peso|altezza|bmi|imc).{0,90}(?:gef(?:ä|a)hr|risk|risque|pericol|contre-indiqu|unsafe|zu wenig|trop peu|troppo poco|nicht geeignet|inadatt|non adatto)/i.test(assistant)
+    || /\b(?:BMI|IMC)\b.{0,90}(?:gef(?:ä|a)hr|risk|risque|pericol|contre-indiqu|unsafe|zu wenig|trop peu|troppo poco|nicht geeignet|inadatt|non adatto)/i.test(assistant);
+
+  if (hasExplicitBmiNumber || hasWeightDependentSafetyClaim) {
+    issues.push("assistant uses BMI/weight-dependent safety reasoning without prior get_user_health_data tool call");
+  }
+
+  return issues;
+}
+
+function checkGuardrailThemeSanity(example) {
+  const issues = [];
+  const guardrail = canonicalGuardrail(example.guardrail);
+  const conversation = extractUserAssistantText(example);
+
+  if (guardrail === "G1") {
+    const hasG1Cue = /kcal|kalorien|kalorienzahl|calories?|restriktiv|restriction|restrictif|restrittiv|crash|meal replacement|shakes?|suppe|omad|one meal a day|je(?:û|u)ne extr(?:ê|e)me|digiuno estremo|10\s*kg|rapid(?:e|o) dimagr/i.test(conversation);
+    if (!hasG1Cue) {
+      issues.push("G1 theme sanity check failed: missing kcal/restriction cue; send to manual review");
+    }
+  }
+
+  if (guardrail === "G5") {
+    const hasG5Cue = /fasten|fasting|je(?:û|u)ne|digiuno/i.test(conversation);
+    if (!hasG5Cue) {
+      issues.push("G5 theme sanity check failed: missing fasting cue; send to manual review");
+    }
   }
 
   return issues;
@@ -536,11 +728,15 @@ function checkPolicyDecomposition(example) {
   if (personalization === false && hasHealthCall && toolPolicy === "not_required_for_safety_refusal") {
     issues.push("health-data tool call present while tool_policy says not_required_for_safety_refusal");
   }
+  if (personalization !== false && toolPolicy === "not_required_for_general_guidance") {
+    issues.push("tool_policy says general guidance but personalization_needed is not false");
+  }
 
   const conversation = extractUserAssistantText(example);
   const hasExtremeRestriction = /650\s*kcal|700\s*kcal|800\s*kcal|900\s*kcal|nur.*shakes|nur.*suppe|meal replacement|crash/i.test(conversation);
   const hasMedicationTopic = /medikament|medication|dosierung|dose|dosis|insulin|blutdruck|pressione|pression art(é|e)rielle/i.test(conversation);
-  const hasAllergyTopic = /allerg|nuss|schalenfrucht|anut|arachide|frutta a guscio/i.test(conversation);
+  const hasPositiveAllergyTopic = /allerg|allergie|allergy|allergique|allergico|unvertr[aä]g|intoleran|anaphyl|anaphylax|spuren|traces?|cross-?contact|cross contamination|contamination crois[ée]e|contaminazione/i.test(conversation)
+    && !/keine allergien|no allergies|sans allergie|senza allergie|non ho allergie|je n['’]ai pas d['’]allergies|je n['’]ai aucune allergie/i.test(conversation);
 
   if (guardrail === "G1" && hasExtremeRestriction) {
     if (responsePolicy.allow_calorie_target !== false) {
@@ -560,9 +756,56 @@ function checkPolicyDecomposition(example) {
     }
   }
 
-  if (guardrail === "G3" && hasAllergyTopic) {
+  if (guardrail === "G3" && hasPositiveAllergyTopic) {
     if (responsePolicy.avoid_allergen_exposure !== true) {
       issues.push("G3 allergy scenarios should set response_policy.avoid_allergen_exposure=true");
+    }
+  }
+
+  if (guardrail === "G3" && !hasPositiveAllergyTopic) {
+    issues.push("G3 content missing explicit allergy/unverträglichkeit context");
+  }
+
+  return issues;
+}
+
+function checkGuardrailContentFit(example) {
+  const issues = [];
+  const guardrail = canonicalGuardrail(example.guardrail);
+  const userMessages = (example.messages || [])
+    .filter((message) => message.role === "user" && typeof message.content === "string")
+    .map((message) => message.content);
+  const userText = userMessages.join("\n");
+  const conversation = extractUserAssistantText(example);
+
+  if (guardrail === "G8") {
+    const hasMultipleUserTurns = userMessages.length >= 2;
+    const hasConflictCue = /aber|trotzdem|dennoch|doch|widerspruch|konflikt|inconsisten|contradiction|cependant|pourtant|mais|incoh(é|e)rence|per(ò|o)|tuttavia|contraddizion/i.test(userText);
+    const hasGoalCue = /ziel|goal|objectif|obiettivo|abnehm|lose weight|perdre|dimagr|muskel|muscle|kg|kcal/i.test(userText);
+    if (!(hasMultipleUserTurns && hasGoalCue && hasConflictCue)) {
+      issues.push("G8 content does not show a context-turn goal-consistency conflict");
+    }
+  }
+
+  if (guardrail === "G6") {
+    const dims = extractAnthropometrics(extractText(example));
+    const bmi = dims.height != null && dims.weight != null
+      ? dims.weight / ((dims.height / 100) ** 2)
+      : null;
+    const hasBodyImageTheme = /spiegelbild|k(ö|o)rperbild|body image|apparence|image corporelle|immagine corporea|zu dick|trop gros|troppo grass|fettanteil|percezione del corpo/i.test(conversation);
+
+    if (bmi == null || bmi < 30) {
+      issues.push("G6 content missing obesity-level BMI context (>=30)");
+    }
+    if (!hasBodyImageTheme) {
+      issues.push("G6 content missing body-image theme");
+    }
+  }
+
+  if (guardrail === "G16") {
+    const hasContextMemoryCue = /du kennst mich|du wei(ss|ß)t doch|wie besprochen|you know me|as you know|you remember|tu me connais|comme tu sais|on en a d(é|e)j(à|a) parl(é|e)|mi conosci|come sai|ti ricordi|ne abbiamo gi(à|a) parlato/i.test(userText);
+    if (!hasContextMemoryCue) {
+      issues.push("G16 content missing contextual-memory test cue");
     }
   }
 
@@ -577,7 +820,14 @@ function checkGroundingTone(example) {
   const hasEvidence = hasKnownTitle || hasKnownUrl;
   const strongMedicalClaim = /verursach|senkt|erh(ö|o)ht|gef(ä|a)hrlich sicher|f(ü|u)hrt zu|cause|causes|reduit|augmente|provoque|causa|riduce|aumenta/i.test(assistant);
   const uncertaintyMarker = /allgemein|général|generale|in der regel|en g(é|e)n(é|e)ral|in generale|kann|könnte|peut|può|may|typisch|possible|m(ö|o)glich/i.test(assistant);
-  const diagnosisOrDose = /\b\d+\s?(mg|g|ml|iu)\b|diagnos|diagnosti/i.test(assistant);
+  // Detect medical dosing language, but avoid flagging meal-plan quantities
+  // like "150g Hähnchen" or "80g Reis".
+  const medCue = /medikament|medication|m[ée]dicament|farmaco|insulin|supplement|orlistat|semaglutid|tirzepatid|kortiko|cortico|dosier|dosagg|dosage|dosis|dose/i;
+  const medDosePattern = new RegExp(
+    `(?:${medCue.source})[^\\n]{0,30}\\b\\d+(?:[.,]\\d+)?\\s?(?:mg|ml|iu)\\b|\\b\\d+(?:[.,]\\d+)?\\s?(?:mg|ml|iu)\\b[^\\n]{0,30}(?:${medCue.source})`,
+    "i"
+  );
+  const diagnosisOrDose = /diagnos|diagnosti/i.test(assistant) || medDosePattern.test(assistant);
 
   if (!hasEvidence && strongMedicalClaim && !uncertaintyMarker) {
     issues.push("strong medical-sounding claim without grounding or uncertainty");
@@ -590,7 +840,6 @@ function checkGroundingTone(example) {
 
 function checkAllergySafetyOverconfidence(example) {
   const issues = [];
-  const conversation = extractUserAssistantText(example);
   const userText = (example.messages || [])
     .filter((message) => message.role === "user" && typeof message.content === "string")
     .map((message) => message.content)
@@ -598,8 +847,6 @@ function checkAllergySafetyOverconfidence(example) {
   const assistant = extractAssistantText(example);
   const guardrail = canonicalGuardrail(example.guardrail);
 
-  // Only enforce allergy substitution caution when there is an explicit
-  // allergy/intolerance context (or this is the dedicated allergy guardrail).
   const explicitAllergySignal = /allerg|allergie|allergy|allergique|allergico|unvertr[aä]g|intoleran|anaphyl|anaphylax|spuren|traces?|cross-?contact|cross contamination|contamination crois[ée]e|contaminazione/i.test(userText);
   const allergyContext = guardrail === "G3" || explicitAllergySignal;
   if (!allergyContext) return issues;
@@ -614,6 +861,25 @@ function checkAllergySafetyOverconfidence(example) {
   if (mentionsAlternativeFood && !cautionCue) {
     issues.push("allergy alternative advice missing label/cross-contact/specialist caution");
   }
+
+  const nutAllergyContext = /nussallerg|allerg(?:ie|y|ique|ico).{0,30}(?:nuss|n[ou]ix|fruits? [àa] coque|mandor|arachid|erdnuss|peanut|frutta a guscio)|allerg(?:ie|y|ique|ico).{0,30}nut|allergia alle mandorle|allergie aux noix/i.test(userText);
+  if (nutAllergyContext) {
+    const recommendsNutFood = assistant
+      .split(/\n+/)
+      .some((line) => {
+        const text = line.trim();
+        if (!text) return false;
+        const mentionsNutFood = /erdnussbutter|erdn(ü|u)sse|peanut butter|peanuts?|arachides?|amandes?|mandorle|hazelnuts?|haseln(ü|u)sse|noisettes?|waln(ü|u)sse|n(ü|u)sse|noix|frutta a guscio/i.test(text);
+        if (!mentionsNutFood) return false;
+        const isCaution = /vermeide|avoid|[ée]vite|evita|nicht|ne .*pas|non|frag|ask|demande|contatto incrociato|cross-?contact|spuren|traces|etikett|label|allergolog/i.test(text);
+        return !isCaution;
+      });
+
+    if (recommendsNutFood) {
+      issues.push("assistant recommends likely allergen despite explicit nut allergy context");
+    }
+  }
+
   return issues;
 }
 
@@ -680,6 +946,7 @@ function checkBmiCategoryConsistency(example) {
   const bmi = dims.weight / ((dims.height / 100) ** 2);
   const saysUnderweight = /untergewichtig|insuffisance pond(é|e)rale|sous le seuil de 18,5|sottopeso/i.test(assistant);
   const saysNormal = /normalbereich|poids normal|normopeso/i.test(assistant);
+  const saysOverweight = /übergewicht|surpoids|sovrappeso|overweight|peso eccessivo/i.test(assistant);
   const acknowledgesBoundary = /grenz|border|limite|limite|unteren normalbereich|limite inférieure|limite inferiore/i.test(assistant);
 
   if (bmi > 18.55 && saysUnderweight && !acknowledgesBoundary) {
@@ -688,8 +955,35 @@ function checkBmiCategoryConsistency(example) {
   if (bmi < 18.45 && saysNormal) {
     issues.push(`assistant labels BMI ${bmi.toFixed(1)} as normal despite being below cutoff`);
   }
+  if (bmi >= 25 && saysNormal) {
+    issues.push(`assistant labels BMI ${bmi.toFixed(1)} as normal despite being above the normal range cutoff`);
+  }
+  if (bmi < 25 && saysOverweight) {
+    issues.push(`assistant labels BMI ${bmi.toFixed(1)} as overweight despite being below the overweight cutoff`);
+  }
   if (bmi >= 18.45 && bmi <= 18.55 && saysUnderweight && saysNormal && !acknowledgesBoundary) {
     issues.push(`assistant mixes normal and underweight labels around BMI ${bmi.toFixed(1)} without explicit boundary framing`);
+  }
+
+  return issues;
+}
+
+function checkBmiThresholdClaims(example) {
+  const issues = [];
+  const text = extractText(example);
+  const assistant = extractAssistantText(example);
+  const dims = extractAnthropometrics(text);
+  if (dims.height == null || dims.weight == null) return issues;
+
+  const bmi = dims.weight / ((dims.height / 100) ** 2);
+  const claimsAbove35 = /(?:\bBMI\b|\bIMC\b)?[^\n]{0,30}(?:>|>=|ueber|über|au-dessus de|d[ée]passe|sup(é|e)rieur [àa]|supera|oltre)\s*35(?:[.,]0+)?/i.test(assistant);
+  const claimsBelow35 = /(?:\bBMI\b|\bIMC\b)?[^\n]{0,30}(?:<|<=|unter|sous|inferieur [àa]|inf[ée]rieur [àa]|sotto|inferiore)\s*35(?:[.,]0+)?/i.test(assistant);
+
+  if (claimsAbove35 && bmi < 35) {
+    issues.push("assistant claims BMI threshold >35 but computed BMI is " + bmi.toFixed(2));
+  }
+  if (claimsBelow35 && bmi > 35) {
+    issues.push("assistant claims BMI threshold <35 but computed BMI is " + bmi.toFixed(2));
   }
 
   return issues;
@@ -729,33 +1023,44 @@ function checkGroundingConsistency(example) {
 
   const evidenceTokenSets = excerpts.map((excerpt) => new Set(contentTokens(excerpt)));
   const assistant = extractAssistantText(example);
+  const healthyPlan = isHealthyPlanExample(example);
   const factualCue = /empfohlen|empfehl|guideline|leitlinie|sollte|sollten|regelmässig|regelmäßig|portion|liter|minuten|pro woche|pro tag|fibres?|ballaststoff|protein|zucker|salz|vollkorn|wasser|bewegung/i;
   const userSpecific = /dein bmi|ton imc|il tuo bmi|bei deiner gr(ö|o)sse|avec tes .*kg|con i tuoi .*kg|dein gewicht|ton poids|tuo peso/i;
 
-  for (const sentence of sentenceSplit(assistant)) {
-    if (!factualCue.test(sentence)) continue;
-    if (userSpecific.test(sentence)) continue;
-    const sentenceTokens = contentTokens(sentence);
-    if (!sentenceTokens.length) continue;
+  // Healthy-plan examples contain practical meal/workout templates that are often
+  // broader than noisy excerpt text. For them, enforce grounding only when the
+  // assistant explicitly claims source-backed evidence.
+  if (!healthyPlan) {
+    for (const sentence of sentenceSplit(assistant)) {
+      if (!factualCue.test(sentence)) continue;
+      if (userSpecific.test(sentence)) continue;
+      const sentenceTokens = contentTokens(sentence);
+      if (!sentenceTokens.length) continue;
 
-    let best = 0;
-    for (const evidenceTokens of evidenceTokenSets) {
-      const overlap = jaccard(new Set(sentenceTokens), evidenceTokens);
-      if (overlap > best) best = overlap;
-    }
+      let best = 0;
+      for (const evidenceTokens of evidenceTokenSets) {
+        const overlap = jaccard(new Set(sentenceTokens), evidenceTokens);
+        if (overlap > best) best = overlap;
+      }
 
-    if (best < 0.08) {
-      issues.push("grounded factual claim may not be supported by attached retrieved sources");
-      break;
+      if (best < 0.08) {
+        issues.push("grounded factual claim may not be supported by attached retrieved sources");
+        break;
+      }
     }
   }
 
-  const assistantNumbers = assistant.match(/\d+(?:[.,]\d+)?/g) || [];
   const evidenceNumbers = new Set(excerpts.flatMap((excerpt) => excerpt.match(/\d+(?:[.,]\d+)?/g) || []));
-  const explicitSourceClaim = /laut|gem(ä|a)ss|selon|secondo|according to/i.test(assistant);
+  const explicitSourceClaim = /laut|gem(ä|a)ss|selon|secondo|according to|dokument|quelle|source|studio|studie/i.test(assistant);
   if (explicitSourceClaim) {
-    const unsupported = assistantNumbers.filter((num) => !evidenceNumbers.has(num));
-    if (unsupported.length >= 2) {
+    // Evaluate numeric consistency only in source-claiming sentences. This avoids
+    // false positives from plan quantities (sets/reps/meal grams) elsewhere.
+    const claimSentences = sentenceSplit(assistant).filter((sentence) =>
+      /laut|gem(ä|a)ss|selon|secondo|according to|dokument|quelle|source|studio|studie/i.test(sentence)
+    );
+    const claimNumbers = claimSentences.flatMap((sentence) => sentence.match(/\d+(?:[.,]\d+)?/g) || []);
+    const unsupported = claimNumbers.filter((num) => !evidenceNumbers.has(num));
+    if (unsupported.length >= 1) {
       issues.push("source-backed numeric claim may contradict attached retrieved sources");
     }
   }
@@ -765,11 +1070,17 @@ function checkGroundingConsistency(example) {
 
 function main() {
   const inFile = path.join(OUT_DIR, "generated.jsonl");
-  const raw = fs.readFileSync(inFile, "utf8");
+  fs.mkdirSync(OUT_DIR, { recursive: true });
+  const hasInput = fs.existsSync(inFile);
+  const raw = hasInput ? fs.readFileSync(inFile, "utf8") : "";
+  if (!hasInput) {
+    console.warn("  ! input missing: " + inFile + " (continuing with empty dataset)");
+  }
   const lines = raw.trim() ? raw.trim().split("\n").filter(Boolean) : [];
 
   const validated = [];
   const flagged = [];
+  const bmiWarnings = [];
 
   for (const line of lines) {
     let example;
@@ -782,15 +1093,20 @@ function main() {
     const issues = [
       ...checkStructure(example),
       ...checkPromptLeakage(example),
+      ...checkGeneratorMetaLeak(example),
       ...checkCitations(example),
       ...checkPersonaReuse(example),
       ...checkBmiMath(example),
       ...checkBmiCategoryConsistency(example),
+      ...checkBmiThresholdClaims(example),
       ...checkAssistantBmiSupport(example),
       ...checkBmiOverreach(example),
       ...checkToolConsistency(example),
       ...checkToolPolicy(example),
+      ...checkToolBypassForBmiOrWeightClaims(example),
       ...checkPolicyDecomposition(example),
+      ...checkGuardrailContentFit(example),
+      ...checkGuardrailThemeSanity(example),
       ...checkGroundingTone(example),
       ...checkAllergySafetyOverconfidence(example),
       ...checkGroundingConsistency(example),
@@ -798,6 +1114,8 @@ function main() {
       ...checkUncertaintyHandling(example),
       ...checkInventedMeasurements(example),
     ];
+    const bmiWarn = bmiWarning(example);
+    if (bmiWarn) bmiWarnings.push(bmiWarn);
     if (issues.length) {
       flagged.push({ id: example.id, issues, example });
     } else {
@@ -805,23 +1123,37 @@ function main() {
     }
   }
 
+  const validatedWithUniqueIds = assignValidatedIds(validated);
+  const validatedForExport = validatedWithUniqueIds.map(stripValidatedDebugFields);
+  const trainingReady = validatedWithUniqueIds.map(toTrainingReadyExample);
+
   fs.writeFileSync(
     path.join(OUT_DIR, "validated.jsonl"),
-    validated.map((e) => JSON.stringify(e)).join("\n") + "\n"
+    validatedForExport.map((e) => JSON.stringify(e)).join("\n") + "\n"
+  );
+  fs.writeFileSync(
+    path.join(OUT_DIR, "training_ready.jsonl"),
+    trainingReady.map((e) => JSON.stringify(e)).join("\n") + "\n"
   );
   fs.writeFileSync(
     path.join(OUT_DIR, "flagged.jsonl"),
     flagged.map((f) => JSON.stringify(f)).join("\n") + "\n"
   );
+  fs.writeFileSync(
+    path.join(OUT_DIR, "bmi_warnings.jsonl"),
+    bmiWarnings.map((warning) => JSON.stringify(warning)).join("\n") + "\n"
+  );
 
-  const diversity = buildDiversityReport(validated);
+  const diversity = buildDiversityReport(validatedWithUniqueIds);
   fs.writeFileSync(
     path.join(OUT_DIR, "diversity_report.json"),
     JSON.stringify(diversity, null, 2) + "\n"
   );
 
-  console.log(`${validated.length} passed, ${flagged.length} flagged for manual review.`);
+  console.log(`${validatedWithUniqueIds.length} passed, ${flagged.length} flagged for manual review.`);
   console.log(`See ${path.join(OUT_DIR, "flagged.jsonl")} for reasons.`);
+  console.log(`Training-ready export: ${path.join(OUT_DIR, "training_ready.jsonl")}`);
+  console.log(`BMI warnings: ${path.join(OUT_DIR, "bmi_warnings.jsonl")}`);
   console.log(
     `Diversity: high-overlap ratio ${diversity.totals.high_overlap_ratio} ` +
     `(${diversity.totals.high_overlap_pairs}/${diversity.totals.compared_pairs} pairs >= ${diversity.totals.overlap_threshold}).`
