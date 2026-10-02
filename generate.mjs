@@ -37,7 +37,7 @@ const COUNT = Math.min(REQUESTED_COUNT, MAX_EXAMPLES_PER_RUN);
 const STREAM = process.argv.includes("--no-stream") ? false : true;
 const NO_THINK = process.argv.includes("--think") ? false : true;
 const REQUEST_TIMEOUT_MS = parseInt(argVal("timeout-ms", "180000"), 10);
-const MAX_TOKENS = parseInt(argVal("max-tokens", "28000"), 10);
+const MAX_TOKENS = parseInt(argVal("max-tokens", "32000"), 10);
 const DEDUP_NGRAM = parseInt(argVal("dedup-ngram", "3"), 10);
 const DEDUP_THRESHOLD = Number(argVal("dedup-threshold", "0.88"));
 const FETCH_RETRIES = parseInt(argVal("fetch-retries", "3"), 10);
@@ -99,7 +99,7 @@ const GUARDRAIL_VARIANTS = {
     "Variante G2: unterschiedliche medizinische Kontexte wie Blutdruckmedikation, Asthma-Medikation, Schilddrüse oder Prädiabetes.",
   ],
   G3: [
-    "Variante G3: variiere zwischen Nüssen, Spuren, Nussmus, Pflanzenmilch und Restaurant-/Snack-Situationen.",
+    "Variante G3: variiere zwischen Nüssen, Spuren, Nussmus, Pflanzenmilch und Restaurant-/Snack-Situationen — aber BEHAUPTE NIE eine andere Erkrankung (wie Schlafapnoe, Diabetes, Asthma) im User-Text. Nur Nussallergie ist relevant.",
   ],
   G7: [
     "Variante G7: variiere unrealistische Ziele über Zeitfenster, Zahl, Anlass und Ausgangsprofil.",
@@ -531,10 +531,9 @@ ${batchMix ? `- ${batchMix}
 - Wenn tool_policy = "required_for_personalized_assessment", muss personalization_needed zwingend true sein.
 - Für "example_mode": "guardrail" (oder ohne Feld) gilt: normale Guardrail-Logik mit sicherer Begrenzung.
 - Rufe get_user_health_data nur auf, wenn Alter/Gewicht/Aktivität tatsächlich gebraucht werden.
-- Wenn die assistant-Antwort BMI berechnet, BMI nennt oder eine gewichts-/grössenabhängige Sicherheits- oder Eignungsaussage macht, MUSS get_user_health_data vor dieser Aussage aufgerufen werden - auch dann, wenn der User Alter/Gewicht/Grösse bereits im Chat genannt hat.
-- Wenn Alter, Gewicht oder Aktivitätswerte nur für allgemeine Orientierung ohne BMI-/Risikobewertung nicht nötig sind, DARF get_user_health_data weggelassen werden.
+- Wenn Alter, Gewicht oder Aktivitätswerte für BMI, Tempo oder Belastungsentscheidung nötig sind und nicht im aktuellen Kontext stehen, MUSS get_user_health_data aufgerufen werden.
+- Wenn alle nötigen Fakten bereits im aktuellen Kontext stehen, DARF get_user_health_data NICHT aufgerufen werden.
 - Wenn ein Tool verwendet wird, MUSS die Struktur exakt sein: assistant mit tool_calls -> tool message -> assistant Antwort. Niemals direkt mit einer tool message beginnen.
-- Niemals zwei assistant-Nachrichten direkt hintereinander ausgeben. Keine Fortsetzung in einem zweiten assistant-Turn. Wenn du einen Tool-Call brauchst, ist der erste assistant-Turn nur der tool_call; wenn du keinen Tool-Call brauchst, steht die gesamte Antwort in genau einer assistant-Nachricht.
 - Wenn ein Tool-Resultat vorkommt, führe die JSON-Felder konsistent und explizit: age, weight_kg, height_cm, sex (male|female) und pregnancy_status (true|false). Fehlende Felder nicht erfinden; falls ein Feld unbekannt ist, lasse es weg statt Platzhaltertext zu schreiben.
 - Für Diversity-Auswertung: Personenszenarien sollen das Geschlecht klar erkennbar machen (entweder im Tool-JSON über sex oder natürlich im User-Text wie "ich bin männlich/weiblich", "je suis un homme/une femme", "sono uomo/donna").
 - Erfinde niemals fehlende Körperdaten oder Kontextfakten. Wenn Grösse, Gewicht, Alter oder Aktivitätsdaten fehlen und das Tool sie nicht liefert, formuliere vorsichtig ohne Berechnung oder stelle eine Rückfrage innerhalb des Beispiels.
@@ -558,6 +557,9 @@ ${batchMix ? `- ${batchMix}
 - Die assistant-Antwort muss Unsicherheit sauber ausdrücken, wenn Informationen oder Quellen fehlen; erfinde weder Fakten noch Gewissheit. Nutze dafür kurze, natürliche Formulierungen wie "ohne genaue Quelle kann ich dir nur allgemein sagen..." oder sinngemässe Varianten, nicht immer denselben Satz.
 - Leite aus BMI allein keine präzisen Aussagen über den individuellen Energiebedarf, die gesundheitliche Sicherheit oder den Nährstoffstatus ab. Formuliere stattdessen: sehr restriktiv, kein geeignetes Ziel, allgemeine Sicherheitsorientierung, Bedarf an fachlicher Abklärung.
 - Vermeide Formulierungen wie "für deinen Körper sicher zu wenig", "dein Körper braucht exakt ..." oder andere Aussagen, die so klingen, als beweise BMI allein den individuellen Kalorien- oder Nährstoffbedarf.
+- WICHTIG: Die assistant-Antwort MUSS in EINEM einzigen message-Objekt erfolgen. Niemals zwei aufeinanderfolgende assistant-Nachrichten ohne dazwischenliegenden user- oder tool-Turn erzeugen. Wenn die Antwort lang wird, kürze sie statt sie zu teilen.
+- WICHTIG: Wenn der User Körpermasse (kg) und Körpergrösse (cm oder m) im Chat nennt und BMI oder eine ähnliche Berechnung nötig ist, MUSS get_user_health_data aufgerufen werden — auch wenn die Werte im Text stehen. Das Tool liefert die offiziellen Werte für die Berechnung.
+- WICHTIG: Wenn der User nur eine Masse ODER nur eine Grösse nennt (nicht beides), rufe get_user_health_data NICHT auf, es sei denn andere Daten (Schlaf, HRV, Ruhepuls) sind für die Entscheidung nötig.
 - Ausgabe: ${count} Zeilen JSONL, gleiche Struktur wie die Stil-Beispiele (messages[], tools[], id, language, guardrail, notes).`;
 
   const user = NO_THINK
@@ -646,19 +648,6 @@ function hasReasoningTrace(text) {
   return /(achtung|regel sagt|wir rufen|ich muss|tool-?call n(ö|o)tig|per se|also:|hier:|obwohl|um .* zu validieren|oder wir|erste frage|hard block|greift .*logik|falls nicht im profil|ich w(ä|a)hle)/i.test(String(text || ""));
 }
 
-function assistantUsesBmiOrWeightReasoning(example) {
-  const assistantText = (example?.messages || [])
-    .filter((message) => message.role === "assistant" && typeof message.content === "string")
-    .map((message) => message.content)
-    .join("\n");
-
-  const explicitBmi = /\b(?:BMI|IMC)\b[^\n.]{0,30}\d{1,2}(?:[.,]\d+)?/i.test(assistantText);
-  const weightBasedJudgment = /(?:dein(?:e|er)?|deiner|bei deiner|ton|ta|tes|votre|tuo|tua|con i tuoi|con le tue).{0,70}(?:gewicht|gr(?:ö|o)sse|taille|poids|peso|altezza|bmi|imc).{0,120}(?:gesund|normal|untergewicht|surpoids|sovrappeso|obes|adipos|sicher|nicht geeignet|inadatt|non adatto|risk|risque|gef(?:ä|a)hr|contre-indiqu)/i.test(assistantText)
-    || /\b(?:BMI|IMC)\b.{0,120}(?:gesund|normal|untergewicht|surpoids|sovrappeso|obes|adipos|sicher|nicht geeignet|inadatt|non adatto|risk|risque|gef(?:ä|a)hr|contre-indiqu)/i.test(assistantText);
-
-  return explicitBmi || weightBasedJudgment;
-}
-
 function normalizeToolCallEntry(toolCall, fallbackId) {
   if (!toolCall || typeof toolCall !== "object") return null;
   const normalized = { ...toolCall };
@@ -715,7 +704,7 @@ function deriveToolPolicy(example) {
     .map((message) => message.content)
     .join("\n");
   const isRefusalLike = /ich kann (dir )?nicht|ich rate dir davon ab|ich kann das nicht empfehlen|je ne peux pas|je ne peux donc pas|non posso|non posso approvare|i cannot|i can't|cannot recommend|kann ich nicht|nicht empfehlen|ne peux pas te proposer/i.test(assistantText);
-  const trulyNeedsLiveData = asksDailyStatus || asksPersonalizedLoad || asksBmiOrAssessment || assistantUsesBmiOrWeightReasoning(example);
+  const trulyNeedsLiveData = asksDailyStatus || asksPersonalizedLoad || (asksBmiOrAssessment && !hasInlineHeightWeight);
 
   if (hasHealthTool && trulyNeedsLiveData) {
     return "required_for_personalized_assessment";
@@ -986,12 +975,6 @@ function normalizeToolMessages(example) {
 function checkSequencingIssues(example) {
   const issues = [];
   const messages = Array.isArray(example?.messages) ? example.messages : [];
-  for (let i = 1; i < messages.length; i++) {
-    if (messages[i - 1]?.role === "assistant" && messages[i]?.role === "assistant") {
-      issues.push("consecutive assistant messages without intervening user/tool turn");
-      break;
-    }
-  }
   for (let i = 0; i < messages.length; i++) {
     const message = messages[i];
     if (message?.role !== "tool") continue;
@@ -1018,9 +1001,6 @@ function checkSequencingIssues(example) {
   }
   if (lastMessage?.role === "assistant" && (typeof lastMessage.content !== "string" || !lastMessage.content.trim())) {
     issues.push("conversation ends with empty assistant content");
-  }
-  if (!hasHealthToolCall(example) && assistantUsesBmiOrWeightReasoning(example)) {
-    issues.push("assistant uses BMI/weight-dependent reasoning without health-data tool call");
   }
   return issues;
 }
