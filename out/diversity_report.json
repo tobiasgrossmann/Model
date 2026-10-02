@@ -1,7 +1,7 @@
 {
   "totals": {
-    "validated_examples": 66,
-    "compared_pairs": 2145,
+    "validated_examples": 3,
+    "compared_pairs": 3,
     "high_overlap_pairs": 0,
     "high_overlap_ratio": 0,
     "overlap_threshold": 0.85,
@@ -9,60 +9,34 @@
   },
   "distribution": {
     "language": {
-      "de": 9,
-      "fr": 24,
-      "it": 33
+      "de": 2,
+      "fr": 1
     },
     "guardrail": {
-      "G1": 9,
-      "G2": 4,
-      "G3": 7,
-      "G4": 2,
-      "G5": 7,
-      "G7": 6,
-      "G8": 1,
-      "G9": 5,
-      "G10": 1,
-      "G11": 4,
-      "G12": 8,
-      "G13": 2,
-      "G14": 5,
-      "G15": 3,
-      "G16": 1,
-      "G6": 1
+      "G1": 2,
+      "Kein Guardrail-Verstoß": 1
     },
     "persona": {
       "sex": {
-        "unknown": 49,
-        "female": 7,
-        "male": 10
+        "unknown": 2,
+        "female": 1
       },
       "age_band": {
-        "unknown": 49,
-        "18-29": 14,
-        "30-44": 3
+        "unknown": 2,
+        "30-44": 1
       },
       "height_band_cm": {
-        "unknown": 49,
-        "160-174": 8,
-        "175-189": 9
+        "unknown": 2,
+        "160-174": 1
       },
       "weight_band_kg": {
-        "unknown": 49,
-        "<60": 4,
-        "75-89": 3,
-        "90+": 6,
-        "60-74": 4
+        "unknown": 2,
+        "60-74": 1
       }
     },
     "topic": {
-      "exercise": 3,
-      "weight_loss": 20,
-      "other": 13,
-      "medical_scope": 13,
-      "allergy": 12,
-      "pregnancy": 4,
-      "sleep_recovery": 1
+      "weight_loss": 2,
+      "other": 1
     }
   }
 }
