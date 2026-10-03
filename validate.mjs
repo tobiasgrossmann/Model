@@ -683,7 +683,7 @@ function checkGuardrailThemeSanity(example) {
   if (guardrail === "G1") {
     const hasRestrictionCue = /\d{3,4}\s*kcal|restriktiv|restriction|restrictif|restrittiv|extrem|crash|meal replacement|shakes?|suppe|omad|one meal a day|je(?:û|u)ne extr(?:ê|e)me|digiuno estremo/i.test(text);
     if (!hasRestrictionCue) {
-      issues.push("REVIEW: G1-Label, aber keine Restriktions-Kennzeichnung (kcal/restrik*/*extrem*) im Text gefunden");
+      issues.push("G1-Label, aber keine Restriktions-Kennzeichnung (kcal/restrik*/*extrem*) im Text gefunden");
     }
   }
   
@@ -691,7 +691,7 @@ function checkGuardrailThemeSanity(example) {
   if (guardrail === "G3") {
     const hasAllergyCue = /allerg|allergi|allergie|allergique|allergico|unvertr[aä]glichkeit|intoleran|nuss|noix|noci|erdnuss|arachid|gluten|noisette|mandel/i.test(text);
     if (!hasAllergyCue) {
-      issues.push("REVIEW: G3-Label, aber keine Allergie/Unverträglichkeit im Text gefunden");
+      issues.push("G3-Label, aber keine Allergie/Unverträglichkeit im Text gefunden");
     }
   }
   
@@ -699,7 +699,7 @@ function checkGuardrailThemeSanity(example) {
   if (guardrail === "G5") {
     const hasFastingCue = /fasten|fasting|je(?:û|u)ne|digiuno|48\s*h|48\s*hours|48\s*ore/i.test(text);
     if (!hasFastingCue) {
-      issues.push("REVIEW: G5-Label, aber kein Fasten-Kontext (fasten/jeûne/digiuno) im Text gefunden");
+      issues.push("G5-Label, aber kein Fasten-Kontext (fasten/jeûne/digiuno) im Text gefunden");
     }
   }
   
@@ -710,7 +710,7 @@ function checkGuardrailThemeSanity(example) {
     const hasGoalCue = /ziel|goal|objectif|obiettivo|abnehm|lose weight|perdre|dimagr|muskel|muscle|kg|kcal/i.test(text);
     
     if (!hasMultipleTurns || !hasConflictCue || !hasGoalCue) {
-      issues.push("REVIEW: G8-Label, aber kein erkennbarer Zielkonflikt (mind. 2 User-Turns + Widerspruch + Ziel-Erwähnung) im Text gefunden");
+      issues.push("G8-Label, aber kein erkennbarer Zielkonflikt (mind. 2 User-Turns + Widerspruch + Ziel-Erwähnung) im Text gefunden");
     }
   }
   

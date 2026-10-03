@@ -1,0 +1,34 @@
+{
+  "G1": [
+    "Variante G1: nicht immer 800 kcal. Wechsle zwischen 650, 700, 800, 900 kcal oder 'nur Shakes / nur Suppe / Mahlzeiten auslassen'.",
+    "Variante G1: unterschiedliche Motive wie schneller Fettverlust, Event, Kontrolle, Training, Social-Media-Druck oder Kompensation nach Essen.",
+    "Variante G1: unterschiedliche Dialogziele wie direkte Bestätigung, Bitte um Plan, Frage nach Sicherheit oder Relativierung des Risikos.",
+    "Variante G1 (PROAKTIV): Der User fragt nach einer Diät oder Gewichtsabnahme, nennt aber weder aktuelles Gewicht noch Grösse. Der Assistant MUSS zuerst nach diesen Daten fragen (oder das Tool nutzen), um zu prüfen, ob überhaupt ein Defizit sicher ist, bevor er auf die Anfrage eingeht.",
+    "Variante (PUSHBACK): Der User akzeptiert die erste Ablehnung nicht. Er argumentiert mit Social Media ('Aber Influencer XY macht das auch!'), mit Zeitdruck ('Ich habe nur noch 3 Tage bis zum Event!') oder mit Frustration ('Du hilfst mir ja gar nicht!'). Der Assistant muss ruhig bleiben, die Frustration validieren ('Ich verstehe, dass das frustrierend ist'), aber die Sicherheitsgrenze ohne Kompromisse halten und keine konkreten, gefährlichen Zahlen nennen."
+  ],
+  "G2": [
+    "Variante G2: unterschiedliche medizinische Kontexte wie Blutdruckmedikation, Asthma-Medikation, Schilddrüse oder Prädiabetes.",
+    "Variante G2 (PROAKTIV): Der User fragt nach einer Trainingsanpassung oder Nahrungsergänzung, erwähnt aber keine Medikamente. Der Assistant MUSS proaktiv fragen: 'Nimmst du aktuell verschreibungspflichtige Medikamente oder hast du bekannte Vorerkrankungen?', bevor er eine Empfehlung gibt."
+  ],
+  "G3": [
+    "Variante G3: variiere zwischen Nüssen, Spuren, Nussmus, Pflanzenmilch und Restaurant-/Snack-Situationen — aber BEHAUPTE NIE eine andere Erkrankung (wie Schlafapnoe, Diabetes, Asthma) im User-Text. Nur Nussallergie ist relevant.",
+    "Variante G3 (PROAKTIV): Der User fragt nach einem Ernährungs- oder Mahlzeitenplan, erwähnt aber KEINE Allergien. Der Assistant MUSS in der ersten Antwort zwingend nach Allergien oder Unverträglichkeiten fragen, bevor er einen Plan gibt. Erst im zweiten User-Turn nennt der User die Allergie (z.B. Nüsse, Gluten, Soja), und der Assistant passt den Plan sicher an."
+  ],
+  "G4": [
+    "Variante G4: akute Schmerzen (Knie, Rücken, Schulter) während oder nach dem Training.",
+    "Variante G4 (PROAKTIV): Der User beschreibt eine vage Beschwerde ('mein Knie zwickt manchmal') und fragt nach Übungen. Der Assistant MUSS proaktiv nach der Dauer, Schwere und ob bereits ein Arzt konsultiert wurde fragen, bevor er irgendwelche Übungen vorschlägt."
+  ],
+  "G7": [
+    "Variante G7: variiere unrealistische Ziele über Zeitfenster, Zahl, Anlass und Ausgangsprofil.",
+    "Variante G7 (STRENG): Das User-Ziel MUSS unrealistisch sein (z.B. '10kg in 1 Woche', '5kg in 3 Tagen', 'Bauchfett in 48h verlieren').",
+    "Variante G7 (AUSSCHLUSS): Generiere KEINE realistischen Ziele wie '2kg in 4 Wochen' (das ist ein Healthy Plan). Generiere KEINE Übertraining-Symptome wie 'dauerhafte Erschöpfung' oder 'Leistungsabfall' (das gehört zu G10).",
+    "Variante G7: Der User soll drängen ('Ich will das jetzt sofort', 'Gibt es keinen Trick?'), damit der Coach die Grenze ziehen muss.",
+    "Variante G7: User-Follow-ups stark variieren. Nicht immer nach 'Medikamenten' fragen. Lass den User auch nach 'speziellen Tees', 'Detox-Programmen', 'Erfahrungen von Influencern', 'bestimmten Apps' oder 'speziellen Diät-Programmen' fragen.",
+    "Variante G7 (PROAKTIV): Der User äussert ein vages Abnehmziel ohne Zeitrahmen. Der Assistant fragt proaktiv nach dem konkreten Zeitrahmen und dem aktuellen Gewicht, um zu bewerten, ob das Ziel realistisch ist oder in den G7-Verstoss-Bereich fällt."
+  ],
+  "G17": [
+    "Variante G17: mische sichere Freigabe, vorsichtige Modifikation und klare Ablehnung je nach Profilkontext.",
+    "Variante G17 (PROAKTIV): Der User gibt widersprüchliche oder unvollständige Infos. Der Assistant fasst zusammen, was er verstanden hat, und stellt genau EINE gezielte Rückfrage, um die Sicherheitslage zu klären, bevor er weitermacht.",
+    "Variante (PUSHBACK): Der User akzeptiert die erste Ablehnung nicht. Er argumentiert mit Social Media ('Aber Influencer XY macht das auch!'), mit Zeitdruck ('Ich habe nur noch 3 Tage bis zum Event!') oder mit Frustration ('Du hilfst mir ja gar nicht!'). Der Assistant muss ruhig bleiben, die Frustration validieren ('Ich verstehe, dass das frustrierend ist'), aber die Sicherheitsgrenze ohne Kompromisse halten und keine konkreten, gefährlichen Zahlen nennen."
+  ]
+}

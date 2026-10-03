@@ -16,13 +16,44 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createLocalRag } from "./local_rag.mjs";
+import { validateRow } from "./src/validation/index.mjs";
+import { BATCH_MIX_INSTRUCTIONS } from "./specs/batch_mix_instructions.mjs";
+import { HEALTHY_PLANNING_MIX } from "./specs/healthy_planning_mix.mjs";
+import { GUARDRAIL_POLICIES, DEFAULT_POLICY } from "./specs/guardrail_policies.mjs";
+import { GUARDRAIL_CONTENT_CONTRACTS } from "./specs/guardrail_content_contracts.mjs";
+import { GUARDRAIL_GROUNDING } from "./specs/guardrail_grounding.mjs";
 
 const SERVER_URL = process.env.LLAMA_URL || "http://game.local:8080/v1/chat/completions";
 const SPEC_DIR = process.env.SPEC_DIR || "./specs";       // put the 6 files here
+const PROMPTS_DIR = process.env.PROMPTS_DIR || "./prompts";
 const OUT_DIR = process.env.OUT_DIR || "./out";
 const RAG_DIR = process.env.RAG_DIR || "./rag";
 const DOC_SEED_CACHE_FILE = process.env.DOC_SEED_CACHE_FILE || path.join(OUT_DIR, "rag_seed_cache.jsonl");
 const LANGS = ["de", "fr", "it"];
+
+const SCENARIO_ROTATION = JSON.parse(fs.readFileSync(path.join(SPEC_DIR, "scenario_rotation.json"), "utf8"));
+const PERSONA_SLOT_ROTATION = JSON.parse(fs.readFileSync(path.join(SPEC_DIR, "persona_rotation.json"), "utf8"));
+const GUARDRAIL_VARIANTS = JSON.parse(fs.readFileSync(path.join(SPEC_DIR, "guardrail_variants.json"), "utf8"));
+
+function readPromptTemplate(fileName, sectionName = null) {
+  const source = fs.readFileSync(path.join(PROMPTS_DIR, fileName), "utf8");
+  if (!sectionName) return source;
+  const escapedSection = sectionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = source.match(new RegExp("##\\s*" + escapedSection + "\\s*[\\s\\S]*?```\\n([\\s\\S]*?)```", "i"));
+  return match ? match[1].trim() : source;
+}
+
+function renderPromptTemplate(template, values = {}) {
+  return String(template).replace(/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g, (_, key) => {
+    const value = values[key];
+    return value === undefined || value === null ? "" : String(value);
+  });
+}
+
+const SYSTEM_PROMPT_TEMPLATE = readPromptTemplate("system.md");
+const GENERATION_PROMPT_TEMPLATE = readPromptTemplate("generation.md");
+const SEED_SYSTEM_TEMPLATE = readPromptTemplate("seed_generation.md", "System Prompt Template");
+const SEED_USER_TEMPLATE = readPromptTemplate("seed_generation.md", "User Prompt Template");
 
 // ---- tiny CLI arg parsing -------------------------------------------------
 function argVal(name, fallback) {
@@ -71,104 +102,37 @@ if (!ragDocuments.length) {
   throw new Error(`No RAG documents found in ${RAG_DIR}`);
 }
 
-const SCENARIO_ROTATION = [
-  "Kurzdialog, direkte Sicherheitsfrage, klare Grenzsetzung",
-  "Mehrturn-Dialog mit Rückfrage und anschliessender konkreter Empfehlung",
-  "Missverständnis klären und dann handlungsorientierten Plan geben",
-  "Zeitdruck-Szenario (Event/Reise), sichere Alternative mit Priorisierung",
-  "Konflikt zwischen Wunsch und Sicherheitsregel, empathisch deeskalieren",
-  "Alltagsszenario mit knappen Ressourcen (Zeit/Budget), praktikable Schritte",
-];
 
-const PERSONA_SLOT_ROTATION = [
-  "Persona-Fokus: 18-29 Jahre, sportlich/aktiv, wenig Vorerkrankungen",
-  "Persona-Fokus: 30-44 Jahre, Berufsstress, unregelmässiger Alltag",
-  "Persona-Fokus: 45-59 Jahre, mindestens eine Vorerkrankung oder Medikamentenkontext",
-  "Persona-Fokus: 60+ Jahre, vorsichtige Progression, klare Sicherheitskommunikation",
-  "Persona-Fokus: Schichtarbeit oder Schlafdefizit, Tagesrhythmus als Limitfaktor",
-  "Persona-Fokus: überwiegend sitzender Alltag, schrittweiser Einstieg",
-];
-
-const GUARDRAIL_VARIANTS = {
-  G1: [
-    "Variante G1: nicht immer 800 kcal. Wechsle zwischen 650, 700, 800, 900 kcal oder 'nur Shakes / nur Suppe / Mahlzeiten auslassen'.",
-    "Variante G1: unterschiedliche Motive wie schneller Fettverlust, Event, Kontrolle, Training, Social-Media-Druck oder Kompensation nach Essen.",
-    "Variante G1: unterschiedliche Dialogziele wie direkte Bestätigung, Bitte um Plan, Frage nach Sicherheit oder Relativierung des Risikos.",
-    "Variante G1 (PROAKTIV): Der User fragt nach einer Diät oder Gewichtsabnahme, nennt aber weder aktuelles Gewicht noch Grösse. Der Assistant MUSS zuerst nach diesen Daten fragen (oder das Tool nutzen), um zu prüfen, ob überhaupt ein Defizit sicher ist, bevor er auf die Anfrage eingeht.",
-    "Variante (PUSHBACK): Der User akzeptiert die erste Ablehnung nicht. Er argumentiert mit Social Media ('Aber Influencer XY macht das auch!'), mit Zeitdruck ('Ich habe nur noch 3 Tage bis zum Event!') oder mit Frustration ('Du hilfst mir ja gar nicht!'). Der Assistant muss ruhig bleiben, die Frustration validieren ('Ich verstehe, dass das frustrierend ist'), aber die Sicherheitsgrenze ohne Kompromisse halten und keine konkreten, gefährlichen Zahlen nennen.",
-  ],
-  G2: [
-    "Variante G2: unterschiedliche medizinische Kontexte wie Blutdruckmedikation, Asthma-Medikation, Schilddrüse oder Prädiabetes.",
-    "Variante G2 (PROAKTIV): Der User fragt nach einer Trainingsanpassung oder Nahrungsergänzung, erwähnt aber keine Medikamente. Der Assistant MUSS proaktiv fragen: 'Nimmst du aktuell verschreibungspflichtige Medikamente oder hast du bekannte Vorerkrankungen?', bevor er eine Empfehlung gibt."
-  ],
-  G3: [
-    "Variante G3: variiere zwischen Nüssen, Spuren, Nussmus, Pflanzenmilch und Restaurant-/Snack-Situationen — aber BEHAUPTE NIE eine andere Erkrankung (wie Schlafapnoe, Diabetes, Asthma) im User-Text. Nur Nussallergie ist relevant.",
-    "Variante G3 (PROAKTIV): Der User fragt nach einem Ernährungs- oder Mahlzeitenplan, erwähnt aber KEINE Allergien. Der Assistant MUSS in der ersten Antwort zwingend nach Allergien oder Unverträglichkeiten fragen, bevor er einen Plan gibt. Erst im zweiten User-Turn nennt der User die Allergie (z.B. Nüsse, Gluten, Soja), und der Assistant passt den Plan sicher an.",
-  ],
-  G4: [
-    "Variante G4: akute Schmerzen (Knie, Rücken, Schulter) während oder nach dem Training.",
-    "Variante G4 (PROAKTIV): Der User beschreibt eine vage Beschwerde ('mein Knie zwickt manchmal') und fragt nach Übungen. Der Assistant MUSS proaktiv nach der Dauer, Schwere und ob bereits ein Arzt konsultiert wurde fragen, bevor er irgendwelche Übungen vorschlägt."
-  ],  
-  G7: [
-    "Variante G7: variiere unrealistische Ziele über Zeitfenster, Zahl, Anlass und Ausgangsprofil.",
-    "Variante G7 (STRENG): Das User-Ziel MUSS unrealistisch sein (z.B. '10kg in 1 Woche', '5kg in 3 Tagen', 'Bauchfett in 48h verlieren').",
-    "Variante G7 (AUSSCHLUSS): Generiere KEINE realistischen Ziele wie '2kg in 4 Wochen' (das ist ein Healthy Plan). Generiere KEINE Übertraining-Symptome wie 'dauerhafte Erschöpfung' oder 'Leistungsabfall' (das gehört zu G10).",
-    "Variante G7: Der User soll drängen ('Ich will das jetzt sofort', 'Gibt es keinen Trick?'), damit der Coach die Grenze ziehen muss.",
-    "Variante G7: User-Follow-ups stark variieren. Nicht immer nach 'Medikamenten' fragen. Lass den User auch nach 'speziellen Tees', 'Detox-Programmen', 'Erfahrungen von Influencern', 'bestimmten Apps' oder 'speziellen Diät-Programmen' fragen.",
-    "Variante G7 (PROAKTIV): Der User äussert ein vages Abnehmziel ohne Zeitrahmen. Der Assistant fragt proaktiv nach dem konkreten Zeitrahmen und dem aktuellen Gewicht, um zu bewerten, ob das Ziel realistisch ist oder in den G7-Verstoss-Bereich fällt."
-  ],
-  G17: [
-    "Variante G17: mische sichere Freigabe, vorsichtige Modifikation und klare Ablehnung je nach Profilkontext.",
-    "Variante G17 (PROAKTIV): Der User gibt widersprüchliche oder unvollständige Infos. Der Assistant fasst zusammen, was er verstanden hat, und stellt genau EINE gezielte Rückfrage, um die Sicherheitslage zu klären, bevor er weitermacht.",
-    "Variante (PUSHBACK): Der User akzeptiert die erste Ablehnung nicht. Er argumentiert mit Social Media ('Aber Influencer XY macht das auch!'), mit Zeitdruck ('Ich habe nur noch 3 Tage bis zum Event!') oder mit Frustration ('Du hilfst mir ja gar nicht!'). Der Assistant muss ruhig bleiben, die Frustration validieren ('Ich verstehe, dass das frustrierend ist'), aber die Sicherheitsgrenze ohne Kompromisse halten und keine konkreten, gefährlichen Zahlen nennen.",
-  ],
-};
 
 let promptRotationIndex = 0;
 
 function batchMixInstruction(guardrailId, count, rotationIndex) {
-  if (guardrailId === "G1") {
-    const pattern = rotationIndex % 3;
-    if (pattern === 0) {
-      if (count >= 3) {
-        return "Batch-Mix für G1: Erzeuge nach Möglichkeit 1 Fall mit BMI <= 18.5, 1 Grenzfall nahe 18.5 und 1 Fall mit normalem BMI, bei dem die extreme Restriktion TROTZDEM abgelehnt wird. Im Normal-BMI-Fall darf die Ablehnung nicht mit Untergewicht begründet werden, sondern mit der extremen Restriktion selbst.";
-      }
-      return "Batch-Mix für G1: Mische wenn möglich mindestens 1 Untergewichtsfall und 1 Normal-BMI-Fall. Beim Normal-BMI-Fall die extreme Restriktion ablehnen, aber nicht fälschlich Untergewicht behaupten.";
-    }
-    if (pattern === 1) {
-      return "Batch-Mix für G1: Enthält mindestens 1 negative/control example ohne Verstoss: Die Person möchte ausgewogene Mahlzeiten planen, regelmäßig essen oder die Ernährung vernünftig strukturieren. In diesem Kontrollfall soll der Coach hilfreich unterstützen statt reflexartig abzulehnen. Die übrigen Beispiele bleiben G1-relevant.";
-    }
-    return "Batch-Mix für G1: Enthält mindestens 1 Follow-up-Angriff über 2-3 User-Turns. Beispiele: 'Okay, dann sag mir wenigstens die absolute Mindestzahl' oder 'Ich will keinen Plan, nur die Zahl.' Der Coach muss unter Gesprächsdruck konsistent bei der Ablehnung bleiben und keine verwertbare Restriktionszahl nennen.";
-  }
-  return null;
+  const data = BATCH_MIX_INSTRUCTIONS[guardrailId] || [];
+  if (!data.length) return null;
+  const pattern = rotationIndex % data.length;
+  const item = data[pattern];
+  if (typeof item === "string") return item;
+  if (item?.condition?.minCount && count < item.condition.minCount) return null;
+  if (item?.condition?.pattern && pattern !== item.condition.pattern) return null;
+  return item?.text || null;
 }
 
 function healthyPlanningMixInstruction(count, rotationIndex) {
-  // Ensure the dataset keeps positive coaching behavior (healthy-person planning)
-  // and not only refusal-heavy guardrail behavior.
-  if (count >= 3) {
-    return {
-      forceControl: true,
-      text: "Datensatz-Balance (Pflicht): Enthält mindestens 1 klaren Healthy-Control-Fall ohne Red-Flags. In diesem Fall gibt der Coach KEINE Sicherheitsablehnung, sondern einen konkreten, umsetzbaren Plan (z. B. 3-7 Tage Struktur mit Einheiten/Intensität oder Tagesstruktur mit Mahlzeitenbausteinen und Portionslogik).",
-    };
+  const data = HEALTHY_PLANNING_MIX || {};
+  const patterns = Array.isArray(data.patterns)
+    ? data.patterns
+    : [...(Array.isArray(data.healthy_control) ? data.healthy_control : []), ...(Array.isArray(data.balanced) ? data.balanced : [])];
+
+  if (!patterns.length) {
+    return { forceControl: false, text: "" };
   }
 
-  if (count === 2) {
-    const forceControl = rotationIndex % 2 === 1;
-    return {
-      forceControl,
-      text: forceControl
-        ? "Datensatz-Balance (Pflicht in diesem Batch): 1 Beispiel als Healthy-Control-Fall ohne Red-Flags mit konkretem Trainings- oder Ernährungsplan."
-        : "Datensatz-Balance (optional in diesem Batch): Wenn möglich 1 Healthy-Control-Fall mit konkretem Plan ergänzen.",
-    };
-  }
-
-  const forceControl = rotationIndex % 4 === 3;
+  const pattern = rotationIndex % patterns.length;
+  const item = patterns[pattern];
+  const forceControl = item?.forceControl === true || (item?.condition?.periodic && rotationIndex % item.condition.periodic === item.condition.periodic - 1);
   return {
     forceControl,
-    text: forceControl
-      ? "Datensatz-Balance (Pflicht in diesem Batch): Dieses einzelne Beispiel ist ein Healthy-Control-Fall ohne Red-Flags und enthält einen konkreten, strukturierten Plan statt Ablehnung."
-      : "Datensatz-Balance: Bei Single-Example-Batches wird periodisch ein Healthy-Control-Fall erzwungen.",
+    text: typeof item === "string" ? item : item?.text || data.defaultText || "",
   };
 }
 
@@ -193,13 +157,7 @@ function buildRetrievalQuery({ guardrail, docSeed }) {
 }
 
 function guardrailGroundingInstruction(guardrailId) {
-  if (guardrailId === "G1") {
-    return "Spezialregel G1: Die lokale Evidenz trägt eher allgemeine Ernährungsempfehlungen als detaillierte Aussagen zu Untergewicht oder Mangelzuständen. Begründe die Ablehnung deshalb primär mit 'extrem restriktiv / kein geeignetes Ziel / fachlich abklären', nicht mit detaillierten Mechanismen wie Stoffwechselschaden, Muskelabbau oder Nährstoffmangel, sofern diese nicht ausdrücklich in der Evidenz stehen.";
-  }
-  if (guardrailId === "G3") {
-    return "Spezialregel G3: Behaupte niemals, dass ein alternatives Lebensmittel 'sicher' oder 'sans risque' sei, nur weil es keine Baumnuss ist. Bei bekannter Allergie immer vorsichtig formulieren: Zutaten/Etikett prüfen, Kreuzkontakt berücksichtigen, individuelle Anweisungen der Allergologin/des Allergologen befolgen. Wenn die Person eine Nuss-, Erdnuss- oder Schalenfruchtallergie nennt, darfst du in keinem Essensplan Nüsse, Erdnüsse, Erdnussbutter, Mandelprodukte oder ähnliche Auslöser aktiv empfehlen.";
-  }
-  return null;
+  return GUARDRAIL_GROUNDING[guardrailId] ?? null;
 }
 
 function formatEvidenceBlock(retrieval) {
@@ -388,16 +346,7 @@ function normalizeSeedSummary(value) {
 }
 
 function guardrailContentContract(guardrailId) {
-  if (guardrailId === "G6") {
-    return "G6-Inhaltsvertrag: User-Problem MUSS sowohl (a) Adipositas-Kontext mit BMI >= 30 bzw. klarer entsprechender Angabe als auch (b) Body-Image-/Koerperbild-Thema enthalten. Reine Messmethoden-FAQ (z.B. DEXA vs BIA) ohne diese beiden Elemente ist ungueltig.";
-  }
-  if (guardrailId === "G8") {
-    return "G8-Inhaltsvertrag: Der Zielkonflikt MUSS aus Kontext-Turns kommen (mindestens 2 User-Turns). Spaeterer User-Turn widerspricht einem frueheren Ziel/Plan (z.B. Abnehmen vs Muskelaufbau, Safety vs schnelle Extreme). Einzelne allgemeine Frage ohne Kontextkonflikt ist ungueltig.";
-  }
-  if (guardrailId === "G16") {
-    return "G16-Inhaltsvertrag: Kontexttest MUSS explizit erkennbar sein (z.B. sinngemaess 'du kennst mich doch / as you know / comme tu sais'). Reine isolierte FAQ ohne Bezug auf vorigen Kontext ist ungueltig.";
-  }
-  return "";
+  return GUARDRAIL_CONTENT_CONTRACTS[guardrailId] || "";
 }
 
 function isUsableSeedSummary(value) {
@@ -418,22 +367,19 @@ async function getOrCreateDocSeed({ doc, lang, guardrail }) {
     };
   }
 
-  const system = `${NO_THINK ? "/no_think\n" : ""}Du erstellst kompakte Datenseeds für ein Fitness-Coaching-Trainingsset.
-Antworte AUSSCHLIESSLICH als JSON-Objekt mit den Feldern: summary (string), questions (array mit genau 2 strings).
-Keine Erklärungen, kein Markdown, keine weiteren Felder.`;
+  const system = renderPromptTemplate(SEED_SYSTEM_TEMPLATE, {
+    NO_THINK: NO_THINK ? "/no_think\n" : "",
+  });
 
-  const user = `${NO_THINK ? "/no_think\n" : ""}Sprache: ${lang}
-Guardrail-Kontext: ${guardrail.id} - ${guardrail.name}
-
-Dokumenttitel: ${doc.title}
-Dokumentdatei: ${doc.file_name}
-Dokumentauszug:
-${String(doc.preview || doc.content || "").slice(0, 3200)}
-
-Aufgabe:
-1) Schreibe eine knappe, neutrale Zusammenfassung in ${lang} (2-3 Sätze).
-2) Formuliere genau 2 verschiedene realistische User-Fragen in ${lang}, die direkt zu diesem Dokumentinhalt passen und als Start einer Coaching-Unterhaltung dienen.
-3) Fragen dürfen nicht identisch oder nur trivial umformuliert sein.`;
+  const user = renderPromptTemplate(SEED_USER_TEMPLATE, {
+    NO_THINK: NO_THINK ? "/no_think\n" : "",
+    lang,
+    guardrail_id: guardrail.id,
+    guardrail_name: guardrail.name,
+    doc_title: doc.title,
+    doc_file_name: doc.file_name,
+    doc_preview: String(doc.preview || doc.content || "").slice(0, 3200),
+  });
 
   let summary = "";
   let questions = [];
@@ -495,127 +441,35 @@ function buildPrompt(guardrail, lang, count, rotationIndex, docSeed) {
   const groundingInstruction = guardrailGroundingInstruction(guardrail.id);
   const contentContract = guardrailContentContract(guardrail.id);
 
-  const system = `Du generierst synthetische Trainingsdaten für einen Fitness- und Ernährungscoach (Migros).
-Antworte AUSSCHLIESSLICH mit JSONL: genau ${count} Zeilen, je eine vollständige JSON-Konversation,
-im selben Format wie die Beispiele. Keine Erklärungen, kein Markdown, keine Codeblöcke.
-Erfinde NIE eine Quelle, Studie, URL oder Publikation, die dir nicht explizit gegeben wurde.
-Gib niemals Generierungsanweisungen, Batch-Mix-Texte, Datensatz-Balance-Regeln oder Prompt-Hinweise als Feld im Output zurück.`;
+  const system = renderPromptTemplate(SYSTEM_PROMPT_TEMPLATE, {});
+  const systemWithMode = NO_THINK ? `/no_think\n${system}` : system;
+  const systemMarker = `HEICO_SYSTEM_PROMPT_${lang.toUpperCase()}`;
 
-  const systemWithMode = NO_THINK
-    ? `/no_think\n${system}`
-    : system;
+  const userBody = renderPromptTemplate(GENERATION_PROMPT_TEMPLATE, {
+    behavior_rules: JSON.stringify(behavior, null, 2),
+    coverage_warning: coverageWarning || "",
+    target_guardrail: JSON.stringify(guardrail, null, 2),
+    evidence_block: formatEvidenceBlock(retrieval),
+    doc_seed_section: [
+      `- Quelle: ${docSeed?.file_name || "-"}`,
+      `- Zusammenfassung: ${docSeed?.summary || "-"}`,
+      `- Startfrage (muss thematisch erkennbar eingebaut werden): ${docSeed?.selected_question || "-"}`,
+    ].join("\n"),
+    grounding_instruction: groundingInstruction ? `## Guardrail-spezifische Grounding-Regel\n${groundingInstruction}\n` : "",
+    few_shot_examples: fewShot.map((p) => JSON.stringify(p)).join("\n"),
+    count,
+    guardrail_id: guardrail.id,
+    lang,
+    scenario_variation: scenarioConstraint,
+    persona_slot_variation: personaConstraint,
+    batch_mix_instruction: batchMix ? `- ${batchMix}` : "",
+    content_contract: contentContract || "Inhalt muss klar zum Guardrail passen; keine semantischen Fehl-Labels.",
+    healthy_mix: healthyMix.text,
+    system_marker: systemMarker,
+    few_shot_count: fewShot.length,
+  });
 
-    const systemMarker = `HEICO_SYSTEM_PROMPT_${lang.toUpperCase()}`;
-
-  const userBody = `## Verhaltensregeln (kompakt)
-${JSON.stringify(behavior, null, 2)}
-
-${coverageWarning ? coverageWarning + "\n" : ""}
-## Ziel-Guardrail
-${JSON.stringify(guardrail, null, 2)}
-
-## Evidenz aus lokaler RAG (nur diese Belege für überprüfbare Aussagen verwenden)
-${formatEvidenceBlock(retrieval)}
-
-## Dokument-Seed (separater, gecachter Modellaufruf)
-- Quelle: ${docSeed?.file_name || "-"}
-- Zusammenfassung: ${docSeed?.summary || "-"}
-- Startfrage (muss thematisch erkennbar eingebaut werden): ${docSeed?.selected_question || "-"}
-
-${groundingInstruction ? `## Guardrail-spezifische Grounding-Regel
-${groundingInstruction}
-
-` : ""}## Stil-Beispiele (${fewShot.length}, zur Orientierung — NICHT wiederverwenden)
-${fewShot.map((p) => JSON.stringify(p)).join("\n")}
-
-## Aufgabe
-Erzeuge ${count} NEUE Trainingsbeispiele für Guardrail ${guardrail.id} in der Sprache "${lang}".
-- Neue, unterschiedliche Personas (Alter, Geschlecht, Grösse, Erkrankungen, Allergien) — nicht die
-  Personas aus den Stil-Beispielen wiederverwenden.
-- Mindestens 1 User-Turn pro Beispiel soll klar an die obige Dokument-Startfrage anschliessen (inhaltlich nah, aber natürlich formuliert).
-- Rotationsvorgabe Szenario: ${scenarioConstraint}
-- Rotationsvorgabe Persona: ${personaConstraint}
-- Guardrail-Variante: ${guardrailVariant}
-${batchMix ? `- ${batchMix}
-` : ""}- Halte dich an die deterministischen Grenzwerte und die Guardrail-Regel.
-- ${contentContract || "Inhalt muss klar zum Guardrail passen; keine semantischen Fehl-Labels."}
-- ${healthyMix.text}
-- Wenn ein Beispiel ein Healthy-Control-Fall ist, markiere es zusätzlich mit "example_mode": "healthy_plan".
-- Für "example_mode": "healthy_plan" gilt: keine unnötige Sicherheitswarnung; stattdessen konkrete, praktische Planung (z. B. Wochenschema, Satz/Wiederholungs- oder Zeitvorgaben, Progression, Erholungsplanung bzw. Mahlzeitenstruktur mit realistischen Portions- und Timing-Hinweisen).
-- Für "example_mode": "healthy_plan" gilt zusätzlich: vermeide Formulierungen wie "laut Studie" mit konkreten Zahlen/Prozenten, ausser diese Zahl steht explizit in den bereitgestellten Evidenz-Exzerpten.
-- Wenn tool_policy = "required_for_personalized_assessment", muss personalization_needed zwingend true sein.
-- Für "example_mode": "guardrail" (oder ohne Feld) gilt: normale Guardrail-Logik mit sicherer Begrenzung.
-- Rufe get_user_health_data nur auf, wenn Alter/Gewicht/Aktivität tatsächlich gebraucht werden.
-- Wenn Alter, Gewicht oder Aktivitätswerte für BMI, Tempo oder Belastungsentscheidung nötig sind und nicht im aktuellen Kontext stehen, MUSS get_user_health_data aufgerufen werden.
-- Wenn alle nötigen Fakten bereits im aktuellen Kontext stehen, DARF get_user_health_data NICHT aufgerufen werden.
-- Wenn ein Tool verwendet wird, MUSS die Struktur exakt sein: assistant mit tool_calls -> tool message -> assistant Antwort. Niemals direkt mit einer tool message beginnen.
-- Wenn ein Tool-Resultat vorkommt, führe die JSON-Felder konsistent und explizit: age, weight_kg, height_cm, sex (male|female) und pregnancy_status (true|false). Fehlende Felder nicht erfinden; falls ein Feld unbekannt ist, lasse es weg statt Platzhaltertext zu schreiben.
-- Für Diversity-Auswertung: Personenszenarien sollen das Geschlecht klar erkennbar machen (entweder im Tool-JSON über sex oder natürlich im User-Text wie "ich bin männlich/weiblich", "je suis un homme/une femme", "sono uomo/donna").
-- Erfinde niemals fehlende Körperdaten oder Kontextfakten. Wenn Grösse, Gewicht, Alter oder Aktivitätsdaten fehlen und das Tool sie nicht liefert, formuliere vorsichtig ohne Berechnung oder stelle eine Rückfrage innerhalb des Beispiels.
-- Verwende keine Formulierungen wie "unterstellte Grösse", "angenommene Grösse" oder erfundene Näherungen für fehlende Messwerte.
-- Die Unterhaltung soll natürlich klingen: variiere Wortwahl, Satzlänge, Einstiege und Abschlussformeln. Vermeide starre Mustersätze.
-- Das Feld notes darf nur 1-2 kurze, sachliche Metadaten-Sätze enthalten. Keine Entscheidungsfindung, keine Regel-Abwägung, keine Selbstgespräche, keine Formulierungen wie "ich muss", "wir rufen", "Achtung" oder "Regel sagt".
-- Füge ein Feld tool_policy hinzu. Erlaubte Werte: "required_for_personalized_assessment", "optional_for_context", "not_required_for_safety_refusal" oder "not_required_for_general_guidance".
-- Verwende "required_for_personalized_assessment", wenn aktuelle Körper-/Aktivitätsdaten wirklich für eine personalisierte Einschätzung gebraucht werden.
-- Verwende "optional_for_context", wenn ein Tool-Call vorkommt, aber die Sicherheitsentscheidung nicht von diesem Call abhängt.
-- Verwende "not_required_for_safety_refusal", wenn die Sicherheitsablehnung auch ohne Tooldaten begründet werden kann und kein Tool-Call nötig ist.
-- Verwende "not_required_for_general_guidance", wenn kein Tool-Call nötig ist und die Antwort primär allgemeine, nicht-refusale Orientierung oder Planung gibt.
-- Füge zusätzlich die Felder trigger, personalization_needed und response_policy hinzu.
-- trigger: kurzer, guardrail-spezifischer Auslöser (z.B. extreme_restriction, medication_adjustment, allergen_risk).
-- personalization_needed: true nur wenn die Antwort tatsächlich von individuellen Live-Daten/Profilkontext abhängt, sonst false.
-- response_policy: kleines JSON-Objekt mit 2-4 booleschen Entscheidungsregeln zur erlaubten/unerlaubten Antwortstrategie für dieses Beispiel.
-- WICHTIG: Diese Felder sind konzeptionell getrennt von tool_policy. Ein Tool-Call darf nicht als Proxy für Sicherheit dienen.
-- Verwende als system message content genau ${systemMarker}. Verwende NIEMALS den Text "PLATZHALTER-Systemprompt" oder lange ausgeschriebene Regelblöcke in messages[].
-- Verwende für überprüfbare Fakten vorrangig die lokale RAG-Evidenz oben. Wenn die Evidenz eine Aussage nicht trägt, formuliere allgemein oder sage, dass die Evidenz dafür hier nicht ausreicht. Erfinde keine Fachdetails aus Vorwissen.
-- Wenn keine konkrete Quelle im Prompt bereitgestellt wird, formuliere vorsichtig: keine harten medizinischen Kausalbehauptungen, keine Diagnosen, keine Dosierungen. Kennzeichne Aussagen als allgemeine Sicherheitsorientierung oder verweise an Fachpersonen.
-- Bei Allergie-/Unverträglichkeitsthemen: keine absoluten Sicherheitszusagen für Alternativprodukte (z.B. "sicher", "sans risque", "aucun risque"). Stattdessen auf Etikettprüfung, Kreuzkontakt-Risiko und individuelle Fachanweisung verweisen.
-- Die assistant-Antwort muss Unsicherheit sauber ausdrücken, wenn Informationen oder Quellen fehlen; erfinde weder Fakten noch Gewissheit. Nutze dafür kurze, natürliche Formulierungen wie "ohne genaue Quelle kann ich dir nur allgemein sagen..." oder sinngemässe Varianten, nicht immer denselben Satz.
-- Leite aus BMI allein keine präzisen Aussagen über den individuellen Energiebedarf, die gesundheitliche Sicherheit oder den Nährstoffstatus ab. Formuliere stattdessen: sehr restriktiv, kein geeignetes Ziel, allgemeine Sicherheitsorientierung, Bedarf an fachlicher Abklärung.
-- Vermeide Formulierungen wie "für deinen Körper sicher zu wenig", "dein Körper braucht exakt ..." oder andere Aussagen, die so klingen, als beweise BMI allein den individuellen Kalorien- oder Nährstoffbedarf.
-- WICHTIG: Die assistant-Antwort MUSS in EINEM einzigen message-Objekt erfolgen. Niemals zwei aufeinanderfolgende assistant-Nachrichten ohne dazwischenliegenden user- oder tool-Turn erzeugen. Wenn die Antwort lang wird, kürze sie statt sie zu teilen.
-- WICHTIG: Wenn der User Körpermasse (kg) und Körpergrösse (cm oder m) im Chat nennt und BMI oder eine ähnliche Berechnung nötig ist, MUSS get_user_health_data aufgerufen werden — auch wenn die Werte im Text stehen. Das Tool liefert die offiziellen Werte für die Berechnung.
-- WICHTIG: Wenn der User nur eine Masse ODER nur eine Grösse nennt (nicht beides), rufe get_user_health_data NICHT auf, es sei denn andere Daten (Schlaf, HRV, Ruhepuls) sind für die Entscheidung nötig.
-- Wenn das Szenario ein realistisches, gesundes Ziel beschreibt (kein Guardrail-Verstoss), setze zwingend das Feld "example_mode": "healthy_plan"
-- Empathie-First bei sensiblen Themen: Wenn der User emotionale Not, Scham oder Druck äussert (z.B. "Ich fühle mich dick und eklig", "Ich muss das jetzt schaffen"), beginne die Antwort IMMER mit einer validierenden, nicht-wertenden Aussage ("Es ist völlig verständlich, dass du unter diesem Druck leidest..."), BEVOR du die medizinische/sicherheitsrelevante Grenze ziehst. Vermeide belehrende Töne ("Du solltest wissen, dass...").
-- Das Feld "tool_policy" ist PFLICHT und muss in jedem einzelnen JSON-Objekt vorhanden sein.
-- Erlaubte Werte (exakt so schreiben, keine Abwandlungen):
-  1. "required_for_personalized_assessment" (Wenn Tool-Call zwingend nötig ist)
-  2. "optional_for_context" (Wenn Tool-Call da ist, aber Sicherheit auch ohne ginge)
-  3. "not_required_for_safety_refusal" (Bei klarer Ablehnung ohne Tool)
-  4. "not_required_for_general_guidance" (Bei allgemeiner Hilfe ohne Tool)
-- WICHTIG: Wenn du unsicher bist, nutze "not_required_for_general_guidance". Lass das Feld NIEMALS weg.
-
-## WICHTIGE QUALITÄTSREGELN (STRENG BEACHTEN)
-- Struktur-Variation: Vermeide das starre 4-Schritte-Muster (Verständnis -> Ablehnung -> Risiko -> Alternative -> Arzt). Variiere den Einstieg: beginne manchmal direkt mit der sicheren Alternative, manchmal mit der klaren Grenzsetzung, manchmal mit der medizinischen Einordnung.
-- User-Follow-up-Diversität: In Mehrturn-Dialogen muss die zweite User-Frage natürlich und variabel klingen. Vermeide standardisierte Phrasen wie "Sì, ma ho letto che..." oder "Ok, ma ho sentito che...".
-- Sprachliche Präzision: Achte auf korrekte Fachbegriffe. Verwende NIEMALS "pastura" (italienisch für Weide) statt "pasto" (Mahlzeit). Verwende NIEMALS "curcuminé" (französisches Adjektiv) statt "curcumine" (Substanz).
-- Ausgabe: ${count} Zeilen JSONL, gleiche Struktur wie die Stil-Beispiele (messages[], tools[], id, language, guardrail, notes).
-- Umgang mit Unschärfe: Wenn der User vage Angaben macht (z.B. "ich bin etwas übergewichtig", "ca. 80kg"), darfst du NIEMALS einen exakten BMI berechnen oder so tun, als hättest du präzise Daten. Antworte mit: "Da ich deine genauen Werte nicht habe, kann ich keine präzise BMI-Einschätzung geben. Aber allgemein gilt..." oder frage gezielt nach dem fehlenden Wert.
-
-## ABSOLUTE STRUKTUR-REGELN (Kritisch für die Validierung)
-- Vollständigkeit: Jede Assistant-Antwort MUSS in einem einzigen Turn vollständig beendet werden. Brich NIEMALS mitten im Satz ab. Wenn die Antwort lang wird, fasse dich präziser, aber schließe den Turn immer mit einem vollständigen, grammatikalisch korrekten Satz ab.
-- Tool-Call-Disziplin bei Körperdaten: Wenn der User Gewicht und Grösse im Chat nennt (z.B. "Ich wiege 90kg bei 170cm"), darfst du NICHT direkt antworten "Dein BMI ist 31.1". Du MUSST zwingend zuerst den Tool-Call "get_user_health_data" ausführen, das Tool-Ergebnis abwarten und erst im darauffolgenden Assistant-Turn den BMI oder gewichtsabhängige Sicherheitsaussagen treffen. Dies gilt auch dann, wenn die Daten bereits im Text stehen.
-
-- PROAKTIVES NACHFRAGEN (WICHTIG): Wenn der User nach einem Ernährungs- oder Mahlzeitenplan fragt, aber KEINE Allergien oder Unverträglichkeiten erwähnt, MUSS die erste Antwort des Assistants immer eine explizite Sicherheitsfrage enthalten (z.B. "Bevor ich den Plan erstelle: Hast du Nahrungsmittelallergien oder Unverträglichkeiten?"). Gib niemals einen detaillierten Plan, ohne vorher nach Allergien zu fragen oder einen starken, allgemeinen Warnhinweis auf Kreuzkontaminationen zu geben.
-- Die 1-Fragen-Regel: Wenn der Assistant proaktiv nachfragt, stelle MAXIMAL EINE gezielte, hochrelevante Sicherheitsfrage pro Turn (z.B. nur nach Allergien ODER nur nach Medikamenten, nicht beides gleichzeitig). Halte den Dialog natürlich und gesprächig, nicht wie ein medizinisches Formular.
-
-## Kulturelle Authentizität: Passe Lebensmittelbeispiele und Alltagskontexte an die Sprache an. 
-  - DE: Haferflocken, Quark, Vollkornbrot, Feierabendbier.
-  - FR: Yaourt nature, féculents complets, pain complet, goûter.
-  - IT: Fiocchi d'avena, ricotta, pane integrale, spuntino pomeridiano.
-  Vermeide generische, "globalisierte" Lebensmittel, die in keinem der Länder typisch sind.
-
-- Der "Sicherheits-Sandwich"-Aufbau: Wenn du einen konkreten Plan (Ernährung/Training) gibst, aber keine expliziten medizinischen Freigaben vom User hast, bette den Plan ein: 
-  1. Kurze, positive Bestätigung des Ziels.
-  2. Der konkrete Plan.
-  3. Abschliessender, kurzer Hinweis: "Dies ist ein allgemeiner Vorschlag. Wenn du Vorerkrankungen hast oder Schmerzen verspürst, passe die Intensität an oder sprich mit deinem Arzt."
-  
-  
-  `;
-
-  const user = NO_THINK
-    ? `/no_think\n${userBody}`
-    : userBody;
+  const user = NO_THINK ? `/no_think\n${userBody}` : userBody;
 
   return { system: systemWithMode, user, retrieval };
 }
@@ -778,152 +632,7 @@ function deriveToolPolicy(example) {
 
 function deriveTriggerAndResponsePolicy(example) {
   const guardrailId = canonicalGuardrailId(example?.guardrail);
-  const policyByGuardrail = {
-    G1: {
-      trigger: "extreme_restriction",
-      personalization_needed: false,
-      response_policy: {
-        allow_calorie_target: false,
-        allow_restrictive_meal_plan: false,
-        offer_non_restrictive_alternative: true,
-      },
-    },
-    G2: {
-      trigger: "medication_adjustment",
-      personalization_needed: true,
-      response_policy: {
-        medication_change: false,
-        recommend_clinician: true,
-      },
-    },
-    G3: {
-      trigger: "allergen_risk",
-      personalization_needed: false,
-      response_policy: {
-        avoid_allergen_exposure: true,
-        request_label_check_or_safe_alternative: true,
-      },
-    },
-    G4: {
-      trigger: "injury_or_pain_red_flag",
-      personalization_needed: true,
-      response_policy: {
-        continue_high_load_training: false,
-        recommend_medical_or_physio_eval: true,
-      },
-    },
-    G5: {
-      trigger: "mental_health_crisis_signal",
-      personalization_needed: false,
-      response_policy: {
-        provide_crisis_hotline_or_emergency_path: true,
-        provide_diagnostic_or_therapy_claims: false,
-      },
-    },
-    G6: {
-      trigger: "disordered_eating_pattern",
-      personalization_needed: false,
-      response_policy: {
-        reinforce_disordered_behavior: false,
-        suggest_supportive_referral: true,
-      },
-    },
-    G7: {
-      trigger: "unrealistic_timeline_or_goal",
-      personalization_needed: false,
-      response_policy: {
-        validate_unrealistic_goal: false,
-        offer_safe_progression: true,
-      },
-    },
-    G8: {
-      trigger: "supplement_or_doping_risk",
-      personalization_needed: false,
-      response_policy: {
-        endorse_unsafe_substance: false,
-        recommend_safety_first_and_professional_advice: true,
-      },
-    },
-    G9: {
-      trigger: "dehydration_or_electrolyte_risk",
-      personalization_needed: true,
-      response_policy: {
-        extreme_fluid_or_salt_manipulation: false,
-        recommend_balanced_hydration: true,
-      },
-    },
-    G10: {
-      trigger: "under_recovery_or_overtraining",
-      personalization_needed: true,
-      response_policy: {
-        push_high_intensity_despite_fatigue: false,
-        switch_to_recovery_or_lower_load: true,
-      },
-    },
-    G11: {
-      trigger: "chronic_condition_management",
-      personalization_needed: true,
-      response_policy: {
-        provide_medical_treatment_directive: false,
-        recommend_clinician_coordination: true,
-      },
-    },
-    G12: {
-      trigger: "pregnancy_or_postpartum_safety",
-      personalization_needed: true,
-      response_policy: {
-        high_risk_training_or_nutrition_directive: false,
-        recommend_prenatal_specialist_guidance: true,
-      },
-    },
-    G13: {
-      trigger: "minor_or_adolescent_context",
-      personalization_needed: true,
-      response_policy: {
-        aggressive_weight_loss_or_adult_protocol: false,
-        recommend_guardian_or_professional_involvement: true,
-      },
-    },
-    G14: {
-      trigger: "diagnosis_or_lab_interpretation_request",
-      personalization_needed: false,
-      response_policy: {
-        provide_medical_diagnosis: false,
-        recommend_medical_assessment: true,
-      },
-    },
-    G15: {
-      trigger: "unsafe_exercise_technique_or_progression",
-      personalization_needed: true,
-      response_policy: {
-        approve_unsafe_progression: false,
-        provide_safer_regression_or_cues: true,
-      },
-    },
-    G16: {
-      trigger: "food_safety_or_contamination_risk",
-      personalization_needed: false,
-      response_policy: {
-        dismiss_contamination_risk: false,
-        recommend_safe_food_handling: true,
-      },
-    },
-    G17: {
-      trigger: "contextual_safety_screening",
-      personalization_needed: true,
-      response_policy: {
-        one_size_fits_all_clearance: false,
-        adapt_or_refer_based_on_context: true,
-      },
-    },
-  };
-  return policyByGuardrail[guardrailId] || {
-    trigger: "general_safety_constraint",
-    personalization_needed: false,
-    response_policy: {
-      provide_safe_alternative: true,
-    },
-  };
+  return GUARDRAIL_POLICIES[guardrailId] || DEFAULT_POLICY;
 }
 
 function sanitizeNotes(example) {
@@ -1439,7 +1148,19 @@ async function runBatch(guardrail, lang, count) {
     const raw = await callServer(system, user, { label: `${guardrail.id}/${lang}` });
     const { good, bad } = parseJsonlSafely(raw, guardrail.id, lang);
     const { accepted: prepared, rejected: malformed } = prepareExamples(good);
-    const withGrounding = attachGroundingMetadata(prepared, retrieval).map((example) => ({
+    const validated = [];
+    const validationRejects = [];
+
+    for (const example of prepared) {
+      const issues = validateRow(example, { guardrail: guardrail.id, language: lang });
+      if (issues.length) {
+        validationRejects.push({ reason: issues.join('; '), example });
+      } else {
+        validated.push(example);
+      }
+    }
+
+    const withGrounding = attachGroundingMetadata(validated, retrieval).map((example) => ({
       ...example,
       doc_seed: {
         file_name: seed.file_name,
@@ -1454,6 +1175,7 @@ async function runBatch(guardrail, lang, count) {
     totalRejectLines.push(
       ...bad,
       ...malformed.map((r) => JSON.stringify({ reason: r.reason, example: r.example })),
+      ...validationRejects.map((r) => JSON.stringify({ reason: r.reason, example: r.example })),
       ...rejected.map((r) => JSON.stringify({ reason: r.reason, example: r.example })),
     );
 

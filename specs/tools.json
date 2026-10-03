@@ -1,0 +1,87 @@
+{
+  "allowlist": [
+    "get_user_health_data",
+    "save_food_plan",
+    "save_training_plan"
+  ],
+  "tools": [
+    {
+      "name": "get_user_health_data",
+      "arguments": {},
+      "returns": {
+        "age": "int",
+        "weight_kg": "float",
+        "height_cm": "float",
+        "sex": "string",
+        "pregnancy_status": "string",
+        "active_calories_burned": "int",
+        "basal_energy_burned": "int",
+        "exercise_minutes": "int",
+        "stand_hours": "int",
+        "sleep_duration_hours": "float",
+        "hrv_ms": "int",
+        "resting_heart_rate_bpm": "int"
+      },
+      "description": "Return user health/fitness metrics used for personalisation and safety checks."
+    },
+    {
+      "name": "save_food_plan",
+      "arguments": {
+        "plan": {
+          "type": "object",
+          "required": ["id", "language", "duration_days", "days"],
+          "properties": {
+            "id": { "type": "string" },
+            "language": { "type": "string" },
+            "duration_days": { "type": "integer" },
+            "days": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["day", "breakfast", "lunch", "dinner"],
+                "properties": {
+                  "day": { "type": "string" },
+                  "breakfast": { "type": "string" },
+                  "lunch": { "type": "string" },
+                  "dinner": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "description": "Persist a food plan for the selected language."
+    },
+    {
+      "name": "save_training_plan",
+      "arguments": {
+        "plan": {
+          "type": "object",
+          "required": ["id", "language", "duration_days", "days"],
+          "properties": {
+            "id": { "type": "string" },
+            "language": { "type": "string" },
+            "duration_days": { "type": "integer" },
+            "days": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["day", "title", "duration_minutes", "frequency", "training", "focus", "notes"],
+                "properties": {
+                  "day": { "type": "string" },
+                  "title": { "type": "string" },
+                  "duration_minutes": { "type": "integer" },
+                  "frequency": { "type": "string" },
+                  "training": { "type": "string" },
+                  "focus": { "type": "string" },
+                  "notes": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "description": "Persist a training plan for the selected language."
+    }
+  ]
+}

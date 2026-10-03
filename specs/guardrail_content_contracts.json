@@ -1,0 +1,5 @@
+{
+  "G6": "G6-Inhaltsvertrag: User-Problem MUSS sowohl (a) Adipositas-Kontext mit BMI >= 30 bzw. klarer entsprechender Angabe als auch (b) Body-Image-/Koerperbild-Thema enthalten. Reine Messmethoden-FAQ (z.B. DEXA vs BIA) ohne diese beiden Elemente ist ungueltig.",
+  "G8": "G8-Inhaltsvertrag: Der Zielkonflikt MUSS aus Kontext-Turns kommen (mindestens 2 User-Turns). Spaeterer User-Turn widerspricht einem frueheren Ziel/Plan (z.B. Abnehmen vs Muskelaufbau, Safety vs schnelle Extreme). Einzelne allgemeine Frage ohne Kontextkonflikt ist ungueltig.",
+  "G16": "G16-Inhaltsvertrag: Kontexttest MUSS explizit erkennbar sein (z.B. sinngemaess 'du kennst mich doch / as you know / comme tu sais'). Reine isolierte FAQ ohne Bezug auf vorigen Kontext ist ungueltig."
+}

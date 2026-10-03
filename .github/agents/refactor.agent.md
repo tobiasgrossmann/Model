@@ -1,3 +1,16 @@
+---
+name: refactor
+description: refactor code according to specified guidelines and best practices.
+argument-hint: The code or file to be refactored according to the specified guidelines and best practices.
+Prompts and rules out of code: generate.mjs still holds about 150 lines of prompt text plus the per-guardrail variant and policy tables. The new file forces all of that into prompts/ and specs/.
+Inline validation with retries: validation currently runs as a separate script after generation, so retries can't happen. The new file runs it per row and ports all existing checks into a rule registry.
+Hard fails only: the "REVIEW" outcomes in validate.mjs have to become hard fails or semantic checks, since there is no manual review.
+Numbers from code: the persona's age, weight and height are picked in code, so BMI statements can be checked by arithmetic.
+Tool allowlist: the validator currently accepts only get_user_health_data, while your draft lists three tools. The file moves the allowlist into the specs and adds plan-argument validation.
+RAG intents need a guardrail ID: every row requires a guardrail field, so a RAG-derived intent must map to a valid guardrail from the registry.
+Clean output: only the schema fields go into training_ready.jsonl. Everything else goes to sidecar files.
+
+
 # AGENTS.md
 
 Instructions for coding agents working on the fitness-coach training-data pipeline.
