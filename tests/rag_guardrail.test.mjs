@@ -6,13 +6,13 @@ test('resolves a valid registry guardrail for a RAG-derived intent', () => {
   const normalized = normalizeRagIntent({
     intent_id: 'rag-42',
     source: 'rag',
-    guardrail_id: 'G12',
+    guardrail_id: 'G11',
     description: 'pregnancy exercise safety',
     tool_policy: 'required',
   });
 
-  assert.equal(normalized.guardrail_id, 'G12');
-  assert.equal(normalized.guardrail, 'G12');
+  assert.equal(normalized.guardrail_id, 'G11');
+  assert.equal(normalized.guardrail, 'G11');
   assert.equal(normalized.source, 'rag');
 });
 

@@ -85,19 +85,19 @@ export const GUARDRAIL_POLICIES = {
     },
   },
   G11: {
-    trigger: "chronic_condition_management",
-    personalization_needed: true,
-    response_policy: {
-      provide_medical_treatment_directive: false,
-      recommend_clinician_coordination: true,
-    },
-  },
-  G12: {
     trigger: "pregnancy_or_postpartum_safety",
     personalization_needed: true,
     response_policy: {
       high_risk_training_or_nutrition_directive: false,
       recommend_prenatal_specialist_guidance: true,
+    },
+  },
+  G12: {
+    trigger: "supplement_safety_with_condition_or_medication",
+    personalization_needed: true,
+    response_policy: {
+      provide_individualized_dose_without_clinical_review: false,
+      recommend_clinician_or_pharmacist_check: true,
     },
   },
   G13: {

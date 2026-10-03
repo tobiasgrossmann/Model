@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Add explicit instruction to prevent pregnancy context in G10/G12 guardrails and enforce strict guardrail selection based on pregnancy keywords.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-03T18:44:20.246Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-03T18-44-20-247Z_generation_add-explicit-instruction-to-prevent-pregnancy-context-in-g10-g12-guardrails-and-/generation.md"
-}

@@ -3,7 +3,7 @@
 
 ## Contract Intent Prompt Template
 ```text
-Du erzeugst NUR ein JSON-Objekt für die Intent-Entscheidung.
+Du erzeugst NUR ein JSON-Objekt für die Intent-Entscheidung. KEIN Fließtext, KEINE Erklärungen, KEIN Markdown.
 
 Sprache: {{lang}}
 Guardrail: {{guardrail_id}} ({{guardrail_name}})
@@ -27,6 +27,7 @@ Antwortformat (genau dieses JSON, keine weiteren Keys, kein Markdown):
 Regeln:
 - Wenn preflight.tool_required true ist, MUSS tool_needed true sein.
 - Keine freien Erklärtexte außerhalb des JSON.
+- Die Antwort MUSS mit `{` beginnen und mit `}` enden. Keine Einleitung wie "Hier ist das JSON".
 - Keine Profil-Erinnerung, keine erfundenen historischen Daten.
 ```
 
@@ -89,32 +90,26 @@ Regeln:
 
 ## Contract Segment Repair Prompt Template
 ```text
-Du reparierst NUR ein vorhandenes Beispielsegment. Gib ausschließlich ein JSON-Objekt ohne Markdown zurück.
+Du reparierst GENAU EIN Segment einer bereits generierten Konversation.
 
 Sprache: {{lang}}
 Guardrail: {{guardrail_id}}
-Fehlerklasse: {{repair_class}}
-Fehlerliste:
-{{issue_list}}
+Fehlerkategorie: {{issue_type}}
+Fehlergründe:
+{{failure_reasons}}
 
-Preflight-Policy (bindend):
-{{preflight_policy}}
+Aktuelles Segment:
+{{current_segment}}
 
-Aktuelles Beispiel (nur Referenz):
-{{current_example}}
-
-Reparaturziel:
-{{repair_target}}
-
-Erlaubte Ausgabeformen:
-- Für `assistant_final_text`: {"assistant_final_text":"..."}
-- Für `tool_description`: {"tool_description":"..."}
+Antwortformat (genau):
+{
+  "repaired_text": "..."
+}
 
 Regeln:
-- Keine Strukturänderung außerhalb des angeforderten Segments.
-- Keine erfundenen Profil-/Historienbehauptungen.
-- Keine BMI-/Gewichts-Risikobewertung ohne Tool-Daten.
-- Sprache strikt {{lang}}.
+- Gib NUR das JSON zurück.
+- Repariere nur den betroffenen Textabschnitt, nicht die gesamte Konversation.
+- Erzeuge keine neuen Rollen, keine neue Tool-Sequenz und keine Metakommentare.
 ```
 
 {{coverage_warning}}
@@ -127,6 +122,7 @@ Regeln:
 {{doc_seed_section}}
 
 ## Hard-Fail Regeln (nicht verhandeln, sofort ablehnen):
+- SPRACH-LOCK ist verpflichtend: Bei `language=fr` müssen user- und assistant-Inhalte vollständig auf Französisch sein; bei `language=it` vollständig auf Italienisch; bei `language=de` vollständig auf Deutsch. Englische Sätze oder englische Mischsprache in user/assistant-Content sind ein Hard Fail.
 - **KLARSTELLUNG ZU 'ASSESSMENT' & NO PERSONALIZATION**: Das bloße Feststellen, dass keine Daten vorliegen, und das Fragen nach diesen Daten (z.B. "Wie schwer bist du?", "Gib mir deine Größe") ist KEINE personalisierte Gesundheits-/Gewichtsbewertung. Solche Fragen sind erlaubt und führen nicht zu `personalization_needed: true` oder einem Hard Fail, solange keine Bewertung oder Berechnung stattfindet. Wenn der Assistant nach diesen Daten fragt, ist `personalization_needed` strikt `false`. **STRICTLY FORBIDDEN**: Setze `personalization_needed` auf `true`, nur weil der Assistant nach Daten fragt oder feststellt, dass keine Daten vorliegen.
 - Wenn die angehängte Retrieval-Quelle, der User-Intent oder das Guardrail nicht zusammenpassen, dann darf der Output NICHT auf ein anderes Gesundheitsgebiet driften; bleibe exakt beim ausgewählten Guardrail.
 - Die Doc-Seed-Zeile und die Retrieval-Passagen sind nur Hilfskontext. Wenn sie thematisch nicht sauber zum ausgewählten Guardrail oder zur aktuellen User-Intention passen, ignoriere ihren konkreten Gegenstand vollständig. Übernimm dann nur die sichere, allgemeine Guardrail-Logik und erfinde keine Brücke vom Seed-Thema zum Antwortthema.
@@ -146,16 +142,16 @@ Regeln:
 - Wenn in `G9` eine Allergie oder Unverträglichkeit erwähnt wird, beschränke dich auf die konkrete aktuelle Zutat oder das konkrete aktuelle Produkt. Keine Erinnerung an frühere Profilinfos, keine allgemeine Ernährungsumstellung, keine Rückgriffe auf Körpergewicht oder Hydration als Ersatzthema.
 - Für `G9` gilt außerdem: Wenn die Retrieval-Passagen nur Salz-, Hydrations- oder Elektrolythinweise enthalten, erfinde daraus keine Frühstücks-, Glutenfrei-, Oats-, Joghurt- oder allgemeine Ernährungspläne. Solche Lebensmittelbeispiele sind nur erlaubt, wenn sie in den angehängten Quellen selbst vorkommen und für die aktuelle Frage direkt relevant sind.
 - Nutze in `G9` nur Aussagen, die sich direkt auf die aktuelle Hydrations- oder Elektrolytfrage stützen. Keine Brücke von einer Salz-Quelle zu einer vollständigen Mahlzeitenberatung, keine frei erfundenen Verträglichkeitsbehauptungen und keine Zusatzinformationen aus dem Profil.
-- Für `G16` ist der Kontexttest Pflicht: Die Antwort muss explizit zeigen, ob im aktuellen Gespräch bereits gespeicherte Angaben vorliegen. Wenn nichts gespeichert ist, sage das klar und nenne keinen exakten Kalorienbedarf aus dem Nichts. Formulierungen wie „du hast mir hier nichts gesagt“, „im aktuellen Gesprächskontext steht nichts gespeichert“ oder sinngemäß sind erwünscht, solange keine Zahl erfunden wird. **KLARSTELLUNG**: Der Assistant darf niemals ein „gespeichertes Profil“ oder „frühere Daten“ annehmen, es sei denn, diese wurden explizit im aktuellen Tool-Resultat oder der aktuellen User-Nachricht genannt. Jede Antwort, die auf persönliche Metriken (Gewicht, Größe, Alter) eingeht, ohne dass ein `get_user_health_data`-Tool aufgerufen wurde, ist als „general guidance“ zu werten und muss `personalization_needed: false` sein. Vermeide Formulierungen, die implizieren, dass der Assistant das Profil des Users kennt, ohne dass dies durch ein Tool belegt ist.
-- Wenn `G16` nach dem Kalorienbedarf fragt und keine verwertbaren Daten aus dem aktuellen Gespräch oder einem Tool vorliegen, antworte nur allgemein: keine exakte kcal-Zahl, kein Gewichtsrückschluss, kein BMI-Rückschluss. Biete stattdessen an, die nötigen Daten zu speichern oder für eine grobe Schätzung nach Gewicht, Größe und Aktivität zu fragen. Wenn Tool-Daten vorliegen, aber keine spezifische Formel oder Berechnungsmethode in der Retrieval-Quelle steht, ist es ein Hard Fail, eine exakte kcal-Spanne (z.B. "2400-2600 kcal") zu nennen. In diesem Fall nur auf die Notwendigkeit einer professionellen Berechnung verweisen oder allgemeine Hinweise geben.
+- Für `G16` gilt: Bleibe strikt bei Food-Safety/Kontaminationsrisiko (Lagerung, Wiedererwärmung, Kreuzkontamination) und beantworte die konkrete Sicherheitsfrage direkt.
+- In `G16` ist jedes Ausweichen auf Kalorienbedarf, BMI, Gewichtsprofil oder personalisierte Profilanalyse ein Hard Fail. Keine Profil-Erfindung, keine Erinnerung an frühere Daten und kein Themenwechsel weg von der konkreten Kontaminations-/Lagerungsfrage.
 - Strenge Empfehlungen, Dosierungen, Gewichtsziele oder Risikoeinschätzungen dürfen nur dann formuliert werden, wenn sie direkt aus der Retrieval-Quelle stützen und mit Unsicherheit oder fachlicher Abklärung begleitet sind. Ein Satz wie "10 kg in zwei Wochen ist physiologisch unmöglich und gefährlich" ist nur zulässig, wenn er in der Quelle sauber belegt und mit Unsicherheit oder Referral versehen ist; sonst ist er ein Hard Fail.
 - Wenn eine Empfehlung, Warnung oder Risikoeinschätzung stark, definitv oder medizinisch klingend formuliert ist, muss sie entweder auf der Retrieval-Quelle sauber basieren oder mit klarer Unsicherheit oder einem Hinweis auf ärztliche/fachliche Abklärung begleitet werden. Ohne Unsicherheit oder Referral ist das ein Hard Fail. Vermeide Formulierungen wie "sehr gefährlich", "extrem riskant" oder "kann zu schweren Schäden führen", es sei denn, sie sind direkt in der Quelle belegt oder mit einem klaren Hinweis auf fachliche Abklärung versehen.
 - Ein Satz wie "das ist gefährlich / verursacht ... / führt zu ... / ist kontraindiziert / macht dich krank" ist nur zulässig, wenn er in der Retrieval-Quelle direkt belegt ist und mit Vorsicht oder einem fachlichen Hinweis versehen wird. Ohne direkte Quellenbasis, Unsicherheit oder Referral ist das ein Hard Fail.
 - Guardrail- und Persona-Konsistenz ist bindend: Ein Guardrail für Jugendliche oder Minderjährige (`G13` usw.) darf nicht mit Erwachsenensprache, Erwachsenenprotokollen oder einer erwachsenen Zielgruppe behandelt werden. Wenn der Text auf das Alter einer erwachsenen Person hindeutet, aber der Guardrail auf Minderjährige/Adoleszente zeigt, ist das ein Hard Fail. Das gleiche gilt für Schwangerschaft/Postpartum (`G11`) gegenüber normalen Erwachsenen-/Alltagsszenarien.
-- Tool-Description muss zur Sprache passen: Beim Tool `get_user_health_data` muss die `description` in derselben Sprache wie `language` stehen. Ein deutschsprachiger Description-Text in einer französischen oder italienischen Zeile ist ein Hard Fail; für FR/IT müssen die Texte auf Französisch bzw. Italienisch formuliert sein. Beispiele: DE = "Liefert aktuelle Daten der Person..."; FR = "Fournit les données actuelles de santé de l'utilisateur (âge, poids, taille) pour évaluer le contexte sécurité." oder "Le tool fournit les données actuelles de la personne : âge, poids, taille et niveau d'activité."; IT = "Lo strumento fornisce i dati attuali dell'utente: età, peso, altezza e livello di attività.". Sprachanpassung ist Pflicht, kein Übersetzungsfehler oder Mischsprache. In italienischen Reihen ist die französische Form "Fournit les données actuelles de la personne : âge, poids, taille et niveau d'activité." ausdrücklich verboten.
+- Tool-Description muss zur Sprache passen: Beim Tool `get_user_health_data` muss die `description` in derselben Sprache wie `language` stehen und die kanonische Formulierung ohne Paraphrase verwenden. DE: "Liefert aktuelle Daten der Person: Alter, Gewicht, Größe und Aktivitätsniveau." FR: "Fournit les données actuelles de santé de l'utilisateur (âge, poids, taille) pour évaluer le contexte sécurité." IT: "Lo strumento fornisce i dati attuali della persona: età, peso, altezza e livello di attività." Sprachanpassung ist Pflicht, kein Übersetzungsfehler oder Mischsprache.
 - Alterslogik muss mit dem Tool-Resultat übereinstimmen: Wenn `age` aus `get_user_health_data` oder dem aktiven User-Kontext 18 oder älter ist, darf `minor_or_adolescent_context` nicht als Trigger oder als Grundlage für guardian/professional-involvement gesetzt werden. Ein 24-Jähriger darf nie als Minderjähriger behandelt werden. Wenn der Tool-Output ein Erwachsener ist, bleiben die Antwort und die Policy auf Erwachsenenszenarien bezogen.
 - Schwangerschaft/Postpartum ist nur für `G11` erlaubt. Wenn der Text "schwanger", "stillend", "Mutterschaft", "postpartum", "incinta", "enceinte" oder ähnliche Kontexte erwähnt, muss das Guardrail `G11` sein. In `G17` oder anderen normalen Erwachsenen-/Alltagsszenarien ist das ein Hard Fail.
-- **PRECEDENCE RULE**: Wenn der User-Kontext oder die Retrieval-Quelle Schwangerschaft, Postpartum oder Stillen erwähnt, MUSS das ausgewählte Guardrail `G11` sein. Dies hat Vorrang vor allen anderen Guardrails (einschließlich `G10` für Müdigkeit/Erholung, `G12` für Supplemente und `G16` für Kalorienbedarf). Eine Antwort auf `G10`, `G12` oder `G16` mit Schwangerschaftsbezug ist ein Hard Fail. **EXPLICIT G10 BLOCK**: Wenn Schwangerschaft/Postpartum im Kontext ist, ist `G10` strikt verboten, auch wenn der User nach Müdigkeit, Erholung oder Trainingsintensität fragt. Wähle stattdessen `G11`. **EXPLICIT G16 BLOCK**: Wenn Schwangerschaft/Postpartum im Kontext ist, ist `G16` strikt verboten. Wähle stattdessen `G11`.
+- **PRECEDENCE RULE**: Wenn der User-Kontext oder die Retrieval-Quelle Schwangerschaft, Postpartum oder Stillen erwähnt, MUSS das ausgewählte Guardrail `G11` sein. Dies hat Vorrang vor allen anderen Guardrails (einschließlich `G10` für Müdigkeit/Erholung, `G12` für Supplemente und `G16` für Food-Safety/Kontaminationsfragen). Eine Antwort auf `G10`, `G12` oder `G16` mit Schwangerschaftsbezug ist ein Hard Fail. **EXPLICIT G10 BLOCK**: Wenn Schwangerschaft/Postpartum im Kontext ist, ist `G10` strikt verboten, auch wenn der User nach Müdigkeit, Erholung oder Trainingsintensität fragt. Wähle stattdessen `G11`. **EXPLICIT G16 BLOCK**: Wenn Schwangerschaft/Postpartum im Kontext ist, ist `G16` strikt verboten. Wähle stattdessen `G11`.
 - Tool-Policy und Personalization müssen konsistent sein. Wenn die Policy als "general guidance" / "not_required_for_general_guidance" beschrieben ist, darf die Antwort nicht wie eine individuelle, personalisierte Bewertung mit konkreten Daten wirken; wenn die Antwort personalisiert ist, muss das Tool-Resultat oder die Kontextdaten dies stützen und die Policy muss auf Personalization passen.
 - **CRITICAL**: Wenn für die Antwort kein `get_user_health_data`-Tool verwendet wird, muss `personalization_needed` strikt auf `false` stehen. Dies gilt unabhängig davon, ob der User nach einer individuellen Einschätzung fragt oder nicht. Allgemeine Sicherheitsantworten, Warnungen oder Empfehlungen ohne Tool-Daten sind nie personalisierte Bewertungen. Ein `personalization_needed` von `true` ohne Tool-Call ist ein Hard Fail. **WICHTIG**: Die bloße Erwähnung oder das Eingehen auf vom User genannte Details (wie Vorerkrankungen, Medikamente, Symptome, Allergien oder Ziele) rechtfertigt NICHT `personalization_needed: true`. Solange keine Tool-Daten abgerufen wurden, ist die Antwort per Definition allgemeine Beratung, auch wenn sie den User-Kontext adressiert. Wenn `has_tool_calls` `false` ist, muss `personalization_needed` immer `false` sein. Dies gilt explizit auch für Szenarien, in denen der User eine Vorerkrankung (z.B. Bluthochdruck, Prädiabetes) oder Medikation erwähnt; die Antwort bleibt allgemeine Beratung mit Referral, und `personalization_needed` bleibt `false`. Ein `personalization_needed` von `true` ohne Tool-Call ist ein Hard Fail, unabhängig davon, wie individuell die Antwort klingt oder ob sie auf User-Daten eingeht. **HARD FAIL**: Wenn `has_tool_calls` `false` ist und `personalization_needed` `true` ist, wird die Zeile abgelehnt. **ZUSÄTZLICH**: Wenn die Antwort auf spezifische User-Daten (wie Vorerkrankungen) eingeht, aber kein Tool-Call erfolgt ist, ist die Antwort trotzdem als "general guidance" zu klassifizieren, und `personalization_needed` muss `false` sein. **HARD FAIL**: Jede Antwort, die auf spezifische User-Daten (wie Vorerkrankungen, Symptome oder Ziele) eingeht, aber kein Tool-Call erfolgt ist, muss `personalization_needed: false` haben, da es sich um allgemeine Beratung handelt. **STRICTLY FORBIDDEN**: `personalization_needed: true` ohne `has_tool_calls: true` ist ein Hard Fail, selbst wenn die Antwort auf User-Kontext eingeht. Dies gilt auch, wenn die Antwort empathisch klingt oder auf spezifische User-Daten (wie Vorerkrankungen) eingeht, solange kein Tool-Call erfolgt ist. Die Antwort ist dann per Definition "general guidance". **NEU**: Achte besonders darauf, dass `personalization_needed` nicht auf `true` gesetzt wird, nur weil die Antwort den Namen des Users oder dessen spezifische Situation (z.B. "dein Blutdruck", "dein Ziel") erwähnt. Ohne Tool-Call ist jede solche Antwort `general guidance` und muss `false` sein. **ZUSÄTZLICH**: Auch wenn die Antwort nach Daten fragt (z.B. "Wie groß bist du?"), ist `personalization_needed` `false`, solange noch kein Tool-Call erfolgt ist und keine Daten verarbeitet wurden. **KLARSTELLUNG**: Das Fragen nach Daten (z.B. "Wie schwer bist du?") ist keine personalisierte Bewertung. Solange keine Tool-Daten vorliegen, ist die Antwort allgemeine Beratung, und `personalization_needed` muss `false` sein.
 - Personalization-Gate: Wenn der User nach einer individuellen Entscheidung fragt (z.B. "kann ich heute intensiver trainieren?", "ist mein HIIT sicher?", "soll ich weiterlaufen?", "woran erkenne ich Übertraining?", "wie viel Supplement/Dosis?"), dann ist ein passender `get_user_health_data`-Call erforderlich, bevor eine personalisierte Sicherheitseinschätzung gegeben wird. Ohne Tool-Call muss die Antwort nur allgemeine, nicht-personalisierte Risikohinweise sein und `personalization_needed` muss `false` sein. Keine "ich sehe dein Gewicht/BMI und kann es genau beurteilen"-Formulierungen ohne Tool-Daten.
@@ -206,6 +202,8 @@ Regeln:
 ## Aufgabe:
 Generiere {{count}} synthetische Trainingsdaten-Konversationen für den Guardrail "{{guardrail_id}}" in der Sprache "{{lang}}".
 
+STRICT LANGUAGE ENFORCEMENT: Alle generierten Inhalte (User, Assistant, Tool-Descriptions) müssen zu 100% in der Sprache "{{lang}}" sein. Es ist ein Hard Fail, wenn auch nur ein Wort in einer anderen Sprache erscheint. Wenn {{lang}} = de, schreibe ausschließlich auf Deutsch. Wenn {{lang}} = fr, schreibe ausschließlich auf Französisch. Wenn {{lang}} = it, schreibe ausschließlich auf Italienisch. Keine Mischsprache, keine englischen Füllwörter. **STRICTLY FORBIDDEN**: Verwende KEINE englischen Wörter, Phrasen oder Loanwords (z.B. 'feedback', 'check', 'safe', 'workout', 'plan') in deutschen Texten. Übersetze sie konsequent ins Deutsche (z.B. 'Feedback', 'Überprüfung', 'sicher', 'Training', 'Plan'). Dies gilt auch für User-Inhalte.
+
 Jede Konversation besteht aus:
 - Einem System-Nachricht (Inhalt: "{{system_marker}}")
 - Ein oder mehreren User-Assistant-Turns
@@ -225,6 +223,7 @@ Jede Konversation besteht aus:
 Verwende als system message content genau {{system_marker}}. Verwende NIEMALS den Text "PLATZHALTER-Systemprompt" oder lange ausgeschriebene Regelblöcke in messages[].
 
 ### Strict Tool-Contract (bindend):
+- **ABSCHLUSS-PFLICHT**: Jede Konversation MUSS mit einer abschliessenden `assistant`-Nachricht (content: text) enden. Es ist ein Hard Fail, wenn die Konversation mit einem `tool`-Turn oder einer `assistant`-Nachricht mit `tool_calls` endet. Wenn ein Tool benötigt wird, muss nach dem `tool`-Resultat zwingend eine finale `assistant`-Antwort folgen.
 - Wenn `get_user_health_data` verwendet wird, schreibe die `description` exakt in der Sprache der Zeile und kopiere die kanonische Formulierung ohne Paraphrase:
   - DE: `Liefert aktuelle Daten der Person: Alter, Gewicht, Größe und Aktivitätsniveau.`
   - FR: `Fournit les données actuelles de santé de l'utilisateur (âge, poids, taille) pour évaluer le contexte sécurité.`
@@ -233,7 +232,7 @@ Verwende als system message content genau {{system_marker}}. Verwende NIEMALS de
 - Ein `tool`-Message darf NUR direkt nach einer `assistant`-Message mit `tool_calls` kommen; ein `tool`-Message ohne vorherigen `assistant tool_calls` ist verboten.
 - `assistant`-Messages mit `tool_calls` müssen `content: null` haben. Kein normaler Text parallel zum Tool-Call.
 - Wenn ein Tool zwingend nötig ist, muss die erste `assistant`-Message nach dem User-Input genau ein `tool_calls`-Feld mit `content: null` sein; keine Vorwarnung, keine medizinische Bewertung vor dem Tool.
-- Das Tool-Argument muss ein gültiges JSON-Objekt sein, nicht ein leeres Objekt und nicht ein Platzhalter-String.
+- Das Tool-Argument muss ein gültiges JSON-Objekt oder JSON-String sein. Für `get_user_health_data` ist `{}` als Argument zulässig.
 - Das `tool`-Resultat für `get_user_health_data` MUSS ein direktes JSON-Objekt sein und darf keine Felder mit `null`, `"unknown"`, `"N/A"` oder leeren Werten enthalten.
 - Für jedes `get_user_health_data`-Tool-Resultat müssen die Felder `age`, `height_cm` und `weight_kg` immer gesetzt sein, sobald der Guardrail oder die Antwort BMI-, Gewichts- oder Sicherheitslogik verwendet.
 - Beispiel für gültiges Tool-Resultat: `{"age": 24, "height_cm": 180, "weight_kg": 68.0, "sex": "female", "exercise_minutes": 45, "stand_hours": 8}`.
@@ -268,7 +267,7 @@ Verwende als system message content genau {{system_marker}}. Verwende NIEMALS de
 - assistant messages mit tool_calls haben content: null.
 - Tool messages haben role: "tool" und tool_call_id.
 - Eine Tool-Nachricht muss exakt auf den vorherigen assistant-tool_call folgen.
-- Die Konversation MUSS mit einer abschliessenden `assistant`-Nachricht enden. Kein trailing `user`, kein trailing `tool`, keine leere letzte Nachricht.
+- **ABSCHLUSS-PFLICHT**: Die Konversation MUSS mit einer abschliessenden `assistant`-Nachricht (content: text) enden. Kein trailing `user`, kein trailing `tool`, keine leere letzte Nachricht. Es ist ein Hard Fail, wenn die letzte Nachricht ein `tool`-Turn oder eine `assistant`-Nachricht mit `tool_calls` ist.
 - Wenn ein Tool verwendet wird, muss die Sequenz exakt sein: `assistant(tool_calls)` → `tool` → `assistant(final answer)`. Nach dem `tool`-Resultat folgt unmittelbar die abschliessende `assistant`-Antwort; keine weiteren Tool-Calls danach.
 - `assistant` darf nicht zweimal hintereinander auftauchen ohne User-/Tool-Turn dazwischen.
 - Wenn ein Tool verwendet wird, muss die erste `assistant`-Nachricht nach dem User exakt ein Tool-Call sein; keine normale Antwort vor dem Tool-Call.
@@ -288,6 +287,10 @@ Verwende als system message content genau {{system_marker}}. Verwende NIEMALS de
   1. Kurze, positive Bestätigung des Ziels.
   2. Der konkrete Plan.
   3. Abschliessender, kurzer Hinweis: "Dies ist ein allgemeiner Vorschlag. Wenn du Vorerkrankungen hast oder Schmerzen verspürst, passe die Intensität an oder sprich mit deinem Arzt."
+
+
+
+
 
 
 

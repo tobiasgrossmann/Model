@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Fix G12/IT contract failure by ensuring the skeleton prompt template explicitly handles the 'mixed' language case and enforces strict JSON output for the skeleton step, preventing non-JSON responses.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T19:24:35.548Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T19-24-35-548Z_generation_fix-g12-it-contract-failure-by-ensuring-the-skeleton-prompt-template-explicitly-/generation.md"
+}

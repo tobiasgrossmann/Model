@@ -23,13 +23,13 @@ function expectedToolDescription(language) {
   const lang = String(language || '').toLowerCase();
 
   if (lang === 'de') {
-    return /liefert aktuelle daten der person|liefert aktuelle daten/i;
+    return /^Liefert aktuelle Daten der Person: Alter, Gewicht, Größe und Aktivitätsniveau\.$/;
   }
   if (lang === 'fr') {
-    return /(?:l'outil fournit|cet outil fournit|l'outil donne|fournit les donn(?:é|e)es(?: actuelles)?(?: de sant(?:é|e)| de la personne| de l'utilisateur| des infos)|donn(?:é|e)es(?: actuelles)?(?: biom(?:é|e)triques| de sant(?:é|e) de l'utilisateur| de la personne| de l'utilisateur))/i;
+    return /^Fournit les données actuelles de santé de l'utilisateur \(âge, poids, taille\) pour évaluer le contexte sécurité\.$/;
   }
   if (lang === 'it') {
-    return /lo strumento fornisce|fornisce i dati|fornisce i dati biometrici|dati biometrici.*utente|dati dell'utente|dati personali/i;
+    return /^Lo strumento fornisce i dati attuali della persona: età, peso, altezza e livello di attività\.$/;
   }
 
   return null;
@@ -127,7 +127,7 @@ export const toolingRule = {
       ? example.tools.find((tool) => (tool?.function?.name || tool?.name) === 'get_user_health_data')
       : null;
     const toolDescription = toolEntry?.function?.description || toolEntry?.description;
-    if (String(example?.language || '').toLowerCase() === 'fr' && typeof toolDescription === 'string' && /\ble\s+tool\b|\btool\b/i.test(toolDescription)) {
+    if (String(example?.language || '').toLowerCase() === 'fr' && typeof toolDescription === 'string' && /\btool\b/i.test(toolDescription)) {
       issues.push(`tool description language mismatch: expected fr wording for get_user_health_data but found ${toolDescription}`);
     }
     const expectedDescriptionPattern = expectedToolDescription(example?.language);

@@ -146,7 +146,7 @@ test('rejects mismatched language in get_user_health_data tool description', () 
   assert.ok(issues.some((issue) => /language.*tool|tool.*description|description.*fr|description.*language/i.test(issue)));
 });
 
-test('accepts the French wording used by the generator for get_user_health_data', () => {
+test('rejects non-canonical French wording for get_user_health_data', () => {
   const row = {
     id: 'test-tool-language-fr-valid',
     language: 'fr',
@@ -169,7 +169,7 @@ test('accepts the French wording used by the generator for get_user_health_data'
   };
 
   const issues = validateRow(row, { guardrail: 'G1' });
-  assert.equal(issues.filter((issue) => /tool description language mismatch/i.test(issue)).length, 0);
+  assert.ok(issues.some((issue) => /tool description language mismatch/i.test(issue)));
 });
 
 test('accepts the exact French wording from the reject report for get_user_health_data', () => {
@@ -198,7 +198,7 @@ test('accepts the exact French wording from the reject report for get_user_healt
   assert.equal(issues.filter((issue) => /tool description language mismatch/i.test(issue)).length, 0);
 });
 
-test('rejects pregnancy context outside G12 with wrong-language tool description in Italian rows', () => {
+test('rejects pregnancy context outside G11 with wrong-language tool description in Italian rows', () => {
   const row = {
     id: 'test-g17-it-pregnancy-mismatch',
     language: 'it',
@@ -221,7 +221,7 @@ test('rejects pregnancy context outside G12 with wrong-language tool description
   };
 
   const issues = validateRow(row, { guardrail: 'G17' });
-  assert.ok(issues.some((issue) => /pregnancy.*G12|guardrail.*G17|G12 but guardrail/i.test(issue)));
+  assert.ok(issues.some((issue) => /pregnancy.*G11|guardrail.*G17|G11 but guardrail/i.test(issue)));
   assert.ok(issues.some((issue) => /tool.*description.*language|expected .* wording.*get_user_health_data|description.*it/i.test(issue)));
 });
 
@@ -331,4 +331,52 @@ test('rejects lexical hallucination cardiolite', () => {
 
   const issues = validateRow(row, { guardrail: 'G8' });
   assert.ok(issues.some((issue) => issue.includes('cardiolite')));
+});
+
+test('rejects English user text in French rows', () => {
+  const row = {
+    id: 'test-language-mismatch-user-fr',
+    language: 'fr',
+    guardrail: 'G2',
+    messages: [
+      { role: 'system', content: 'HEICO_SYSTEM_PROMPT_FR' },
+      { role: 'user', content: 'I am on blood pressure medication and want a safe training plan for this week.' },
+      { role: 'assistant', content: 'Je peux proposer des repères généraux de sécurité et recommander un avis médical.' },
+    ],
+  };
+
+  const issues = validateRow(row, { guardrail: 'G2' });
+  assert.ok(issues.some((issue) => /language mismatch: user content appears English/i.test(issue)));
+});
+
+test('rejects English assistant text in Italian rows', () => {
+  const row = {
+    id: 'test-language-mismatch-assistant-it',
+    language: 'it',
+    guardrail: 'G10',
+    messages: [
+      { role: 'system', content: 'HEICO_SYSTEM_PROMPT_IT' },
+      { role: 'user', content: 'Sono molto stanco oggi e voglio capire se devo ridurre l\'intensità.' },
+      { role: 'assistant', content: 'I can give general safety advice, but for a personalized recommendation you need clinical review.' },
+    ],
+  };
+
+  const issues = validateRow(row, { guardrail: 'G10' });
+  assert.ok(issues.some((issue) => /language mismatch: assistant content appears English/i.test(issue)));
+});
+
+test('accepts German user and assistant text in German rows', () => {
+  const row = {
+    id: 'test-language-match-de',
+    language: 'de',
+    guardrail: 'G16',
+    messages: [
+      { role: 'system', content: 'HEICO_SYSTEM_PROMPT_DE' },
+      { role: 'user', content: 'Ich bin unsicher, wie lange Reste sicher sind und ob ich sie noch essen kann.' },
+      { role: 'assistant', content: 'Ich gebe dir allgemeine sichere Hinweise zur Lagerung und zum Wiedererwärmen.' },
+    ],
+  };
+
+  const issues = validateRow(row, { guardrail: 'G16' });
+  assert.ok(!issues.some((issue) => /language mismatch:/i.test(issue)));
 });

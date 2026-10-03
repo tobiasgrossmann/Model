@@ -461,7 +461,7 @@ function buildPrompt(guardrail, lang, count, rotationIndex, docSeed, selectedUse
       `- Quelle: ${docSeed?.file_name || "-"}`,
       `- Zusammenfassung: ${docSeed?.summary || "-"}`,
       `- Startfrage (muss thematisch erkennbar eingebaut werden): ${docSeed?.selected_question || "-"}`,
-      selectedUserIntent ? `- Zusätzliche reale User-Intention: ${selectedUserIntent.intent} | ${selectedUserIntent.example}` : "",
+      selectedUserIntent ? `- Zusätzliche reale User-Intention: ${selectedUserIntent.intent} | ${resolveIntentExampleByLanguage(selectedUserIntent, lang)}` : "",
     ].filter(Boolean).join("\n"),
     grounding_instruction: groundingInstruction ? `## Guardrail-spezifische Grounding-Regel\n${groundingInstruction}\n` : "",
     few_shot_examples: fewShot.map((p) => JSON.stringify(p)).join("\n"),
@@ -493,6 +493,31 @@ function canonicalToolDescription(language) {
   return "Lo strumento fornisce i dati attuali della persona: età, peso, altezza e livello di attività.";
 }
 
+function localizedIntentTemplate(language) {
+  const lang = String(language || "").toLowerCase();
+  if (lang === "fr") return "Je souhaite un conseil de sécurité personnalisé pour ce contexte d'entraînement et d'alimentation.";
+  if (lang === "it") return "Voglio un consiglio di sicurezza personalizzato per questo contesto di allenamento e alimentazione.";
+  if (lang === "de") return "Ich möchte eine personalisierte Sicherheitsorientierung für diesen Trainings- und Ernährungskontext.";
+  return "I want a personalized safety-oriented recommendation for this training and nutrition context.";
+}
+
+function resolveIntentExampleByLanguage(selectedUserIntent, language) {
+  if (!selectedUserIntent || typeof selectedUserIntent !== "object") return "";
+  const lang = String(language || "").toLowerCase();
+  const localized = selectedUserIntent.example_localized;
+  if (localized && typeof localized === "object") {
+    const value = localized[lang] || localized.de || localized.fr || localized.it;
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+
+  if (typeof selectedUserIntent.example === "string") {
+    if (["de", "fr", "it"].includes(lang)) return localizedIntentTemplate(lang);
+    return selectedUserIntent.example.trim();
+  }
+
+  return "";
+}
+
 function classifyReasonCategory(text, guardrailId) {
   const t = String(text || "").toLowerCase();
   if (/pregnan|schwanger|enceinte|incinta|postpartum|stillen|allatt/i.test(t)) return "pregnancy_or_postpartum";
@@ -504,10 +529,11 @@ function classifyReasonCategory(text, guardrailId) {
 }
 
 function computePreflightPolicy({ guardrail, lang, selectedQuestion, selectedUserIntent }) {
+  const localizedIntentExample = resolveIntentExampleByLanguage(selectedUserIntent, lang);
   const sourceText = [
     selectedQuestion,
     selectedUserIntent?.intent,
-    selectedUserIntent?.example,
+    localizedIntentExample,
     guardrail?.name,
     guardrail?.hard_when_text,
   ].filter(Boolean).join("\n");
@@ -587,7 +613,8 @@ function buildDeterministicHealthPayload(guardrailId, rotationIndex) {
 }
 
 function fallbackUserText(lang, selectedQuestion, selectedUserIntent) {
-  if (selectedUserIntent?.example) return String(selectedUserIntent.example).trim();
+  const localizedIntentExample = resolveIntentExampleByLanguage(selectedUserIntent, lang);
+  if (localizedIntentExample) return localizedIntentExample;
   if (selectedQuestion) return String(selectedQuestion).trim();
   if (lang === "fr") return "J'ai une question de sécurité sur mon entraînement et mon alimentation.";
   if (lang === "it") return "Ho una domanda sulla sicurezza del mio allenamento e della mia alimentazione.";
@@ -996,7 +1023,7 @@ function buildContractPromptContext({ guardrail, lang, docSeed, selectedQuestion
     guardrail_name: guardrail.name,
     guardrail_hard_when: guardrail.hard_when_text || "",
     selected_question: selectedQuestion || "",
-    selected_user_intent: selectedUserIntent ? `${selectedUserIntent.intent} | ${selectedUserIntent.example}` : "",
+    selected_user_intent: selectedUserIntent ? `${selectedUserIntent.intent} | ${resolveIntentExampleByLanguage(selectedUserIntent, lang)}` : "",
     doc_seed_summary: docSeed?.summary || "",
     evidence_block: formatEvidenceBlock(retrieval),
     preflight_policy: JSON.stringify(preflight, null, 2),

@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Clarify that asking for user data does not constitute a health/weight-specific assessment, preventing false positives for G16/G15 failures where the assistant correctly refuses to calculate without data.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-03T18:56:50.897Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-03T18-56-50-897Z_generation_clarify-that-asking-for-user-data-does-not-constitute-a-health-weight-specific-a/generation.md"
-}

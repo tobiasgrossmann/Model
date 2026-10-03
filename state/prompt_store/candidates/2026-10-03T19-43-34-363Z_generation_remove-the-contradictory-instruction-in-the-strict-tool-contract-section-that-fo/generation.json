@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Remove the contradictory instruction in the 'Strict Tool-Contract' section that forbids pre-tool warnings, which conflicts with the 'ABSCHLUSS-PFLICHT' rule and causes the model to output non-JSON text (violating the contract-first generation requirement).",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T19:43:34.363Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T19-43-34-363Z_generation_remove-the-contradictory-instruction-in-the-strict-tool-contract-section-that-fo/generation.md"
+}

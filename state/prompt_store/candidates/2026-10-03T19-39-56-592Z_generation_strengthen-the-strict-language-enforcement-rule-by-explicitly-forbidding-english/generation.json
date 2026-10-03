@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the strict language enforcement rule by explicitly forbidding English words and adding a specific instruction to avoid English loanwords in German contexts, addressing the recurring 'language mismatch' failures.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T19:39:56.591Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T19-39-56-592Z_generation_strengthen-the-strict-language-enforcement-rule-by-explicitly-forbidding-english/generation.md"
+}

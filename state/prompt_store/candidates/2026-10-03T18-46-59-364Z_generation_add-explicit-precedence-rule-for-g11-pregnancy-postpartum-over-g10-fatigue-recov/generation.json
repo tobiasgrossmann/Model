@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Add explicit precedence rule for G11 (pregnancy/postpartum) over G10 (fatigue/recovery) to fix guardrail mismatch failures where pregnancy context was incorrectly mapped to G10.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-03T18:46:59.363Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-03T18-46-59-364Z_generation_add-explicit-precedence-rule-for-g11-pregnancy-postpartum-over-g10-fatigue-recov/generation.md"
-}

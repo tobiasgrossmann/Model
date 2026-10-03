@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Add explicit instruction to strictly enforce the target language for all generated content, preventing English leakage in non-English rows.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T19:35:50.656Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T19-35-50-658Z_generation_add-explicit-instruction-to-strictly-enforce-the-target-language-for-all-generat/generation.md"
+}

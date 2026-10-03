@@ -21,6 +21,35 @@ function hasToolResult(example) {
   return (example?.messages || []).some((message) => message?.role === 'tool');
 }
 
+const LANGUAGE_MARKERS = {
+  en: ['i', "i'm", 'my', 'me', 'you', 'your', 'want', 'need', 'safe', 'training', 'plan', 'today', 'week', 'without', 'with'],
+  de: ['ich', 'du', 'dein', 'deine', 'mit', 'ohne', 'für', 'heute', 'woche', 'möchte', 'kann', 'sicher'],
+  fr: ['je', "j'", 'tu', 'vous', 'avec', 'sans', 'pour', 'aujourd', 'semaine', 'veux', 'peux', 'sûr', 'sante'],
+  it: ['io', 'sono', 'tu', 'con', 'senza', 'per', 'oggi', 'settimana', 'voglio', 'posso', 'sicuro', 'salute'],
+};
+
+function countMarkerHits(text, markers) {
+  const normalized = String(text || '').toLowerCase();
+  return markers.reduce((count, marker) => {
+    const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`\\b${escaped}\\b`, 'i');
+    return count + (pattern.test(normalized) ? 1 : 0);
+  }, 0);
+}
+
+function looksEnglishForNonEnglishRow(text, language) {
+  const lang = String(language || '').toLowerCase();
+  if (!['de', 'fr', 'it'].includes(lang)) return false;
+
+  const content = String(text || '').trim();
+  if (content.length < 20) return false;
+
+  const englishHits = countMarkerHits(content, LANGUAGE_MARKERS.en);
+  const localHits = countMarkerHits(content, LANGUAGE_MARKERS[lang]);
+
+  return englishHits >= 3 && localHits === 0;
+}
+
 export const schemaRule = {
   id: 'schema',
   validate(example) {
@@ -91,6 +120,15 @@ export const schemaRule = {
     const hasAnyToolCalls = hasToolCall(example);
     if (declaredTools.length > 0 && !hasAnyToolCalls) {
       issues.push('tools schema present without any assistant tool_calls');
+    }
+
+    const rowLanguage = String(example?.language || '').toLowerCase();
+    for (const message of messages) {
+      if (!['user', 'assistant'].includes(message?.role)) continue;
+      if (typeof message?.content !== 'string' || !message.content.trim()) continue;
+      if (looksEnglishForNonEnglishRow(message.content, rowLanguage)) {
+        issues.push(`language mismatch: ${message.role} content appears English but row language is ${rowLanguage}`);
+      }
     }
 
     if (typeof example?.language !== 'string' || !example.language.trim()) {

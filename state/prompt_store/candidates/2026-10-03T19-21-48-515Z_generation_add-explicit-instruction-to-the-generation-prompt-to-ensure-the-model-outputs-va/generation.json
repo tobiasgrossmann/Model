@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Add explicit instruction to the Generation prompt to ensure the model outputs valid JSON for the intent decision step, preventing non-JSON text responses that cause contract-first failures.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T19:21:48.515Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T19-21-48-515Z_generation_add-explicit-instruction-to-the-generation-prompt-to-ensure-the-model-outputs-va/generation.md"
+}
