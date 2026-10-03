@@ -1,6 +1,6 @@
 {
   "totals": {
-    "validated_examples": 0,
+    "validated_examples": 1,
     "compared_pairs": 0,
     "high_overlap_pairs": 0,
     "high_overlap_ratio": 0,
@@ -8,14 +8,28 @@
     "compared_pairs_cap": 150000
   },
   "distribution": {
-    "language": {},
-    "guardrail": {},
-    "persona": {
-      "sex": {},
-      "age_band": {},
-      "height_band_cm": {},
-      "weight_band_kg": {}
+    "language": {
+      "fr": 1
     },
-    "topic": {}
+    "guardrail": {
+      "G12": 1
+    },
+    "persona": {
+      "sex": {
+        "unknown": 1
+      },
+      "age_band": {
+        "unknown": 1
+      },
+      "height_band_cm": {
+        "unknown": 1
+      },
+      "weight_band_kg": {
+        "unknown": 1
+      }
+    },
+    "topic": {
+      "other": 1
+    }
   }
 }

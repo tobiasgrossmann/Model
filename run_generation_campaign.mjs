@@ -189,6 +189,9 @@ function runAutoRepairStep() {
 function runBatch(guardrail, lang, count) {
   runGenerateWithRetry(guardrail, lang, count);
   runValidateStep();
+  if (AUTO_REPAIR || AUTO_REPAIR_APPLY) {
+    runAutoRepairStep();
+  }
 }
 
 function done({ counts, guardrailCounts }, guardrails) {
@@ -340,10 +343,6 @@ function main() {
 
   console.log("Campaign complete.");
   printProgress("Final", state, guardrails);
-
-  if (AUTO_REPAIR || AUTO_REPAIR_APPLY) {
-    runAutoRepairStep();
-  }
 }
 
 const isDirectRun = process.argv[1] && path.resolve(fileURLToPath(import.meta.url)) === path.resolve(process.argv[1]);

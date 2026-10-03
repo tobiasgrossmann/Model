@@ -1,0 +1,73 @@
+{
+  "created_at": "2026-10-03T16:03:21.349Z",
+  "label": "campaign-fresh",
+  "prompt_dir": "./prompts",
+  "spec_dir": "./specs",
+  "copied": [
+    {
+      "type": "prompt",
+      "file": "system.md",
+      "path": "state/prompt_store/snapshots/2026-10-03T16-03-21-345Z_campaign-fresh/prompts/system.md"
+    },
+    {
+      "type": "prompt",
+      "file": "generation.md",
+      "path": "state/prompt_store/snapshots/2026-10-03T16-03-21-345Z_campaign-fresh/prompts/generation.md"
+    },
+    {
+      "type": "prompt",
+      "file": "retry.md",
+      "path": "state/prompt_store/snapshots/2026-10-03T16-03-21-345Z_campaign-fresh/prompts/retry.md"
+    },
+    {
+      "type": "prompt",
+      "file": "seed_generation.md",
+      "path": "state/prompt_store/snapshots/2026-10-03T16-03-21-345Z_campaign-fresh/prompts/seed_generation.md"
+    },
+    {
+      "type": "prompt",
+      "file": "few_shot.md",
+      "path": "state/prompt_store/snapshots/2026-10-03T16-03-21-345Z_campaign-fresh/prompts/few_shot.md"
+    },
+    {
+      "type": "prompt",
+      "file": "prompt_repair.md",
+      "path": "state/prompt_store/snapshots/2026-10-03T16-03-21-345Z_campaign-fresh/prompts/prompt_repair.md"
+    },
+    {
+      "type": "spec",
+      "file": "guardrails_spec.json",
+      "path": "state/prompt_store/snapshots/2026-10-03T16-03-21-345Z_campaign-fresh/specs/guardrails_spec.json"
+    },
+    {
+      "type": "spec",
+      "file": "guardrail_content_contracts.json",
+      "path": "state/prompt_store/snapshots/2026-10-03T16-03-21-345Z_campaign-fresh/specs/guardrail_content_contracts.json"
+    },
+    {
+      "type": "spec",
+      "file": "guardrail_policies.mjs",
+      "path": "state/prompt_store/snapshots/2026-10-03T16-03-21-345Z_campaign-fresh/specs/guardrail_policies.mjs"
+    },
+    {
+      "type": "spec",
+      "file": "guardrail_grounding.mjs",
+      "path": "state/prompt_store/snapshots/2026-10-03T16-03-21-345Z_campaign-fresh/specs/guardrail_grounding.mjs"
+    },
+    {
+      "type": "spec",
+      "file": "batch_mix_instructions.json",
+      "path": "state/prompt_store/snapshots/2026-10-03T16-03-21-345Z_campaign-fresh/specs/batch_mix_instructions.json"
+    },
+    {
+      "type": "spec",
+      "file": "healthy_planning_mix.json",
+      "path": "state/prompt_store/snapshots/2026-10-03T16-03-21-345Z_campaign-fresh/specs/healthy_planning_mix.json"
+    },
+    {
+      "type": "spec",
+      "file": "random_user_intents.json",
+      "path": "state/prompt_store/snapshots/2026-10-03T16-03-21-345Z_campaign-fresh/specs/random_user_intents.json"
+    }
+  ]
+}
