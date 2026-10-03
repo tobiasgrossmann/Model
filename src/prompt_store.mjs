@@ -1,0 +1,289 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
+const DEFAULT_PROMPT_STORE_DIR = process.env.PROMPT_STORE_DIR || './state/prompt_store';
+
+function ensureDir(dirPath) {
+  fs.mkdirSync(dirPath, { recursive: true });
+}
+
+function timestampTag(date = new Date()) {
+  return date.toISOString().replace(/[:.]/g, '-');
+}
+
+function slugify(value) {
+  return String(value || 'item')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'item';
+}
+
+export function getPromptStoreDir(baseDir = DEFAULT_PROMPT_STORE_DIR) {
+  return baseDir;
+}
+
+export function ensurePromptStore(baseDir = DEFAULT_PROMPT_STORE_DIR) {
+  const root = getPromptStoreDir(baseDir);
+  ensureDir(root);
+  ensureDir(path.join(root, 'snapshots'));
+  ensureDir(path.join(root, 'failures'));
+  ensureDir(path.join(root, 'candidates'));
+  ensureDir(path.join(root, 'history'));
+  ensureDir(path.join(root, 'prompt_versions'));
+  return root;
+}
+
+export function appendJsonl(filePath, record) {
+  ensureDir(path.dirname(filePath));
+  fs.appendFileSync(filePath, `${JSON.stringify(record)}\n`, 'utf8');
+}
+
+export function readJsonl(filePath) {
+  if (!fs.existsSync(filePath)) return [];
+  return fs.readFileSync(filePath, 'utf8')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+}
+
+export function readTextFile(filePath) {
+  return fs.readFileSync(filePath, 'utf8');
+}
+
+export function writeTextFile(filePath, content) {
+  ensureDir(path.dirname(filePath));
+  fs.writeFileSync(filePath, `${String(content || '')}`, 'utf8');
+}
+
+export function listRecentFailures({ baseDir = DEFAULT_PROMPT_STORE_DIR, guardrail = null, language = null, limit = 20 } = {}) {
+  const root = ensurePromptStore(baseDir);
+  const records = readJsonl(path.join(root, 'failures', 'failures.jsonl'))
+    .filter((record) => {
+      if (guardrail && String(record.guardrail || '').toUpperCase() !== String(guardrail).toUpperCase()) return false;
+      if (language && String(record.language || '').toLowerCase() !== String(language).toLowerCase()) return false;
+      return true;
+    });
+
+  return records.slice(Math.max(0, records.length - Math.max(0, limit)));
+}
+
+export function importFlaggedFailures({
+  flaggedFile,
+  baseDir = DEFAULT_PROMPT_STORE_DIR,
+  source = 'flagged-import',
+  limit = null,
+} = {}) {
+  if (!flaggedFile || !fs.existsSync(flaggedFile)) return { imported: 0, skipped: 0 };
+
+  const root = ensurePromptStore(baseDir);
+  const existing = new Set(
+    readJsonl(path.join(root, 'failures', 'failures.jsonl')).map((record) => {
+      const issues = Array.isArray(record.issues) ? record.issues.join('|') : '';
+      return `${record.id || ''}::${record.guardrail || ''}::${record.language || ''}::${issues}`;
+    })
+  );
+
+  const flaggedRecords = readJsonl(flaggedFile);
+  const slice = Number.isFinite(limit) && limit > 0
+    ? flaggedRecords.slice(Math.max(0, flaggedRecords.length - limit))
+    : flaggedRecords;
+
+  let imported = 0;
+  let skipped = 0;
+  for (const row of slice) {
+    const example = row?.example || null;
+    const issues = Array.isArray(row?.issues)
+      ? row.issues
+      : row?.reason
+        ? [String(row.reason)]
+        : [];
+    const key = `${row?.id || example?.id || ''}::${example?.guardrail || ''}::${example?.language || ''}::${issues.join('|')}`;
+    if (existing.has(key)) {
+      skipped += 1;
+      continue;
+    }
+    recordValidationFailure({
+      example,
+      issues,
+      source,
+      baseDir: root,
+    });
+    existing.add(key);
+    imported += 1;
+  }
+
+  return { imported, skipped };
+}
+
+export function backupPromptFile({ promptFile, baseDir = DEFAULT_PROMPT_STORE_DIR, label = 'pre-promotion' }) {
+  const root = ensurePromptStore(baseDir);
+  const source = path.isAbsolute(promptFile) ? promptFile : path.resolve(promptFile);
+  const backupDir = path.join(root, 'snapshots', `${timestampTag()}_${slugify(label)}`, 'prompts');
+  ensureDir(backupDir);
+  const target = path.join(backupDir, path.basename(source));
+  if (fs.existsSync(source)) {
+    fs.copyFileSync(source, target);
+  }
+  appendJsonl(path.join(root, 'history', 'prompt_versions.jsonl'), {
+    kind: 'backup',
+    created_at: new Date().toISOString(),
+    source_file: source,
+    backup_file: target,
+    label,
+  });
+  return { backupDir, backupFile: target };
+}
+
+export function promotePromptCandidate({ promptFile, candidateFile, baseDir = DEFAULT_PROMPT_STORE_DIR, label = 'promotion' }) {
+  const root = ensurePromptStore(baseDir);
+  const targetFile = path.isAbsolute(promptFile) ? promptFile : path.resolve(promptFile);
+  const sourceFile = path.isAbsolute(candidateFile) ? candidateFile : path.resolve(candidateFile);
+  if (!fs.existsSync(sourceFile)) {
+    throw new Error(`Candidate file does not exist: ${sourceFile}`);
+  }
+  backupPromptFile({ promptFile: targetFile, baseDir: root, label });
+  ensureDir(path.dirname(targetFile));
+  fs.copyFileSync(sourceFile, targetFile);
+  appendJsonl(path.join(root, 'history', 'prompt_versions.jsonl'), {
+    kind: 'promotion',
+    created_at: new Date().toISOString(),
+    source_file: sourceFile,
+    target_file: targetFile,
+    label,
+  });
+  return { targetFile, sourceFile };
+}
+
+export function snapshotPromptBundle({ promptDir, specDir, baseDir = DEFAULT_PROMPT_STORE_DIR, label = 'campaign' }) {
+  const root = ensurePromptStore(baseDir);
+  const stamp = `${timestampTag()}_${slugify(label)}`;
+  const snapshotDir = path.join(root, 'snapshots', stamp);
+  const snapshotPromptsDir = path.join(snapshotDir, 'prompts');
+  const snapshotSpecsDir = path.join(snapshotDir, 'specs');
+  ensureDir(snapshotPromptsDir);
+  ensureDir(snapshotSpecsDir);
+
+  const promptFiles = ['system.md', 'generation.md', 'retry.md', 'seed_generation.md', 'few_shot.md', 'prompt_repair.md'];
+  const specFiles = [
+    'guardrails_spec.json',
+    'guardrail_content_contracts.json',
+    'guardrail_policies.mjs',
+    'guardrail_grounding.mjs',
+    'batch_mix_instructions.json',
+    'healthy_planning_mix.json',
+    'random_user_intents.json',
+  ];
+
+  const copied = [];
+  for (const fileName of promptFiles) {
+    const source = path.join(promptDir, fileName);
+    if (!fs.existsSync(source)) continue;
+    const target = path.join(snapshotPromptsDir, fileName);
+    fs.copyFileSync(source, target);
+    copied.push({ type: 'prompt', file: fileName, path: target });
+  }
+
+  for (const fileName of specFiles) {
+    const source = path.join(specDir, fileName);
+    if (!fs.existsSync(source)) continue;
+    const target = path.join(snapshotSpecsDir, fileName);
+    fs.copyFileSync(source, target);
+    copied.push({ type: 'spec', file: fileName, path: target });
+  }
+
+  const manifest = {
+    created_at: new Date().toISOString(),
+    label,
+    prompt_dir: promptDir,
+    spec_dir: specDir,
+    copied,
+  };
+
+  const manifestPath = path.join(snapshotDir, 'manifest.json');
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+
+  appendJsonl(path.join(root, 'history', 'prompt_versions.jsonl'), {
+    kind: 'snapshot',
+    created_at: manifest.created_at,
+    label,
+    snapshot_dir: snapshotDir,
+    prompt_dir: promptDir,
+    spec_dir: specDir,
+    files: copied.map((item) => item.file),
+  });
+
+  return { root, snapshotDir, manifestPath, manifest };
+}
+
+export function recordValidationFailure({ example, issues, source = 'validate', baseDir = DEFAULT_PROMPT_STORE_DIR }) {
+  const root = ensurePromptStore(baseDir);
+  const record = {
+    created_at: new Date().toISOString(),
+    source,
+    id: example?.id || null,
+    language: example?.language || null,
+    guardrail: example?.guardrail || null,
+    issues: Array.isArray(issues) ? issues : [String(issues || '')],
+    example,
+  };
+
+  appendJsonl(path.join(root, 'failures', 'failures.jsonl'), record);
+
+  const guardrailDir = path.join(root, 'failures', 'by-guardrail', slugify(record.guardrail || 'unknown'));
+  ensureDir(guardrailDir);
+  const fileStem = `${timestampTag()}_${slugify(record.language || 'unknown')}_${slugify(record.id || 'failure')}`;
+  fs.writeFileSync(path.join(guardrailDir, `${fileStem}.md`), [
+    `# ${record.id || 'failure'}`,
+    '',
+    `- created_at: ${record.created_at}`,
+    `- source: ${record.source}`,
+    `- guardrail: ${record.guardrail || 'unknown'}`,
+    `- language: ${record.language || 'unknown'}`,
+    '',
+    '## Issues',
+    ...record.issues.map((issue) => `- ${issue}`),
+    '',
+    '## Example',
+    '```json',
+    JSON.stringify(example, null, 2),
+    '```',
+  ].join('\n') + '\n', 'utf8');
+
+  return record;
+}
+
+export function savePromptCandidate({ promptId, content, reason, sourceFile = null, baseDir = DEFAULT_PROMPT_STORE_DIR }) {
+  const root = ensurePromptStore(baseDir);
+  const createdAt = new Date().toISOString();
+  const safePromptId = slugify(promptId || 'prompt');
+  const safeReason = slugify(reason || 'candidate');
+  const stamp = `${timestampTag()}_${safePromptId}_${safeReason}`;
+  const candidateDir = path.join(root, 'candidates', stamp);
+  ensureDir(candidateDir);
+
+  const mdPath = path.join(candidateDir, `${safePromptId}.md`);
+  const jsonPath = path.join(candidateDir, `${safePromptId}.json`);
+  fs.writeFileSync(mdPath, `${String(content || '')}\n`, 'utf8');
+  fs.writeFileSync(jsonPath, `${JSON.stringify({ promptId, reason, sourceFile, createdAt, mdPath }, null, 2)}\n`, 'utf8');
+
+  appendJsonl(path.join(root, 'history', 'prompt_versions.jsonl'), {
+    kind: 'candidate',
+    prompt_id: promptId,
+    created_at: createdAt,
+    reason,
+    source_file: sourceFile,
+    md_path: mdPath,
+    json_path: jsonPath,
+  });
+
+  return { candidateDir, mdPath, jsonPath };
+}

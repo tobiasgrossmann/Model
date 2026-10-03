@@ -1,38 +1,21 @@
 {
   "totals": {
-    "validated_examples": 2,
-    "compared_pairs": 1,
+    "validated_examples": 0,
+    "compared_pairs": 0,
     "high_overlap_pairs": 0,
     "high_overlap_ratio": 0,
     "overlap_threshold": 0.85,
     "compared_pairs_cap": 150000
   },
   "distribution": {
-    "language": {
-      "fr": 1,
-      "it": 1
-    },
-    "guardrail": {
-      "G7": 2
-    },
+    "language": {},
+    "guardrail": {},
     "persona": {
-      "sex": {
-        "male": 2
-      },
-      "age_band": {
-        "18-29": 2
-      },
-      "height_band_cm": {
-        "175-189": 2
-      },
-      "weight_band_kg": {
-        "60-74": 1,
-        "75-89": 1
-      }
+      "sex": {},
+      "age_band": {},
+      "height_band_cm": {},
+      "weight_band_kg": {}
     },
-    "topic": {
-      "weight_loss": 1,
-      "medical_scope": 1
-    }
+    "topic": {}
   }
 }

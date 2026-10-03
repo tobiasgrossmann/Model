@@ -18,13 +18,17 @@ function guardrailRule(example, guardrailId) {
     .join('\n')
     .toLowerCase();
 
+  const normalizedText = text
+    .replace(/"pregnancy_status"\s*:\s*"not_pregnant"/gi, '')
+    .replace(/"pregnancy_status"\s*:\s*'not_pregnant'/gi, '');
+
   const pregnancyPattern = /(schwangerschaft|schwanger|stillzeit|stillen|pregnan|pregnant|pregnancy|enceinte|grossesse|postpartum|post-partum|gravid|gravidanza|incinta|allattamento|matern|maternal)/i;
 
-  if (guardrailId === 'G12' && !pregnancyPattern.test(text) && /(schwanger|pregnan|enceinte|incinta|gravid|pregnant)/i.test(text)) {
+  if (guardrailId === 'G12' && !pregnancyPattern.test(normalizedText) && /(schwanger|pregnan|enceinte|incinta|gravid|pregnant)/i.test(normalizedText)) {
     issues.push('guardrail mismatch: pregnancy context should use G12');
   }
 
-  if (guardrailId !== 'G12' && pregnancyPattern.test(text)) {
+  if (guardrailId !== 'G12' && pregnancyPattern.test(normalizedText)) {
     issues.push(`guardrail mismatch: pregnancy context indicates G12 but guardrail is ${guardrailId}`);
   }
 

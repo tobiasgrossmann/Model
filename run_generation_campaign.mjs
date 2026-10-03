@@ -16,6 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
+import { snapshotPromptBundle } from "./src/prompt_store.mjs";
 
 const SPEC_DIR = process.env.SPEC_DIR || "./specs";
 const OUT_DIR = process.env.OUT_DIR || "./out";
@@ -39,6 +40,9 @@ const MIN_GUARDRAIL_PER_LANG = 3;
 const MAX_TOKENS = parseInt(argVal("max-tokens", "24000"), 10);
 const GENERATE_RETRIES = parseInt(argVal("generate-retries", "3"), 10);
 const GENERATE_RETRY_WAIT_MS = parseInt(argVal("generate-retry-wait-ms", "1500"), 10);
+const AUTO_REPAIR = process.argv.includes("--auto-repair");
+const AUTO_REPAIR_APPLY = process.argv.includes("--auto-repair-apply");
+const AUTO_REPAIR_LIMIT = parseInt(argVal("auto-repair-limit", "8"), 10);
 const FRESH = process.argv.includes("--fresh");
 const SKIP_WARMUP = process.argv.includes("--skip-warmup");
 
@@ -56,6 +60,9 @@ if (!Number.isFinite(GENERATE_RETRIES) || GENERATE_RETRIES < 1) {
 }
 if (!Number.isFinite(GENERATE_RETRY_WAIT_MS) || GENERATE_RETRY_WAIT_MS < 100) {
   throw new Error("--generate-retry-wait-ms must be an integer >= 100");
+}
+if (!Number.isFinite(AUTO_REPAIR_LIMIT) || AUTO_REPAIR_LIMIT < 1) {
+  throw new Error("--auto-repair-limit must be an integer >= 1");
 }
 
 export function shuffleInPlace(arr, rng = Math.random) {
@@ -160,6 +167,25 @@ function runValidateStep() {
   runNode(["validate.mjs"], "validate generated output");
 }
 
+function runAutoRepairStep() {
+  const flaggedFile = path.join(OUT_DIR, "flagged.jsonl");
+  if (!fs.existsSync(flaggedFile) || !fs.readFileSync(flaggedFile, "utf8").trim()) {
+    console.log("  -> no flagged failures available for prompt repair");
+    return;
+  }
+
+  const args = [
+    "repair_prompts.mjs",
+    "--prompt", "generation.md",
+    "--limit", String(AUTO_REPAIR_LIMIT),
+  ];
+  if (AUTO_REPAIR_APPLY) {
+    args.push("--apply");
+  }
+  console.log(`  -> running prompt repair (${AUTO_REPAIR_APPLY ? "apply" : "dry-run"}) ...`);
+  runNode(args, "repair prompts");
+}
+
 function runBatch(guardrail, lang, count) {
   runGenerateWithRetry(guardrail, lang, count);
   runValidateStep();
@@ -260,6 +286,12 @@ function main() {
     resetOutFiles();
   }
 
+  snapshotPromptBundle({
+    promptDir: "./prompts",
+    specDir: SPEC_DIR,
+    label: FRESH ? "campaign-fresh" : "campaign",
+  });
+
   let state = readLanguageCounts();
   printProgress("Start", state, guardrails);
 
@@ -308,6 +340,10 @@ function main() {
 
   console.log("Campaign complete.");
   printProgress("Final", state, guardrails);
+
+  if (AUTO_REPAIR || AUTO_REPAIR_APPLY) {
+    runAutoRepairStep();
+  }
 }
 
 const isDirectRun = process.argv[1] && path.resolve(fileURLToPath(import.meta.url)) === path.resolve(process.argv[1]);

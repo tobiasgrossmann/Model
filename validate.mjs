@@ -14,6 +14,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { recordValidationFailure } from "./src/prompt_store.mjs";
 
 const OUT_DIR = process.env.OUT_DIR || "./out";
 const SPEC_DIR = process.env.SPEC_DIR || "./specs";
@@ -1344,6 +1345,7 @@ function main() {
     if (bmiWarn) bmiWarnings.push(bmiWarn);
     if (issues.length) {
       flagged.push({ id: example.id, issues, example });
+      recordValidationFailure({ example, issues, source: 'validate' });
     } else {
       validated.push(example);
     }

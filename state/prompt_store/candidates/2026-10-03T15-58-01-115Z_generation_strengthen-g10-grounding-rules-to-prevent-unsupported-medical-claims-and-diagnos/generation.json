@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen G10 grounding rules to prevent unsupported medical claims and diagnostic language.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T15:58:01.114Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T15-58-01-115Z_generation_strengthen-g10-grounding-rules-to-prevent-unsupported-medical-claims-and-diagnos/generation.md"
+}

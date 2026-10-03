@@ -5,6 +5,14 @@
 node run_generation_campaign.mjs --target 2000 --count 1 --fresh
 ```
 
+## Prompt self-improvement
+```bash
+node repair_prompts.mjs --prompt generation.md --limit 8
+node repair_prompts.mjs --prompt generation.md --limit 8 --apply
+```
+
+The repair command reads recent validation failures from `state/prompt_store/`, asks the local LLM for a prompt revision, stores the candidate on disk, and only promotes it after the full test suite passes when `--apply` is used.
+
 ## What this command actually does
 - Runs `generate.mjs` and then `validate.mjs` for each guardrail/language batch.
 - Uses `out/validated.jsonl` as the progress source (not `generated.jsonl`).
