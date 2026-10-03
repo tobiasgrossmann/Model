@@ -1,0 +1,2 @@
+--- G12/it ---
+{"reason":"contract-first generation failed: intent-decision: model response is not valid JSON object","example":{"id":"G12_it_contract_failure","language":"it","guardrail":"G12","messages":[{"role":"system","content":"HEICO_SYSTEM_PROMPT_IT"},{"role":"user","content":"Prendo farmaci per la pressione e vorrei combinare creatina e pre-workout prima di allenarmi. Per me e sicuro?"},{"role":"assistant","content":"Posso darti indicazioni generali di sicurezza, ma per una raccomandazione personalizzata serve una valutazione professionale."}]}}

@@ -539,11 +539,16 @@ function computePreflightPolicy({ guardrail, lang, selectedQuestion, selectedUse
   ].filter(Boolean).join("\n");
 
   const guardrailId = String(guardrail?.id || "").toUpperCase();
-  const metricSensitiveGuardrails = new Set(["G10", "G15", "G14"]);
-  const metricSensitiveTopic = /(bmi|imc|gewicht|poids|peso|taille|gr(?:ö|o)sse|altezza|kcal|calori|dose|dosage|supplement|creatin|prediab|blood pressure|blutdruck|pressione)/i.test(sourceText);
+  const metricSensitiveGuardrails = new Set(["G10", "G15"]);
+  const guardrailsWithGeneralNoToolDefault = new Set(["G12", "G14", "G16"]);
+  const metricSensitiveTopic = /(bmi|imc|gewicht|poids|peso|taille|gr(?:ö|o)sse|altezza|sleep|schlaf|hrv|resting heart|ruhepuls|frequenza cardiaca|rythme cardiaque)/i.test(sourceText);
   const pregnancyContext = /(pregnan|schwanger|enceinte|incinta|postpartum|stillen|allatt)/i.test(sourceText);
 
-  const toolRequired = pregnancyContext ? false : (metricSensitiveGuardrails.has(guardrailId) || metricSensitiveTopic);
+  const toolRequired = pregnancyContext
+    ? false
+    : (guardrailsWithGeneralNoToolDefault.has(guardrailId)
+      ? false
+      : (metricSensitiveGuardrails.has(guardrailId) || metricSensitiveTopic));
   const responseMode = pregnancyContext
     ? "cautious_referral"
     : (guardrailId === "G16" ? "generic_principles" : (guardrailId === "G15" ? "safety_refusal" : "cautious_guidance"));
@@ -621,7 +626,29 @@ function fallbackUserText(lang, selectedQuestion, selectedUserIntent) {
   return "Ich habe eine Sicherheitsfrage zu Training und Ernährung.";
 }
 
-function fallbackAssistantText(lang, mode) {
+function fallbackAssistantText(lang, mode, guardrailId = "") {
+  const gid = String(guardrailId || "").toUpperCase();
+
+  if (gid === "G15") {
+    if (lang === "fr") {
+      return "Je ne peux pas valider cette progression telle quelle. Alternative generale plus sure: garde une charge que tu controles proprement sur 8-10 repetitions, puis augmente seulement par petits paliers (environ 1-2 kg) si la technique reste stable. Arrete la serie en cas de douleur ou de perte de forme; pour une decision personnalisee, parle avec un professionnel de sante.";
+    }
+    if (lang === "it") {
+      return "Non posso approvare questa progressione cosi com'e. Alternativa generale piu sicura: usa un carico che controlli bene per 8-10 ripetizioni e aumenta solo a piccoli passi (circa 1-2 kg) se la tecnica resta stabile. Interrompi la serie se compaiono dolore o perdita di forma; per una decisione personalizzata confrontati con un professionista sanitario.";
+    }
+    return "Ich kann diese Progression so nicht freigeben. Sichere allgemeine Alternative: Nutze ein Gewicht, das du fuer 8-10 Wiederholungen mit sauberer Technik kontrollierst, und steigere nur in kleinen Schritten (etwa 1-2 kg), wenn die Form stabil bleibt. Brich bei Schmerz oder deutlichem Technikverlust ab; fuer eine personalisierte Entscheidung sprich mit einer Fachperson.";
+  }
+
+  if (gid === "G12") {
+    if (lang === "fr") {
+      return "Je peux te donner un cadre general de securite: n'associe jamais de nouveaux complements avec un traitement prescrit sans avis medical, car des interactions peuvent modifier l'effet des medicaments ou provoquer des effets indesirables. Introduis un seul produit a la fois et respecte la dose etiquette; pour une recommandation personnalisee, parle avec un medecin ou un pharmacien.";
+    }
+    if (lang === "it") {
+      return "Posso darti indicazioni generali di sicurezza: come regola fondamentale, non assumere mai nuovi integratori insieme a farmaci prescritti senza consulto medico, perche potrebbero alterarne l'efficacia o causare effetti collaterali. Introduci un prodotto alla volta e rispetta le dosi in etichetta; per una raccomandazione personalizzata e sicura serve una valutazione del medico o del farmacista.";
+    }
+    return "Ich kann dir allgemeine Sicherheitsregeln geben: Nimm neue Supplemente niemals zusammen mit verschreibungspflichtigen Medikamenten ohne aerztliche oder pharmazeutische Ruecksprache, weil Wechselwirkungen die Wirkung veraendern oder Nebenwirkungen ausloesen koennen. Fuehre neue Produkte einzeln ein und halte dich an die Etikett-Dosis; fuer eine personalisierte Empfehlung ist eine fachliche Abklaerung noetig.";
+  }
+
   if (lang === "fr") {
     if (mode === "safety_refusal") return "Je ne peux pas valider cette approche en l'état. Je peux te proposer des alternatives générales plus sûres, et pour une décision personnalisée parle avec un professionnel de santé.";
     return "Je peux te donner des repères généraux de sécurité, mais pour une recommandation personnalisée il faut une évaluation professionnelle.";
@@ -668,9 +695,9 @@ function compileExampleFromContract({
 }) {
   const systemMarker = `HEICO_SYSTEM_PROMPT_${lang.toUpperCase()}`;
   const userText = String(realization?.user_text || "").trim() || fallbackUserText(lang, selectedQuestion, selectedUserIntent);
-  let assistantFinal = String(realization?.assistant_final_text || "").trim() || fallbackAssistantText(lang, intentDecision.response_style);
+  let assistantFinal = String(realization?.assistant_final_text || "").trim() || fallbackAssistantText(lang, intentDecision.response_style, guardrail.id);
   if (violatesLockedConstraints(assistantFinal, guardrail.id, preflight)) {
-    assistantFinal = fallbackAssistantText(lang, intentDecision.response_style);
+    assistantFinal = fallbackAssistantText(lang, intentDecision.response_style, guardrail.id);
   }
   const messages = [
     { role: "system", content: systemMarker },
@@ -863,7 +890,7 @@ function enforceToolSequence(example, guardrailId, lang, rotationIndex) {
       },
       {
         role: "assistant",
-        content: finalAssistant?.content || fallbackAssistantText(lang, "cautious_guidance"),
+        content: finalAssistant?.content || fallbackAssistantText(lang, "cautious_guidance", guardrailId),
       },
     ],
     tools: [{
@@ -970,7 +997,7 @@ async function attemptFailureAwareRepair({ example, issues, guardrail, lang, rot
         role: "assistant",
         content: (typeof lastAssistant?.content === "string" && lastAssistant.content.trim())
           ? lastAssistant.content
-          : fallbackAssistantText(lang, "cautious_guidance"),
+            : fallbackAssistantText(lang, "cautious_guidance", guardrail.id),
       });
       changed = true;
     }
@@ -1125,7 +1152,7 @@ async function generateContractExamples({ guardrail, lang, count, rotationIndex,
           messages: [
             { role: "system", content: `HEICO_SYSTEM_PROMPT_${lang.toUpperCase()}` },
             { role: "user", content: fallbackUserText(lang, selectedQuestion, selectedUserIntent) },
-            { role: "assistant", content: fallbackAssistantText(lang, "cautious_guidance") },
+            { role: "assistant", content: fallbackAssistantText(lang, "cautious_guidance", guardrail.id) },
           ],
         },
       });
@@ -1392,10 +1419,10 @@ function normalizeToolMessages(example) {
   normalized.tool_policy = deriveToolPolicy(normalized);
   const splitPolicy = deriveTriggerAndResponsePolicy(normalized);
   normalized.trigger = splitPolicy.trigger;
-  normalized.personalization_needed =
-    normalized.tool_policy === "required_for_personalized_assessment"
-      ? true
-      : splitPolicy.personalization_needed;
+  const hasHealthTool = hasHealthToolCall(normalized);
+  normalized.personalization_needed = hasHealthTool
+    ? (normalized.tool_policy === "required_for_personalized_assessment" || splitPolicy.personalization_needed === true)
+    : false;
   normalized.response_policy = splitPolicy.response_policy;
   return normalized;
 }

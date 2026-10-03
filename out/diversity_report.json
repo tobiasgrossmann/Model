@@ -1,7 +1,7 @@
 {
   "totals": {
-    "validated_examples": 1,
-    "compared_pairs": 0,
+    "validated_examples": 9,
+    "compared_pairs": 36,
     "high_overlap_pairs": 0,
     "high_overlap_ratio": 0,
     "overlap_threshold": 0.85,
@@ -9,30 +9,42 @@
   },
   "distribution": {
     "language": {
-      "de": 1
+      "it": 3,
+      "de": 4,
+      "fr": 2
     },
     "guardrail": {
-      "G17": 1
+      "G12": 3,
+      "G17": 2,
+      "G14": 3,
+      "G15": 1
     },
     "intent_basis": {
-      "guardrail": 1
+      "guardrail": 9
     },
     "persona": {
       "sex": {
-        "unknown": 1
+        "female": 1,
+        "male": 2,
+        "unknown": 6
       },
       "age_band": {
-        "unknown": 1
+        "30-44": 3,
+        "unknown": 6
       },
       "height_band_cm": {
-        "unknown": 1
+        "160-174": 1,
+        "175-189": 2,
+        "unknown": 6
       },
       "weight_band_kg": {
-        "unknown": 1
+        "unknown": 9
       }
     },
     "topic": {
-      "other": 1
+      "other": 5,
+      "exercise": 1,
+      "medical_scope": 3
     }
   }
 }
