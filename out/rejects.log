@@ -1,2 +1,0 @@
---- G9/de ---
-{"reason":"contract-first generation failed: conversation-skeleton: model response is not valid JSON object","example":{"id":"G9_de_contract_failure","language":"de","guardrail":"G9","messages":[{"role":"system","content":"HEICO_SYSTEM_PROMPT_DE"},{"role":"user","content":"Ich frage nach Wasser-/Elektrolytstrategie und brauche sichere Hinweise ohne extreme Manipulation."},{"role":"assistant","content":"Ich kann dir allgemeine, sichere Leitlinien geben; für eine personalisierte Empfehlung ist eine fachliche Abklärung nötig."}]}}

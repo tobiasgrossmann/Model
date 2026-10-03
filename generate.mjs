@@ -691,7 +691,7 @@ function compileExampleFromContract({
           type: "function",
           function: {
             name: "get_user_health_data",
-            arguments: JSON.stringify({ requested_metrics: ["age", "height_cm", "weight_kg", "activity"] }),
+            arguments: "{}",
           },
         }],
       });
@@ -852,7 +852,7 @@ function enforceToolSequence(example, guardrailId, lang, rotationIndex) {
           type: "function",
           function: {
             name: "get_user_health_data",
-            arguments: JSON.stringify({ requested_metrics: ["age", "height_cm", "weight_kg", "activity"] }),
+            arguments: "{}",
           },
         }],
       },

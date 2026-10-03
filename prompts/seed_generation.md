@@ -21,6 +21,7 @@ Dokumentauszug:
 
 Aufgabe:
 1) Schreibe eine knappe, neutrale Zusammenfassung in {{lang}} (2-3 Sätze).
-2) Formuliere genau 2 verschiedene realistische User-Fragen in {{lang}}, die direkt zu diesem Dokumentinhalt passen und als Start einer Coaching-Unterhaltung dienen.
-3) Fragen dürfen nicht identisch oder nur trivial umformuliert sein.
+2) Formuliere genau 2 verschiedene realistische User-Fragen in {{lang}}, die zum Guardrail-Kontext passen und als Start einer Coaching-Unterhaltung dienen.
+3) Wenn der Dokumentinhalt off-topic zum Guardrail wirkt, priorisiere Guardrail-Konsistenz vor Dokumenttreue und formuliere nur sichere, allgemeine Fragen ohne thematischen Drift.
+4) Fragen dürfen nicht identisch oder nur trivial umformuliert sein.
 ```

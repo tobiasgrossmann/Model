@@ -118,8 +118,10 @@ export const toolingRule = {
       issues.push(`health-data tool result missing required ${missingRequiredMetrics.join(', ')}`);
     }
 
-    const mentionsBmi = /\b(?:BMI|IMC)\b/i.test(finalAssistant) || /\b(?:gewicht|poids|peso|gr(?:ö|o)sse|altezza)\b/i.test(extractText(example));
-    if ((mentionsBmi || /(?:dein(?:e|er)?|ton|tuo|votre|con i tuoi).{0,60}(?:gewicht|gr(?:ö|o)sse|poids|peso|altezza|bmi|imc)/i.test(finalAssistant)) && !hasHealthCall && !(toolMetrics.height != null && toolMetrics.weight != null)) {
+    const mentionsBmi = /\b(?:BMI|IMC)\b/i.test(finalAssistant);
+    const mentionsWeightAssessment = /(?:dein(?:e|er)?|ton|tuo|votre|con i tuoi).{0,60}(?:gewicht|gr(?:ö|o)sse|poids|peso|altezza|bmi|imc)/i.test(finalAssistant)
+      || /\b(?:untergewicht|uebergewicht|übergewicht|adipoes|adipös|ob[eé]sit[eé]|sottopeso|sovrappeso)\b/i.test(finalAssistant);
+    if ((mentionsBmi || mentionsWeightAssessment) && !hasHealthCall && !(toolMetrics.height != null && toolMetrics.weight != null)) {
       issues.push('assistant references health/weight-specific assessment without a get_user_health_data call');
     }
 

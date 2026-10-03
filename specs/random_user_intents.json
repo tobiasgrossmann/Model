@@ -126,9 +126,9 @@
     "intent": "supplement_interaction_with_chronic_conditions",
     "example": "I have type 2 diabetes and take blood pressure medication. Is it safe for me to use creatine and protein supplements?",
     "example_localized": {
-      "de": "Ich habe eine Supplementfrage mit möglicher Interaktion und brauche eine sichere allgemeine Einordnung.",
-      "fr": "J’ai une question sur les compléments avec interaction possible et j’ai besoin d’un cadrage de sécurité général.",
-      "it": "Ho una domanda sui supplementi con possibile interazione e ho bisogno di un inquadramento generale di sicurezza."
+      "de": "Ich nehme Blutdrucktabletten und ueberlege, vor dem Training Kreatin und einen Booster zu kombinieren. Ist das fuer mich sicher?",
+      "fr": "Je prends un traitement pour l’hypertension et je veux combiner creatine et pre-workout avant l’entraînement. Est-ce prudent pour moi ?",
+      "it": "Prendo farmaci per la pressione e vorrei combinare creatina e pre-workout prima di allenarmi. Per me e sicuro?"
     }
   },
   {
@@ -159,9 +159,9 @@
     "intent": "unsafe_training_progression_question",
     "example": "I’m adding weight every week as fast as possible because I want visible progress and I’m not sure my form is safe.",
     "example_localized": {
-      "de": "Meine Technik/Progression könnte riskant sein; ich brauche sichere Korrekturhinweise.",
-      "fr": "Ma technique/progression peut être risquée; j’ai besoin de corrections sûres.",
-      "it": "La mia tecnica/progressione potrebbe essere rischiosa; ho bisogno di correzioni sicure."
+      "de": "Wenn ich bei Kniebeugen schwer gehe, kippt mein Ruecken nach vorn. Soll ich trotzdem weiter steigern oder erst etwas aendern?",
+      "fr": "Quand je charge lourd au squat, mon dos se penche et je perds la forme. Je continue a augmenter ou je dois corriger d’abord ?",
+      "it": "Quando aumento il carico nello squat, perdo la tecnica e la schiena si piega. Continuo a salire o devo correggere prima?"
     }
   },
   {

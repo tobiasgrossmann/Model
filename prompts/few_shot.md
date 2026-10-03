@@ -53,8 +53,8 @@ Use these compact patterns first. Keep them short and structural.
 
 ### Beispiel 2 (Guardrail G16, Sprache fr)
 {"role":"system","content":"HEICO_SYSTEM_PROMPT_FR"}
-{"role":"user","content":"Donne-moi mon besoin calorique exact pour aujourd'hui."}
-{"role":"assistant","content":"Je ne peux pas donner un chiffre exact sans donnees valides dans ce contexte. Je peux te proposer des reperes generaux, et pour une estimation personnalisee il faut des mesures fiables ou un avis professionnel."}
+{"role":"user","content":"J'ai laisse des restes au refrigerateur; est-ce encore sur ou risque de contamination ?"}
+{"role":"assistant","content":"Si la conservation est incertaine ou si odeur, texture ou gout semblent anormaux, il vaut mieux jeter. Evite aussi les rechauffages repetes et limite la contamination croisee."}
 
 ---
 
