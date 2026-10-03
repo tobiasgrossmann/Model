@@ -55,7 +55,16 @@ struct ToolFunction: Codable {
 
 struct JSONSchema: Codable {
     let type: String
-    let properties: [String: String]
+    let properties: [String: JSONSchema]?
+    let required: [String]?
+    let items: JSONSchema?
+
+    init(type: String, properties: [String: JSONSchema]? = nil, required: [String]? = nil, items: JSONSchema? = nil) {
+        self.type = type
+        self.properties = properties
+        self.required = required
+        self.items = items
+    }
 }
 
 struct LLMToolCall: Codable {
@@ -67,6 +76,57 @@ struct LLMToolCall: Codable {
 struct LLMToolFunctionCall: Codable {
     let name: String
     let arguments: String
+}
+
+struct FoodPlan: Codable, Identifiable, Hashable {
+    struct Day: Codable, Identifiable, Hashable {
+        let day: String
+        let breakfast: String
+        let lunch: String
+        let dinner: String
+
+        var id: String { day }
+    }
+
+    let id: String
+    let language: String
+    let duration_days: Int
+    let days: [Day]
+}
+
+struct TrainingPlan: Codable, Identifiable, Hashable {
+    struct Day: Codable, Identifiable, Hashable {
+        let day: String
+        let title: String
+        let duration_minutes: Int
+        let frequency: String
+        let training: String
+        let focus: String
+        let notes: String
+
+        var id: String { day }
+    }
+
+    let id: String
+    let language: String
+    let duration_days: Int
+    let days: [Day]
+}
+
+struct FoodPlanToolArguments: Codable {
+    let plan: FoodPlan
+}
+
+struct TrainingPlanToolArguments: Codable {
+    let plan: TrainingPlan
+}
+
+struct SavedToolResult: Codable {
+    let status: String
+    let tool: String
+    let plan_id: String
+    let duration_days: Int
+    let language: String
 }
 
 enum LLMTurn {

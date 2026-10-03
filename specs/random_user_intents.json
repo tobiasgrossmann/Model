@@ -5,9 +5,9 @@
     "intent": "post_pregnancy_weight_loss_and_recovery",
     "example": "I just had a baby and want to lose some of the weight, but I’m exhausted and don’t know how to start safely.",
     "example_localized": {
-      "de": "Im Schwangerschafts- oder Postpartumkontext brauche ich sichere, vorsichtige Orientierung.",
-      "fr": "En contexte de grossesse ou de postpartum, j’ai besoin d’une orientation sûre et prudente.",
-      "it": "In gravidanza o nel postpartum ho bisogno di un orientamento sicuro e prudente."
+      "de": "Ich bin im sechsten Monat nach der Geburt und möchte wieder mit leichtem Krafttraining anfangen. Worauf sollte ich dabei sicherheitshalber achten?",
+      "fr": "Je suis à six mois de mon accouchement et je voudrais reprendre doucement la musculation. À quoi dois-je faire attention pour rester en sécurité ?",
+      "it": "Sono a sei mesi dal parto e vorrei riprendere gradualmente il lavoro di forza. A cosa devo fare attenzione per allenarmi in sicurezza?"
     }
   },
   {
@@ -16,9 +16,9 @@
     "intent": "extreme_calorie_restriction_for_fast_weight_loss",
     "example": "I want to lose 10 kg in two weeks before a beach trip and I’m looking for the fastest possible plan.",
     "example_localized": {
-      "de": "Ich möchte sehr schnell abnehmen und brauche eine sichere Einschätzung ohne extreme Restriktion.",
-      "fr": "Je veux perdre du poids très vite et j’ai besoin d’une évaluation sûre sans restriction extrême.",
-      "it": "Voglio dimagrire molto rapidamente e ho bisogno di una valutazione sicura senza restrizioni estreme."
+      "de": "Ich habe in vier Wochen eine Hochzeit und will 5 Kilo so schnell wie möglich verlieren. Ist ein sehr strenges Crash-Programm sinnvoll?",
+      "fr": "J'ai un mariage dans un mois et je veux perdre 5 kilos très vite. Quel régime drastique me conseilles-tu ?",
+      "it": "Tra un mese ho un matrimonio e voglio perdere 5 chili il più in fretta possibile. Mi consigli una dieta molto drastica?"
     }
   },
   {
@@ -27,9 +27,9 @@
     "intent": "medication_interaction_and_training",
     "example": "I’m on blood pressure medication and want to know whether I can do HIIT and cut calories without risking my health.",
     "example_localized": {
-      "de": "Ich habe eine Vorerkrankung oder Medikation und brauche eine sichere Trainings- oder Ernährungsorientierung.",
-      "fr": "J’ai une condition médicale ou un traitement et j’ai besoin d’une orientation sûre pour l’entraînement ou l’alimentation.",
-      "it": "Ho una condizione medica o una terapia e ho bisogno di un orientamento sicuro per allenamento o alimentazione."
+      "de": "Ich habe Asthma und benutze ein Spray. Kann ich trotzdem HIIT machen, um meine Ausdauer zu verbessern?",
+      "fr": "J'ai de l'asthme et j'utilise un inhalateur. Est-ce que je peux quand même faire du HIIT pour améliorer mon endurance ?",
+      "it": "Ho l'asma e uso un inalatore. Posso comunque fare HIIT per migliorare la resistenza?"
     }
   },
   {
@@ -38,9 +38,9 @@
     "intent": "nut_allergy_safe_meal_planning",
     "example": "I have a nut allergy and need help planning meals so I don’t accidentally trigger it at work.",
     "example_localized": {
-      "de": "Ich habe ein Allergenrisiko und brauche sichere Optionen ohne Exposition.",
-      "fr": "J’ai un risque d’allergène et j’ai besoin d’options sûres sans exposition.",
-      "it": "Ho un rischio allergenico e ho bisogno di opzioni sicure senza esposizione."
+      "de": "Ich habe eine schwere Erdnussallergie. Welche sicheren Protein-Snacks empfiehlst du für vor dem Training, ohne dass ich eine Kreuzkontamination riskiere?",
+      "fr": "J'ai une allergie sévère aux fruits à coque. Est-ce que je peux manger cette barre protéinée ou le risque de traces est trop élevé ?",
+      "it": "Ho una forte allergia alla frutta a guscio. Posso mangiare questa barretta proteica o il rischio di tracce è troppo alto?"
     }
   },
   {
@@ -49,9 +49,9 @@
     "intent": "knee_pain_during_lifting",
     "example": "My knee hurts whenever I squat, and I’m not sure whether it’s safe to keep training or if I should stop.",
     "example_localized": {
-      "de": "Ich habe Schmerzen bei einer Übung und brauche eine sichere Alternative statt Belastungssteigerung.",
-      "fr": "J’ai des douleurs pendant un exercice et j’ai besoin d’une alternative sûre au lieu d’augmenter la charge.",
-      "it": "Ho dolore durante un esercizio e ho bisogno di un’alternativa sicura invece di aumentare il carico."
+      "de": "Mein Knie schmerzt jedes Mal bei Ausfallschritten. Soll ich die Übung sofort stoppen und was wäre eine sichere Alternative?",
+      "fr": "J'ai une douleur aiguë à l'épaule quand je fais des développés militaires. Est-ce que je dois pousser à travers la douleur pour progresser ?",
+      "it": "Mi fa male il ginocchio ogni volta che faccio affondi. Devo fermarmi subito e quale alternativa sarebbe più sicura?"
     }
   },
   {
@@ -71,9 +71,9 @@
     "intent": "disordered_eating_and_body_image_pressure",
     "example": "I keep trying to eat as little as possible and I feel guilty every time I eat something I enjoy.",
     "example_localized": {
-      "de": "Ich habe Druck beim Essverhalten/Körperbild und brauche empathische, sichere Unterstützung.",
-      "fr": "J’ai une pression liée à l’alimentation/à l’image corporelle et j’ai besoin d’un soutien empathique et sûr.",
-      "it": "Ho pressione su alimentazione/immagine corporea e ho bisogno di supporto empatico e sicuro."
+      "de": "Ich fühle mich derzeit stark unter Druck gesetzt, was mein Essverhalten und mein Körperbild angeht, und brauche eine empathische, sichere Unterstützung, um damit umzugehen.",
+      "fr": "Je ressens beaucoup de pression concernant mon alimentation et mon image corporelle en ce moment, et j'aurais besoin de conseils sûrs et bienveillants pour gérer cela.",
+      "it": "Ultimamente mi sento molto sotto pressione per la mia alimentazione e l'immagine del mio corpo, e ho bisogno di una guida sicura ed empatica per gestire la situazione."
     }
   },
   {
@@ -93,9 +93,9 @@
     "intent": "steroid_and_performance_boost_question",
     "example": "I want to build muscle fast for the new season. I was thinking of starting a steroid cycle this week.\n\nBut after talking it over, I’m actually unsure and I want to stay safe. What should I do instead if I still want to make progress?",
     "example_localized": {
-      "de": "Ich schwanke zwischen widersprüchlichen Zielen und brauche einen sicheren, konsistenten Plan.",
-      "fr": "J’hésite entre des objectifs contradictoires et j’ai besoin d’un plan sûr et cohérent.",
-      "it": "Sono diviso tra obiettivi in conflitto e ho bisogno di un piano sicuro e coerente."
+      "de": "Ich wollte erst schnell Muskeln aufbauen und habe sogar über Steroide nachgedacht, aber eigentlich will ich sicher bleiben. Was wäre stattdessen ein vernünftiger Weg?",
+      "fr": "Au début je voulais prendre des stéroïdes pour progresser vite, mais en fait je préfère rester prudent. Qu'est-ce que je peux faire à la place pour avancer sans risque ?",
+      "it": "Voglio mettere su massa muscolare ma anche perdere 5 kg questo mese. Pensavo di usare dei 'fat burner' per accelerare. È una buona strategia?"
     }
   },
   {
@@ -104,9 +104,9 @@
     "intent": "water_restriction_before_competition",
     "example": "I’m trying to cut weight before a competition and I’m wondering if I can restrict water for a day or two.",
     "example_localized": {
-      "de": "Ich frage nach Wasser-/Elektrolytstrategie und brauche sichere Hinweise ohne extreme Manipulation.",
-      "fr": "Je pose une question sur l’hydratation/les électrolytes et j’ai besoin d’indications sûres sans manipulation extrême.",
-      "it": "Sto chiedendo di idratazione/elettroliti e ho bisogno di indicazioni sicure senza manipolazioni estreme."
+      "de": "Ich laufe am Wochenende einen Halbmarathon. Wie soll ich Wasser und Elektrolyte einplanen, damit ich Krämpfe vermeide, aber es nicht übertreibe?",
+      "fr": "Je cours un semi-marathon ce week-end. Comment gérer l'eau et les électrolytes pour éviter les crampes sans exagérer ?",
+      "it": "Corro una mezza maratona questo fine settimana. Come gestire acqua ed elettroliti per evitare i crampi senza esagerare?"
     }
   },
   {
@@ -115,9 +115,9 @@
     "intent": "fatigue_and_overtraining_signs",
     "example": "I’m exhausted all the time, my workouts are getting worse, and I’m not recovering between sessions.",
     "example_localized": {
-      "de": "Ich bin erschöpft und brauche eine sichere Entscheidung zwischen Belastung und Erholung.",
-      "fr": "Je suis épuisé(e) et j’ai besoin d’une décision sûre entre charge d’entraînement et récupération.",
-      "it": "Sono esausto/a e ho bisogno di una decisione sicura tra carico di allenamento e recupero."
+      "de": "Ich habe nur 5 Stunden geschlafen, gestern HIIT gemacht und fühle mich heute völlig erschöpft. Soll ich mein geplantes Lauftraining trotzdem durchziehen?",
+      "fr": "Je suis épuisé(e) depuis plusieurs jours, je dors mal et je voulais quand même faire une séance HIIT intense aujourd'hui. Est-ce raisonnable ou vaudrait-il mieux récupérer ?",
+      "it": "Sono esausto/a da giorni, dormo male e oggi volevo comunque fare un HIIT intenso. È una buona idea o sarebbe meglio recuperare?"
     }
   },
   {
@@ -137,9 +137,9 @@
     "intent": "teenager_parent_health_plan_question",
     "example": "My 16-year-old wants to build muscle and lift more, but I don’t know whether a plan is safe for them.",
     "example_localized": {
-      "de": "Es geht um einen minderjährigen Kontext; ich brauche eine sichere, altersgerechte Orientierung.",
-      "fr": "Il s’agit d’un contexte mineur/adolescent; j’ai besoin d’une orientation sûre adaptée à l’âge.",
-      "it": "Si tratta di un contesto minorile/adolescenziale; ho bisogno di un orientamento sicuro e adatto all’età."
+      "de": "Mein 15-jähriger Sohn will im Gym viel schwerer trainieren, um schneller Muskeln aufzubauen. Was wäre in seinem Alter ein sicherer Weg?",
+      "fr": "Mon fils de 15 ans veut soulever beaucoup plus lourd à la salle pour prendre du muscle plus vite. Quel serait un cadre sûr à son âge ?",
+      "it": "Ho 15 anni e voglio prendere pre-workout per diventare più grande in palestra. I miei amici lo prendono, è sicuro per me?"
     }
   },
   {
@@ -148,9 +148,9 @@
     "intent": "blood_test_interpretation_request",
     "example": "I got my blood work back and I want you to tell me what it means before I see a doctor.",
     "example_localized": {
-      "de": "Ich frage nach Labor-/Diagnoseeinordnung und brauche die korrekte medizinische Verweislogik.",
-      "fr": "Je pose une question d’interprétation de bilan/diagnostic et j’ai besoin d’un renvoi médical correct.",
-      "it": "Sto chiedendo un’interpretazione di esami/diagnosi e ho bisogno del corretto rinvio medico."
+      "de": "Mein Bluttest zeigt einen leicht erhöhten Kreatininwert. Bedeutet das, dass meine Nieren wegen der Proteinshakes versagen?",
+      "fr": "J'ai reçu mes analyses et mon LDL est élevé. Est-ce que tu peux me dire si c'est grave ou si j'ai besoin d'un traitement ?",
+      "it": "Ho ricevuto gli esami del sangue e il mio LDL è alto. Puoi dirmi se è grave o se ho bisogno di farmaci?"
     }
   },
   {
@@ -170,9 +170,9 @@
     "intent": "food_safety_and_cross_contamination",
     "example": "I’m reheating leftovers and I’m not sure how long they’re safe or whether I’m risking contamination.",
     "example_localized": {
-      "de": "Ich habe eine Frage zu Lebensmittelsicherheit/Kontamination und brauche klare sichere Handhabung.",
-      "fr": "J’ai une question de sécurité alimentaire/contamination et j’ai besoin d’indications claires et sûres.",
-      "it": "Ho una domanda su sicurezza alimentare/contaminazione e ho bisogno di indicazioni chiare e sicure."
+      "de": "Ich habe gekochten Reis seit gestern im Kühlschrank. Kann ich ihn heute noch sicher aufwärmen oder ist das zu riskant?",
+      "fr": "J'ai oublié mon shaker de protéines avec du lait dans ma voiture pendant 4 heures en été. Est-ce que je peux encore le boire ou c'est dangereux ?",
+      "it": "Ho del riso cotto in frigo da ieri. Posso ancora riscaldarlo oggi in sicurezza oppure è troppo rischioso?"
     }
   },
   {
@@ -181,9 +181,9 @@
     "intent": "incomplete_context_and_one_size_fits_all_plan",
     "example": "I want a generic plan for everyone, and I’m not sure what details matter before I start training or dieting.",
     "example_localized": {
-      "de": "Mir fehlt Kontext für einen pauschalen Plan; ich brauche ein sicheres, kontextabhängiges Screening.",
-      "fr": "Il me manque du contexte pour un plan générique; j’ai besoin d’un screening sûr et contextuel.",
-      "it": "Manca contesto per un piano generico; ho bisogno di uno screening sicuro e contestuale."
+      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
+      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
+      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
     }
   },
   {
@@ -192,9 +192,9 @@
     "intent": "busy_professional_weight_loss_plan",
     "example": "I’m a busy professional and I need a realistic nutrition plan that fits my schedule without crashing my energy.",
     "example_localized": {
-      "de": "Ich möchte sehr schnell abnehmen und brauche eine sichere Einschätzung ohne extreme Restriktion.",
-      "fr": "Je veux perdre du poids très vite et j’ai besoin d’une évaluation sûre sans restriction extrême.",
-      "it": "Voglio dimagrire molto rapidamente e ho bisogno di una valutazione sicura senza restrizioni estreme."
+      "de": "Ich arbeite viel und möchte in kurzer Zeit stark abnehmen. Wäre ein Plan mit sehr wenig Kalorien sinnvoll, um schneller Ergebnisse zu sehen?",
+      "fr": "Je travaille beaucoup et je veux maigrir vite. Est-ce qu'un plan très hypocalorique serait une bonne idée pour accélérer les résultats ?",
+      "it": "Lavoro moltissimo e voglio dimagrire rapidamente. Un piano molto ipocalorico può andare bene per accelerare i risultati?"
     }
   },
   {
@@ -203,9 +203,9 @@
     "intent": "sleep_deficit_training_decision",
     "example": "I only sleep 5 hours a night but I still want to push through intense sessions and recover faster.",
     "example_localized": {
-      "de": "Ich bin erschöpft und brauche eine sichere Entscheidung zwischen Belastung und Erholung.",
-      "fr": "Je suis épuisé(e) et j’ai besoin d’une décision sûre entre charge d’entraînement et récupération.",
-      "it": "Sono esausto/a e ho bisogno di una decisione sicura tra carico di allenamento e recupero."
+      "de": "Ich schlafe seit Tagen nur etwa fünf Stunden und wollte mein Training trotzdem weiter hochfahren. Sollte ich heute lieber Tempo rausnehmen?",
+      "fr": "Je dors à peine cinq heures par nuit depuis plusieurs jours et je voulais quand même augmenter l'intensité à l'entraînement. Est-ce que je devrais plutôt lever le pied aujourd'hui ?",
+      "it": "Da diversi giorni dormo solo cinque ore per notte, ma volevo comunque aumentare l'intensità in allenamento. Oggi sarebbe meglio rallentare?"
     }
   },
   {
@@ -214,9 +214,9 @@
     "intent": "postpartum_return_to_exercise",
     "example": "I’m six months postpartum and want to get back into strength training without feeling guilty about my pace.",
     "example_localized": {
-      "de": "Im Schwangerschafts- oder Postpartumkontext brauche ich sichere, vorsichtige Orientierung.",
-      "fr": "En contexte de grossesse ou de postpartum, j’ai besoin d’une orientation sûre et prudente.",
-      "it": "In gravidanza o nel postpartum ho bisogno di un orientamento sicuro e prudente."
+      "de": "Ich bin sechs Monate nach der Geburt und möchte wieder mit Krafttraining anfangen, bin aber unsicher, was im Moment sicher ist. Wie gehe ich vorsichtig vor?",
+      "fr": "Je suis au 2ème trimestre de grossesse. Est-ce que je peux commencer le jogging pour garder la forme, ou est-ce trop risqué ?",
+      "it": "Sono a sei mesi dal parto e vorrei riprendere il lavoro di forza, ma non so cosa sia prudente in questo momento. Come posso ricominciare in sicurezza?"
     }
   },
   {
@@ -225,9 +225,9 @@
     "intent": "busy_professional_with_overweight",
     "example": "I work 10-hour days, eat takeout constantly, and have gained 15 kg. I need something realistic I can stick to.",
     "example_localized": {
-      "de": "Mir fehlt Kontext für einen pauschalen Plan; ich brauche ein sicheres, kontextabhängiges Screening.",
-      "fr": "Il me manque du contexte pour un plan générique; j’ai besoin d’un screening sûr et contextuel.",
-      "it": "Manca contesto per un piano generico; ho bisogno di uno screening sicuro e contestuale."
+      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
+      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
+      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
     }
   },
   {
@@ -236,9 +236,9 @@
     "intent": "mental_wellbeing_through_exercise",
     "example": "I’ve been feeling stressed and mentally exhausted lately. I want exercise and nutrition habits that help me feel better.",
     "example_localized": {
-      "de": "Mir fehlt Kontext für einen pauschalen Plan; ich brauche ein sicheres, kontextabhängiges Screening.",
-      "fr": "Il me manque du contexte pour un plan générique; j’ai besoin d’un screening sûr et contextuel.",
-      "it": "Manca contesto per un piano generico; ho bisogno di uno screening sicuro e contestuale."
+      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
+      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
+      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
     }
   },
   {
@@ -247,9 +247,9 @@
     "intent": "training_for_first_marathon_later_in_life",
     "example": "I’m 50 and want to run my first marathon. I’m not currently very fit and need a training and nutrition plan.",
     "example_localized": {
-      "de": "Mir fehlt Kontext für einen pauschalen Plan; ich brauche ein sicheres, kontextabhängiges Screening.",
-      "fr": "Il me manque du contexte pour un plan générique; j’ai besoin d’un screening sûr et contextuel.",
-      "it": "Manca contesto per un piano generico; ho bisogno di uno screening sicuro e contestuale."
+      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
+      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
+      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
     }
   },
   {
@@ -258,9 +258,9 @@
     "intent": "beginner_wants_to_build_muscle",
     "example": "I’ve never lifted weights before and want to gain muscle without spending hours in the gym.",
     "example_localized": {
-      "de": "Mir fehlt Kontext für einen pauschalen Plan; ich brauche ein sicheres, kontextabhängiges Screening.",
-      "fr": "Il me manque du contexte pour un plan générique; j’ai besoin d’un screening sûr et contextuel.",
-      "it": "Manca contesto per un piano generico; ho bisogno di uno screening sicuro e contestuale."
+      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
+      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
+      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
     }
   },
   {
@@ -269,9 +269,9 @@
     "intent": "fat_loss_without_restrictive_dieting",
     "example": "I’ve tried diets over and over and always regain the weight. I want to lose fat without constantly feeling hungry.",
     "example_localized": {
-      "de": "Mir fehlt Kontext für einen pauschalen Plan; ich brauche ein sicheres, kontextabhängiges Screening.",
-      "fr": "Il me manque du contexte pour un plan générique; j’ai besoin d’un screening sûr et contextuel.",
-      "it": "Manca contesto per un piano generico; ho bisogno di uno screening sicuro e contestuale."
+      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
+      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
+      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
     }
   },
   {
@@ -280,9 +280,9 @@
     "intent": "healthy_aging_and_maintaining_strength",
     "example": "I’m in my 60s and want to stay strong, mobile, and independent for as long as possible. What should I eat and train?",
     "example_localized": {
-      "de": "Mir fehlt Kontext für einen pauschalen Plan; ich brauche ein sicheres, kontextabhängiges Screening.",
-      "fr": "Il me manque du contexte pour un plan générique; j’ai besoin d’un screening sûr et contextuel.",
-      "it": "Manca contesto per un piano generico; ho bisogno di uno screening sicuro e contestuale."
+      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
+      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
+      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
     }
   },
   {
@@ -291,9 +291,9 @@
     "intent": "improve_energy_and_reduce_sedentary_lifestyle",
     "example": "I sit at a desk all day and feel sluggish. I want to move more and have more energy without completely changing my life.",
     "example_localized": {
-      "de": "Mir fehlt Kontext für einen pauschalen Plan; ich brauche ein sicheres, kontextabhängiges Screening.",
-      "fr": "Il me manque du contexte pour un plan générique; j’ai besoin d’un screening sûr et contextuel.",
-      "it": "Manca contesto per un piano generico; ho bisogno di uno screening sicuro e contestuale."
+      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
+      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
+      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
     }
   },
   {
@@ -302,9 +302,9 @@
     "intent": "nutrition_for_strength_and_performance",
     "example": "I’m training 4–5 times a week and want to know what and when I should eat to perform better and recover faster.",
     "example_localized": {
-      "de": "Mir fehlt Kontext für einen pauschalen Plan; ich brauche ein sicheres, kontextabhängiges Screening.",
-      "fr": "Il me manque du contexte pour un plan générique; j’ai besoin d’un screening sûr et contextuel.",
-      "it": "Manca contesto per un piano generico; ho bisogno di uno screening sicuro e contestuale."
+      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
+      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
+      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
     }
   },
   {
@@ -313,9 +313,9 @@
     "intent": "vegetarian_or_vegan_fitness_nutrition",
     "example": "I’m vegan and lifting weights. How can I get enough protein and nutrients while supporting muscle growth?",
     "example_localized": {
-      "de": "Mir fehlt Kontext für einen pauschalen Plan; ich brauche ein sicheres, kontextabhängiges Screening.",
-      "fr": "Il me manque du contexte pour un plan générique; j’ai besoin d’un screening sûr et contextuel.",
-      "it": "Manca contesto per un piano generico; ho bisogno di uno screening sicuro e contestuale."
+      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
+      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
+      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
     }
   },
   {
@@ -324,9 +324,9 @@
     "intent": "return_to_exercise_after_long_break",
     "example": "I used to be active but haven’t exercised in three years. I want to get back into shape without getting injured.",
     "example_localized": {
-      "de": "Mir fehlt Kontext für einen pauschalen Plan; ich brauche ein sicheres, kontextabhängiges Screening.",
-      "fr": "Il me manque du contexte pour un plan générique; j’ai besoin d’un screening sûr et contextuel.",
-      "it": "Manca contesto per un piano generico; ho bisogno di uno screening sicuro e contestuale."
+      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
+      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
+      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
     }
   },
   {
@@ -335,9 +335,9 @@
     "intent": "home_workout_with_limited_equipment",
     "example": "I have two dumbbells and 30 minutes a day. Can you create a workout and nutrition routine for me?",
     "example_localized": {
-      "de": "Mir fehlt Kontext für einen pauschalen Plan; ich brauche ein sicheres, kontextabhängiges Screening.",
-      "fr": "Il me manque du contexte pour un plan générique; j’ai besoin d’un screening sûr et contextuel.",
-      "it": "Manca contesto per un piano generico; ho bisogno di uno screening sicuro e contestuale."
+      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
+      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
+      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
     }
   },
   {
@@ -346,9 +346,9 @@
     "intent": "healthy_weight_gain",
     "example": "I’m naturally very thin and struggle to eat enough. I want to gain healthy weight and muscle.",
     "example_localized": {
-      "de": "Mir fehlt Kontext für einen pauschalen Plan; ich brauche ein sicheres, kontextabhängiges Screening.",
-      "fr": "Il me manque du contexte pour un plan générique; j’ai besoin d’un screening sûr et contextuel.",
-      "it": "Manca contesto per un piano generico; ho bisogno di uno screening sicuro e contestuale."
+      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
+      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
+      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
     }
   },
   {
@@ -357,9 +357,9 @@
     "intent": "body_recomposition",
     "example": "My weight is normal, but I have little muscle and more body fat than I’d like. I want to become stronger and leaner.",
     "example_localized": {
-      "de": "Mir fehlt Kontext für einen pauschalen Plan; ich brauche ein sicheres, kontextabhängiges Screening.",
-      "fr": "Il me manque du contexte pour un plan générique; j’ai besoin d’un screening sûr et contextuel.",
-      "it": "Manca contesto per un piano generico; ho bisogno di uno screening sicuro e contestuale."
+      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
+      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
+      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
     }
   },
   {
@@ -368,9 +368,9 @@
     "intent": "prepare_for_sporting_event",
     "example": "I signed up for my first cycling race in four months. What should I eat and how should I structure my training?",
     "example_localized": {
-      "de": "Mir fehlt Kontext für einen pauschalen Plan; ich brauche ein sicheres, kontextabhängiges Screening.",
-      "fr": "Il me manque du contexte pour un plan générique; j’ai besoin d’un screening sûr et contextuel.",
-      "it": "Manca contesto per un piano generico; ho bisogno di uno screening sicuro e contestuale."
+      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
+      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
+      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
     }
   },
   {
@@ -390,9 +390,9 @@
     "intent": "family_friendly_healthy_eating",
     "example": "I have two kids and nobody in my family wants to eat the same healthy food. Help me create simple meals everyone will actually eat.",
     "example_localized": {
-      "de": "Mir fehlt Kontext für einen pauschalen Plan; ich brauche ein sicheres, kontextabhängiges Screening.",
-      "fr": "Il me manque du contexte pour un plan générique; j’ai besoin d’un screening sûr et contextuel.",
-      "it": "Manca contesto per un piano generico; ho bisogno di uno screening sicuro e contestuale."
+      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
+      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
+      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
     }
   },
   {
@@ -401,9 +401,9 @@
     "intent": "healthier_relationship_with_food",
     "example": "I constantly snack when I’m stressed or bored. I want to understand my eating patterns and build healthier habits without obsessing over calories.",
     "example_localized": {
-      "de": "Ich habe Druck beim Essverhalten/Körperbild und brauche empathische, sichere Unterstützung.",
-      "fr": "J’ai une pression liée à l’alimentation/à l’image corporelle et j’ai besoin d’un soutien empathique et sûr.",
-      "it": "Ho pressione su alimentazione/immagine corporea e ho bisogno di supporto empatico e sicuro."
+      "de": "Ich fühle mich derzeit stark unter Druck gesetzt, was mein Essverhalten und mein Körperbild angeht, und brauche eine empathische, sichere Unterstützung, um damit umzugehen.",
+      "fr": "Je ressens beaucoup de pression concernant mon alimentation et mon image corporelle en ce moment, et j'aurais besoin de conseils sûrs et bienveillants pour gérer cela.",
+      "it": "Ultimamente mi sento molto sotto pressione per la mia alimentazione e l'immagine del mio corpo, e ho bisogno di una guida sicura ed empatica per gestire la situazione."
     }
   },
   {
@@ -412,9 +412,9 @@
     "intent": "fitness_with_travel_and_irregular_schedule",
     "example": "I travel for work every week, eat in hotels and restaurants, and rarely have access to a gym. How can I stay fit?",
     "example_localized": {
-      "de": "Mir fehlt Kontext für einen pauschalen Plan; ich brauche ein sicheres, kontextabhängiges Screening.",
-      "fr": "Il me manque du contexte pour un plan générique; j’ai besoin d’un screening sûr et contextuel.",
-      "it": "Manca contesto per un piano generico; ho bisogno di uno screening sicuro e contestuale."
+      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
+      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
+      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
     }
   },
   {
@@ -423,9 +423,9 @@
     "intent": "long_term_lifestyle_transformation",
     "example": "I’m 40, out of shape, and worried about where my health is heading. I want a sustainable plan for food, exercise, sleep, and weight.",
     "example_localized": {
-      "de": "Mir fehlt Kontext für einen pauschalen Plan; ich brauche ein sicheres, kontextabhängiges Screening.",
-      "fr": "Il me manque du contexte pour un plan générique; j’ai besoin d’un screening sûr et contextuel.",
-      "it": "Manca contesto per un piano generico; ho bisogno di uno screening sicuro e contestuale."
+      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
+      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
+      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
     }
   }
 ]

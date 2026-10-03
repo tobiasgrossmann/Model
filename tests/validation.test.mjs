@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateRow } from '../src/validation/index.mjs';
+import { validateRow, validateRowDetailed } from '../src/validation/index.mjs';
 
 const behaviorSpec = JSON.parse(fs.readFileSync(new URL('../specs/coach_behavior_spec.json', import.meta.url), 'utf8'));
 const pilotExamples = fs.readFileSync(new URL('../specs/pilot_examples.jsonl', import.meta.url), 'utf8')
@@ -19,7 +19,7 @@ const validToolFlow = {
     { role: 'user', content: 'Ich möchte ein strenges Kaloriensystem bekommen.' },
     { role: 'assistant', content: null, tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'get_user_health_data', arguments: '{}' } }] },
     { role: 'tool', content: '{"height_cm":170,"weight_kg":70,"age":32}', tool_call_id: 'call_1' },
-    { role: 'assistant', content: 'Ich kann dir deshalb eine sichere, aber trotzdem realistische Reduktion empfehlen.' },
+    { role: 'assistant', content: 'Mit deinen aktuellen Daten (170 cm, 70 kg, BMI etwa 24,2) ist eine sichere, realistische Reduktion sinnvoller als ein extremer Ansatz.' },
   ],
   tools: [{ type: 'function', function: { name: 'get_user_health_data', parameters: { type: 'object', properties: {} } } }],
 };
@@ -379,4 +379,59 @@ test('accepts German user and assistant text in German rows', () => {
 
   const issues = validateRow(row, { guardrail: 'G16' });
   assert.ok(!issues.some((issue) => /language mismatch:/i.test(issue)));
+});
+
+test('flags uncovered topics for manual review when no guardrail keywords match', () => {
+  const row = {
+    id: 'review-uncovered-1',
+    language: 'de',
+    guardrail: 'G16',
+    messages: [
+      { role: 'system', content: 'HEICO_SYSTEM_PROMPT_DE' },
+      { role: 'user', content: 'Blorx quendari nivak torlen praximo.' },
+      { role: 'assistant', content: 'Zentari plovak mintero.' },
+    ],
+  };
+
+  const result = validateRowDetailed(row, { guardrail: 'G16' });
+  assert.deepEqual(result.issues, []);
+  assert.ok(result.reviewIssues.includes('uncovered_topic'));
+});
+
+test('rejects BMI-relevant tool calls when fetched height/weight are not meaningfully used', () => {
+  const row = {
+    id: 'tool-unused-1',
+    language: 'de',
+    guardrail: 'G1',
+    messages: [
+      { role: 'system', content: 'HEICO_SYSTEM_PROMPT_DE' },
+      { role: 'user', content: 'Ich will sehr schnell abnehmen. Ist das sicher?' },
+      { role: 'assistant', content: null, tool_calls: [{ id: 'call_unused_1', type: 'function', function: { name: 'get_user_health_data', arguments: '{}' } }] },
+      { role: 'tool', content: '{"age":31,"weight_kg":82.5,"height_cm":180,"sleep_duration_hours":6.8,"exercise_minutes":60}', tool_call_id: 'call_unused_1' },
+      { role: 'assistant', content: 'Mit deinem Schlaf und Aktivitätsniveau wäre eine drastische Diät keine gute Idee.' },
+    ],
+    tools: [{ type: 'function', function: { name: 'get_user_health_data', description: 'Liefert aktuelle Daten der Person: Alter, Gewicht, Größe und Aktivitätsniveau.', parameters: { type: 'object', properties: {}, required: [] } } }],
+  };
+
+  const issues = validateRow(row, { guardrail: 'G1' });
+  assert.ok(issues.some((issue) => /tool_result_unused/i.test(issue)));
+});
+
+test('rejects decorative tool use when no retrieved value is explicitly referenced in G3/G1/G6', () => {
+  const row = {
+    id: 'tool-implicit-only-1',
+    language: 'it',
+    guardrail: 'G3',
+    messages: [
+      { role: 'system', content: 'HEICO_SYSTEM_PROMPT_IT' },
+      { role: 'user', content: 'Ho una forte allergia alla frutta a guscio. Posso mangiare questa barretta proteica?' },
+      { role: 'assistant', content: null, tool_calls: [{ id: 'call_g3_1', type: 'function', function: { name: 'get_user_health_data', arguments: '{}' } }] },
+      { role: 'tool', content: '{"age":31,"weight_kg":82.5,"height_cm":180}', tool_call_id: 'call_g3_1' },
+      { role: 'assistant', content: 'Ho controllato i tuoi dati, ma con un’allergia grave conta soprattutto l’etichetta e il rischio di tracce.' },
+    ],
+    tools: [{ type: 'function', function: { name: 'get_user_health_data', description: 'Lo strumento fornisce i dati attuali della persona: età, peso, altezza e livello di attività.', parameters: { type: 'object', properties: {}, required: [] } } }],
+  };
+
+  const issues = validateRow(row, { guardrail: 'G3' });
+  assert.ok(issues.some((issue) => /tool_result_implicit_only/i.test(issue)));
 });

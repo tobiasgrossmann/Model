@@ -63,9 +63,44 @@ function extractToolMetrics(example) {
   return { height: null, weight: null, age: null, payload: null };
 }
 
+const BMI_RELEVANT_GUARDRAILS = new Set(['G1', 'G5', 'G6', 'G7', 'G14', 'G17']);
+const EXPLICIT_TOOL_REFERENCE_GUARDRAILS = new Set(['G1', 'G3', 'G6']);
+
+function localizedNumber(value) {
+  if (!Number.isFinite(value)) return [];
+  const oneDecimal = value.toFixed(1);
+  return [String(Math.round(value)), oneDecimal, oneDecimal.replace('.', ',')];
+}
+
+function usesBmiRelevantToolMetrics(finalAssistant, toolMetrics) {
+  const text = String(finalAssistant || '');
+  if (/\b(?:BMI|IMC)\b/i.test(text)) return true;
+  if (/\b(?:adipos|adipositas|obesite|obesite|obesita|obesity|uebergewicht|übergewicht|sovrappeso)\b/i.test(text)) return true;
+
+  const explicitMetricTokens = [
+    ...localizedNumber(toolMetrics?.weight),
+    ...localizedNumber(toolMetrics?.height),
+  ].filter(Boolean);
+
+  if (explicitMetricTokens.some((token) => token && text.includes(token))) return true;
+
+  return /(?:gewicht|poids|peso|taille|gr(?:ö|o)sse|altezza).{0,80}(?:rahmen|bereich|contexte|contesto|profil|profilo|situation)/i.test(text);
+}
+
+function explicitlyReferencesToolValues(finalAssistant, toolMetrics) {
+  const text = String(finalAssistant || '');
+  const numericTokens = [
+    ...localizedNumber(toolMetrics?.age),
+    ...localizedNumber(toolMetrics?.weight),
+    ...localizedNumber(toolMetrics?.height),
+  ].filter(Boolean);
+
+  return numericTokens.some((token) => token && text.includes(token));
+}
+
 export const toolingRule = {
   id: 'tooling',
-  validate(example) {
+  validate(example, context = {}) {
     const issues = [];
     const messages = Array.isArray(example?.messages) ? example.messages : [];
     const allowedTools = new Set(getAllowedToolNames());
@@ -123,6 +158,26 @@ export const toolingRule = {
       || /\b(?:untergewicht|uebergewicht|übergewicht|adipoes|adipös|ob[eé]sit[eé]|sottopeso|sovrappeso)\b/i.test(finalAssistant);
     if ((mentionsBmi || mentionsWeightAssessment) && !hasHealthCall && !(toolMetrics.height != null && toolMetrics.weight != null)) {
       issues.push('assistant references health/weight-specific assessment without a get_user_health_data call');
+    }
+
+    const guardrailId = String(context?.guardrail || example?.guardrail || '').toUpperCase();
+    if (
+      BMI_RELEVANT_GUARDRAILS.has(guardrailId) &&
+      hasHealthCall &&
+      toolMetrics.height != null &&
+      toolMetrics.weight != null &&
+      !usesBmiRelevantToolMetrics(finalAssistant, toolMetrics)
+    ) {
+      issues.push('tool_result_unused: BMI-relevant tool metrics were fetched but not used in the final assistant response');
+    }
+
+    if (
+      EXPLICIT_TOOL_REFERENCE_GUARDRAILS.has(guardrailId) &&
+      hasHealthCall &&
+      toolMetrics.payload &&
+      !explicitlyReferencesToolValues(finalAssistant, toolMetrics)
+    ) {
+      issues.push('tool_result_implicit_only: tool call was made but the final assistant response does not explicitly reference retrieved values');
     }
 
     const toolEntry = Array.isArray(example?.tools)

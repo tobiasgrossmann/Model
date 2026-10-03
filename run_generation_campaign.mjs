@@ -15,11 +15,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 
 const SPEC_DIR = process.env.SPEC_DIR || "./specs";
 const OUT_DIR = process.env.OUT_DIR || "./out";
 const LANGS = ["de", "fr", "it"];
+const TOOL_DIVERSITY_TARGETS = ["save_food_plan", "save_training_plan"];
+const MIN_TOOL_CALLS_PER_LANG = 3;
 
 function countSourceFile() {
   return path.join(OUT_DIR, "generated.jsonl");
@@ -92,8 +94,9 @@ function resetOutFiles() {
 function readLanguageCounts() {
   const counts = { de: 0, fr: 0, it: 0 };
   const guardrailCounts = {};
+  const toolCallCounts = {};
   const sourceFile = countSourceFile();
-  if (!fs.existsSync(sourceFile)) return { counts, guardrailCounts };
+  if (!fs.existsSync(sourceFile)) return { counts, guardrailCounts, toolCallCounts };
 
   const lines = fs.readFileSync(sourceFile, "utf8")
     .split("\n")
@@ -110,18 +113,52 @@ function readLanguageCounts() {
         const key = `${obj.guardrail}/${obj.language}`;
         guardrailCounts[key] = (guardrailCounts[key] || 0) + 1;
       }
+      if (obj && typeof obj.language === "string" && Array.isArray(obj.messages)) {
+        for (const message of obj.messages) {
+          if (!Array.isArray(message?.tool_calls)) continue;
+          for (const toolCall of message.tool_calls) {
+            const toolName = toolCall?.function?.name || toolCall?.name;
+            if (!TOOL_DIVERSITY_TARGETS.includes(toolName)) continue;
+            const key = `${toolName}/${obj.language}`;
+            toolCallCounts[key] = (toolCallCounts[key] || 0) + 1;
+          }
+        }
+      }
     } catch {
       // Ignore malformed lines; generate.mjs should already isolate rejects.
     }
   }
-  return { counts, guardrailCounts };
+  return { counts, guardrailCounts, toolCallCounts };
 }
 
 function runNode(args, label) {
-  const result = spawnSync("node", args, { stdio: "inherit" });
-  if (result.status !== 0) {
-    throw new Error(`${label} failed with exit code ${result.status}`);
-  }
+  return new Promise((resolve, reject) => {
+    const child = spawn("node", args, { stdio: "inherit" });
+    const startedAt = Date.now();
+    const heartbeatEveryMs = 15000;
+    const heartbeat = setInterval(() => {
+      const elapsedSec = Math.floor((Date.now() - startedAt) / 1000);
+      process.stderr.write(`\n  … ${label} still running (${elapsedSec}s elapsed)\n`);
+    }, heartbeatEveryMs);
+
+    child.on("error", (error) => {
+      clearInterval(heartbeat);
+      reject(error);
+    });
+
+    child.on("exit", (code, signal) => {
+      clearInterval(heartbeat);
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      if (typeof code === "number") {
+        reject(new Error(`${label} failed with exit code ${code}`));
+        return;
+      }
+      reject(new Error(`${label} terminated by signal ${signal || "unknown"}`));
+    });
+  });
 }
 
 function sleepSync(ms) {
@@ -130,7 +167,7 @@ function sleepSync(ms) {
   Atomics.wait(arr, 0, 0, ms);
 }
 
-function runGenerateWithRetry(guardrail, lang, count) {
+async function runGenerateWithRetry(guardrail, lang, count) {
   const args = [
     "generate.mjs",
     "--guardrail", guardrail,
@@ -142,7 +179,7 @@ function runGenerateWithRetry(guardrail, lang, count) {
   let lastError;
   for (let attempt = 1; attempt <= GENERATE_RETRIES; attempt++) {
     try {
-      runNode(args, `generate ${guardrail}/${lang}`);
+      await runNode(args, `generate ${guardrail}/${lang}`);
       return;
     } catch (error) {
       lastError = error;
@@ -159,7 +196,7 @@ function runGenerateWithRetry(guardrail, lang, count) {
   throw lastError;
 }
 
-function runAutoRepairStep() {
+async function runAutoRepairStep() {
   const args = [
     "repair_prompts.mjs",
     "--prompt", "generation.md",
@@ -170,38 +207,48 @@ function runAutoRepairStep() {
   }
   console.log(`  -> running prompt repair (${AUTO_REPAIR_APPLY ? "apply" : "dry-run"}) ...`);
   try {
-    runNode(args, "repair prompts");
+    await runNode(args, "repair prompts");
   } catch (error) {
     console.warn(`  ! prompt repair failed; continuing campaign. ${error.message}`);
   }
 }
 
-function runBatch(guardrail, lang, count) {
-  runGenerateWithRetry(guardrail, lang, count);
+async function runBatch(guardrail, lang, count) {
+  await runGenerateWithRetry(guardrail, lang, count);
   if (AUTO_REPAIR || AUTO_REPAIR_APPLY) {
-    runAutoRepairStep();
+    await runAutoRepairStep();
   }
 }
 
-function done({ counts, guardrailCounts }, guardrails) {
+function done({ counts, guardrailCounts, toolCallCounts }, guardrails) {
   const allLanguageTargetsMet = LANGS.every((lang) => counts[lang] >= TARGET_PER_LANG);
   const allGuardrailMinimaMet = guardrails.every((guardrail) =>
     LANGS.every((lang) => (guardrailCounts[`${guardrail}/${lang}`] || 0) >= MIN_GUARDRAIL_PER_LANG)
   );
-  return allLanguageTargetsMet && allGuardrailMinimaMet;
+  const allToolMinimaMet = TOOL_DIVERSITY_TARGETS.every((toolName) =>
+    LANGS.every((lang) => (toolCallCounts[`${toolName}/${lang}`] || 0) >= MIN_TOOL_CALLS_PER_LANG)
+  );
+  return allLanguageTargetsMet && allGuardrailMinimaMet && allToolMinimaMet;
 }
 
-function deficits({ counts, guardrailCounts }, guardrails) {
+function deficits({ counts, guardrailCounts, toolCallCounts }, guardrails) {
   const out = {};
   for (const lang of LANGS) out[lang] = Math.max(0, TARGET_PER_LANG - counts[lang]);
   const guardrailDeficits = {};
+  const toolDeficits = {};
   for (const guardrail of guardrails) {
     for (const lang of LANGS) {
       const current = guardrailCounts[`${guardrail}/${lang}`] || 0;
       guardrailDeficits[`${guardrail}/${lang}`] = Math.max(0, MIN_GUARDRAIL_PER_LANG - current);
     }
   }
-  return { language: out, guardrail: guardrailDeficits };
+  for (const toolName of TOOL_DIVERSITY_TARGETS) {
+    for (const lang of LANGS) {
+      const current = toolCallCounts[`${toolName}/${lang}`] || 0;
+      toolDeficits[`${toolName}/${lang}`] = Math.max(0, MIN_TOOL_CALLS_PER_LANG - current);
+    }
+  }
+  return { language: out, guardrail: guardrailDeficits, tool: toolDeficits };
 }
 
 function formatCountMap(map) {
@@ -217,12 +264,14 @@ function readDiversitySummary() {
   const sourceFile = countSourceFile();
 
   if (!fs.existsSync(sourceFile)) {
-    return { total: 0, language: {}, guardrail: {}, intent_basis: {} };
+    return { total: 0, language: {}, guardrail: {}, intent_basis: {}, tool_call: {}, tool_call_language: {} };
   }
 
   const language = {};
   const guardrail = {};
   const intentBasis = {};
+  const toolCall = {};
+  const toolCallLanguage = {};
   let total = 0;
 
   for (const line of fs.readFileSync(sourceFile, "utf8").split("\n")) {
@@ -243,12 +292,24 @@ function readDiversitySummary() {
       language[lang] = (language[lang] || 0) + 1;
       guardrail[guardrailId] = (guardrail[guardrailId] || 0) + 1;
       intentBasis[basis] = (intentBasis[basis] || 0) + 1;
+      if (Array.isArray(row.messages)) {
+        for (const message of row.messages) {
+          if (!Array.isArray(message?.tool_calls)) continue;
+          for (const toolCallEntry of message.tool_calls) {
+            const toolName = toolCallEntry?.function?.name || toolCallEntry?.name;
+            if (!toolName) continue;
+            toolCall[toolName] = (toolCall[toolName] || 0) + 1;
+            const key = `${toolName}/${lang}`;
+            toolCallLanguage[key] = (toolCallLanguage[key] || 0) + 1;
+          }
+        }
+      }
     } catch {
       // Ignore malformed lines; campaign summary should stay robust.
     }
   }
 
-  return { total, language, guardrail, intent_basis: intentBasis };
+  return { total, language, guardrail, intent_basis: intentBasis, tool_call: toolCall, tool_call_language: toolCallLanguage };
 }
 
 function printProgress(prefix, state, guardrails) {
@@ -258,12 +319,14 @@ function printProgress(prefix, state, guardrails) {
     `${prefix} counts => de=${state.counts.de}, fr=${state.counts.fr}, it=${state.counts.it} | ` +
     `remaining => de=${d.language.de}, fr=${d.language.fr}, it=${d.language.it} | ` +
     `guardrail minima remaining => ${Object.values(d.guardrail).reduce((sum, n) => sum + n, 0)} | ` +
+    `tool minima remaining => ${Object.values(d.tool).reduce((sum, n) => sum + n, 0)} | ` +
     `diversity => total=${diversity.total}, languages=${formatCountMap(diversity.language)}, ` +
-    `intent_basis=${formatCountMap(diversity.intent_basis)}, guardrails=${formatCountMap(diversity.guardrail)}`
+    `intent_basis=${formatCountMap(diversity.intent_basis)}, guardrails=${formatCountMap(diversity.guardrail)}, ` +
+    `tool_calls=${formatCountMap(diversity.tool_call)}`
   );
 }
 
-function main() {
+async function main() {
   const guardrails = loadGuardrailIds();
 
   console.log(`Target per language (validated): ${TARGET_PER_LANG}`);
@@ -272,6 +335,7 @@ function main() {
   console.log(`Generate max tokens: ${MAX_TOKENS}`);
   console.log(`Generate retries: ${GENERATE_RETRIES}`);
   console.log(`Guardrails: ${guardrails.length}`);
+  console.log(`Tool diversity minima per language: ${MIN_TOOL_CALLS_PER_LANG} for ${TOOL_DIVERSITY_TARGETS.join(", ")}`);
 
   if (FRESH) {
     console.log("--fresh enabled: resetting out files");
@@ -289,8 +353,9 @@ function main() {
       for (const lang of orderedLangs) {
         state = readLanguageCounts();
         const current = state.guardrailCounts[`${guardrail}/${lang}`] || 0;
-        if (current >= MIN_GUARDRAIL_PER_LANG) continue;
-        runBatch(guardrail, lang, COUNT_PER_RUN);
+        const toolBelowMinimum = TOOL_DIVERSITY_TARGETS.some((toolName) => (state.toolCallCounts[`${toolName}/${lang}`] || 0) < MIN_TOOL_CALLS_PER_LANG);
+        if (current >= MIN_GUARDRAIL_PER_LANG && !toolBelowMinimum) continue;
+        await runBatch(guardrail, lang, COUNT_PER_RUN);
       }
       state = readLanguageCounts();
       printProgress(`After warm-up ${guardrail}`, state, guardrails);
@@ -310,8 +375,9 @@ function main() {
         state = readLanguageCounts();
         const underGuardrailMin = (state.guardrailCounts[`${guardrail}/${lang}`] || 0) < MIN_GUARDRAIL_PER_LANG;
         const langBelowTarget = state.counts[lang] < TARGET_PER_LANG;
-        if (!underGuardrailMin && !langBelowTarget) continue;
-        runBatch(guardrail, lang, COUNT_PER_RUN);
+        const toolBelowMinimum = TOOL_DIVERSITY_TARGETS.some((toolName) => (state.toolCallCounts[`${toolName}/${lang}`] || 0) < MIN_TOOL_CALLS_PER_LANG);
+        if (!underGuardrailMin && !langBelowTarget && !toolBelowMinimum) continue;
+        await runBatch(guardrail, lang, COUNT_PER_RUN);
         ranAny = true;
       }
     }
@@ -330,5 +396,8 @@ function main() {
 
 const isDirectRun = process.argv[1] && path.resolve(fileURLToPath(import.meta.url)) === path.resolve(process.argv[1]);
 if (isDirectRun) {
-  main();
+  main().catch((error) => {
+    console.error(error?.stack || String(error));
+    process.exitCode = 1;
+  });
 }
