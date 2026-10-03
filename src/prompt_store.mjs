@@ -2,9 +2,29 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const DEFAULT_PROMPT_STORE_DIR = process.env.PROMPT_STORE_DIR || './state/prompt_store';
+const PROMPT_STORE_RETENTION_DAYS = parseInt(process.env.PROMPT_STORE_RETENTION_DAYS || '1', 10);
+const PROMPT_STORE_MAX_SNAPSHOTS = parseInt(process.env.PROMPT_STORE_MAX_SNAPSHOTS || '8', 10);
+const PROMPT_STORE_MAX_CANDIDATES = parseInt(process.env.PROMPT_STORE_MAX_CANDIDATES || '12', 10);
+const PROMPT_STORE_MAX_HISTORY_LINES = parseInt(process.env.PROMPT_STORE_MAX_HISTORY_LINES || '20', 10);
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
+}
+
+function safeListDir(dirPath) {
+  try {
+    return fs.readdirSync(dirPath, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+}
+
+function statMtimeMsSafe(filePath) {
+  try {
+    return fs.statSync(filePath).mtimeMs;
+  } catch {
+    return 0;
+  }
 }
 
 function timestampTag(date = new Date()) {
@@ -23,6 +43,66 @@ export function getPromptStoreDir(baseDir = DEFAULT_PROMPT_STORE_DIR) {
   return baseDir;
 }
 
+function pruneDirectoryByAgeAndCount(dirPath, { retentionDays, maxEntries }) {
+  if (!Number.isFinite(retentionDays) || retentionDays < 0) return;
+  if (!Number.isFinite(maxEntries) || maxEntries < 0) return;
+
+  const cutoffMs = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+  const entries = safeListDir(dirPath)
+    .map((dirent) => {
+      const fullPath = path.join(dirPath, dirent.name);
+      return {
+        name: dirent.name,
+        fullPath,
+        mtimeMs: statMtimeMsSafe(fullPath),
+      };
+    })
+    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    const tooOld = entry.mtimeMs > 0 && entry.mtimeMs < cutoffMs;
+    const overCount = i >= maxEntries;
+    if (tooOld || overCount) {
+      fs.rmSync(entry.fullPath, { recursive: true, force: true });
+    }
+  }
+}
+
+function pruneHistoryFile(filePath, maxLines) {
+  if (!fs.existsSync(filePath)) return;
+  if (!Number.isFinite(maxLines) || maxLines < 1) {
+    fs.writeFileSync(filePath, '', 'utf8');
+    return;
+  }
+
+  const lines = fs.readFileSync(filePath, 'utf8')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length <= maxLines) return;
+
+  const trimmed = lines.slice(lines.length - maxLines);
+  fs.writeFileSync(filePath, `${trimmed.join('\n')}\n`, 'utf8');
+}
+
+export function prunePromptStore(baseDir = DEFAULT_PROMPT_STORE_DIR) {
+  const root = getPromptStoreDir(baseDir);
+  const snapshotsDir = path.join(root, 'snapshots');
+  const candidatesDir = path.join(root, 'candidates');
+  const historyFile = path.join(root, 'history', 'prompt_versions.jsonl');
+
+  pruneDirectoryByAgeAndCount(snapshotsDir, {
+    retentionDays: PROMPT_STORE_RETENTION_DAYS,
+    maxEntries: PROMPT_STORE_MAX_SNAPSHOTS,
+  });
+  pruneDirectoryByAgeAndCount(candidatesDir, {
+    retentionDays: PROMPT_STORE_RETENTION_DAYS,
+    maxEntries: PROMPT_STORE_MAX_CANDIDATES,
+  });
+  pruneHistoryFile(historyFile, PROMPT_STORE_MAX_HISTORY_LINES);
+}
+
 export function ensurePromptStore(baseDir = DEFAULT_PROMPT_STORE_DIR) {
   const root = getPromptStoreDir(baseDir);
   ensureDir(root);
@@ -31,6 +111,7 @@ export function ensurePromptStore(baseDir = DEFAULT_PROMPT_STORE_DIR) {
   ensureDir(path.join(root, 'candidates'));
   ensureDir(path.join(root, 'history'));
   ensureDir(path.join(root, 'prompt_versions'));
+  prunePromptStore(root);
   return root;
 }
 

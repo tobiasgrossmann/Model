@@ -16,7 +16,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createLocalRag } from "./local_rag.mjs";
-import { validateRow } from "./src/validation/index.mjs";
+import { validateGeneratedExample } from "./validate.mjs";
+import { recordValidationFailure } from "./src/prompt_store.mjs";
 import { BATCH_MIX_INSTRUCTIONS } from "./specs/batch_mix_instructions.mjs";
 import { HEALTHY_PLANNING_MIX } from "./specs/healthy_planning_mix.mjs";
 import { GUARDRAIL_POLICIES, DEFAULT_POLICY } from "./specs/guardrail_policies.mjs";
@@ -1278,12 +1279,17 @@ async function runBatch(guardrail, lang, count) {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const outFile = path.join(OUT_DIR, "generated.jsonl");
   const rejFile = path.join(OUT_DIR, "rejects.log");
+  const flaggedFile = path.join(OUT_DIR, "flagged.jsonl");
   if (!fs.existsSync(outFile)) {
     fs.writeFileSync(outFile, "", "utf8");
+  }
+  if (!fs.existsSync(flaggedFile)) {
+    fs.writeFileSync(flaggedFile, "", "utf8");
   }
 
   const totalAccepted = [];
   const totalRejectLines = [];
+  const totalFlaggedEntries = [];
   const dedupState = loadExistingDedupState(outFile);
   const maxAttempts = 3;
 
@@ -1319,10 +1325,15 @@ async function runBatch(guardrail, lang, count) {
     const validationRejects = [];
 
     for (const [idx, example] of prepared.entries()) {
-      const issues = validateRow(example, { guardrail: guardrail.id, language: lang });
+      const issues = validateGeneratedExample(example);
       if (issues.length) {
         const reason = issues.join('; ');
         console.warn(`   [validate FAIL] ${guardrail.id}/${lang} example ${idx + 1}: ${reason}`);
+        recordValidationFailure({
+          example,
+          issues,
+          source: "generate-inline-validate",
+        });
         validationRejects.push({ reason, example });
       } else {
         console.log(`   [validate PASS] ${guardrail.id}/${lang} example ${idx + 1}`);
@@ -1366,6 +1377,11 @@ async function runBatch(guardrail, lang, count) {
       ...validationRejects.map((r) => JSON.stringify({ reason: r.reason, example: r.example })),
       ...rejected.map((r) => JSON.stringify({ reason: r.reason, example: r.example })),
     );
+    totalFlaggedEntries.push(
+      ...malformed.map((item) => ({ id: item?.example?.id || null, issues: [item.reason], example: item.example, source: "generate-prepare" })),
+      ...validationRejects.map((item) => ({ id: item?.example?.id || null, issues: [item.reason], example: item.example, source: "generate-inline-validate" })),
+      ...rejected.map((item) => ({ id: item?.example?.id || null, issues: [item.reason], example: item.example, source: "generate-dedup" })),
+    );
 
     if (accepted.length && totalAccepted.length < count) {
       console.warn(`  ! only ${totalAccepted.length}/${count} accepted so far for ${guardrail.id}/${lang}; retrying for remaining examples.`);
@@ -1374,6 +1390,9 @@ async function runBatch(guardrail, lang, count) {
 
   if (totalAccepted.length) {
     fs.appendFileSync(outFile, totalAccepted.map((o) => JSON.stringify(o)).join("\n") + "\n");
+  }
+  if (totalFlaggedEntries.length) {
+    fs.appendFileSync(flaggedFile, totalFlaggedEntries.map((entry) => JSON.stringify(entry)).join("\n") + "\n");
   }
   if (totalRejectLines.length) {
     fs.appendFileSync(rejFile, `--- ${guardrail.id}/${lang} ---\n${totalRejectLines.join("\n")}\n`);

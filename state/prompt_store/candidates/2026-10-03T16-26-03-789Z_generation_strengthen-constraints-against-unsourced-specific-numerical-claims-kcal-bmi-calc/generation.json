@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen constraints against unsourced specific numerical claims (kcal, BMI calculations) and diagnostic language ('sospetta', 'Zeichen für') to address grounding and diagnosis failures.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T16:26:03.786Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T16-26-03-789Z_generation_strengthen-constraints-against-unsourced-specific-numerical-claims-kcal-bmi-calc/generation.md"
+}

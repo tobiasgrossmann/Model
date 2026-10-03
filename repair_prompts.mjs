@@ -109,6 +109,27 @@ function buildFailureBlock(failures) {
   return JSON.stringify(failures.map(summarizeFailure), null, 2);
 }
 
+function normalizeForMatch(text) {
+  return String(text || '').replace(/\s+/g, ' ').trim();
+}
+
+function escapeRegExp(text) {
+  return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function findNormalizedUniqueRange(haystack, needle) {
+  const normalizedNeedle = normalizeForMatch(needle);
+  if (!normalizedNeedle) return null;
+
+  const parts = normalizedNeedle.split(' ').filter(Boolean).map(escapeRegExp);
+  if (!parts.length) return null;
+  const regex = new RegExp(parts.join('\\s+'), 'g');
+  const matches = [...haystack.matchAll(regex)];
+  if (matches.length !== 1) return null;
+  const match = matches[0];
+  return { start: match.index, end: match.index + match[0].length };
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -222,13 +243,19 @@ export function applyRepairEdits(currentPrompt, edits) {
       throw new Error('Repair edit is missing a non-empty find field.');
     }
     const firstIndex = nextPrompt.indexOf(find);
-    if (firstIndex === -1) {
+    if (firstIndex !== -1) {
+      if (nextPrompt.indexOf(find, firstIndex + find.length) !== -1) {
+        throw new Error(`Repair edit matched multiple locations; snippet must be unique: ${find.slice(0, 120)}`);
+      }
+      nextPrompt = nextPrompt.slice(0, firstIndex) + replace + nextPrompt.slice(firstIndex + find.length);
+      continue;
+    }
+
+    const normalizedRange = findNormalizedUniqueRange(nextPrompt, find);
+    if (!normalizedRange) {
       throw new Error(`Repair edit could not find target snippet: ${find.slice(0, 120)}`);
     }
-    if (nextPrompt.indexOf(find, firstIndex + find.length) !== -1) {
-      throw new Error(`Repair edit matched multiple locations; snippet must be unique: ${find.slice(0, 120)}`);
-    }
-    nextPrompt = nextPrompt.slice(0, firstIndex) + replace + nextPrompt.slice(firstIndex + find.length);
+    nextPrompt = nextPrompt.slice(0, normalizedRange.start) + replace + nextPrompt.slice(normalizedRange.end);
   }
   return nextPrompt;
 }

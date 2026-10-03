@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen constraints against speculative diagnosis language and ensure personalization_needed is strictly false when no tool calls are made, even if user context is mentioned.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T16:18:54.093Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T16-18-54-094Z_generation_strengthen-constraints-against-speculative-diagnosis-language-and-ensure-persona/generation.md"
+}

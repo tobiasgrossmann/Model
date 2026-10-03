@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Strengthen the requirement to set personalization_needed to false when no tool is used, and clarify that general safety advice does not constitute personalization.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-03T16:05:02.886Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-03T16-05-02-887Z_generation_strengthen-the-requirement-to-set-personalization-needed-to-false-when-no-tool-i/generation.md"
-}

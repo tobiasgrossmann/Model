@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen constraints against unsourced specific numerical estimates and diagnostic language, and clarify pregnancy guardrail mapping.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T16:24:05.393Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T16-24-05-395Z_generation_strengthen-constraints-against-unsourced-specific-numerical-estimates-and-diagno/generation.md"
+}

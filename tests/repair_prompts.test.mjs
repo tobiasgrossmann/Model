@@ -16,3 +16,14 @@ test('applyRepairEdits rejects non-unique matches', () => {
     /matched multiple locations/
   );
 });
+
+test('applyRepairEdits matches unique snippets despite whitespace drift', () => {
+  const source = 'alpha\n- **WICHTIG**: Wenn der User eine Vorerkrankung erwähnt, bleibt die Antwort allgemein.\nomega\n';
+  const result = applyRepairEdits(source, [
+    {
+      find: '- **WICHTIG**:   Wenn der User eine Vorerkrankung erwähnt,\nbleibt die Antwort allgemein.',
+      replace: '- **WICHTIG**: Wenn der User eine Vorerkrankung erwähnt, bleibt die Antwort allgemein und verweist an Fachpersonen.',
+    },
+  ]);
+  assert.match(result, /verweist an Fachpersonen/);
+});

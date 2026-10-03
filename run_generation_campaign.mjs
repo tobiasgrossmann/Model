@@ -7,8 +7,8 @@
 //   node run_generation_campaign.mjs --target 2000 --fresh
 //
 // Notes:
-// - Runs this sequence per batch: generate.mjs ... -> validate.mjs
-// - Reads actual progress from the latest valid output file, preferring validated.jsonl when present
+// - Runs this sequence per batch: generate.mjs (+ inline validation)
+// - Reads progress directly from generated.jsonl (already inline-validated)
 // - Performs one mandatory warm-up pass across all guardrail x language pairs
 // - Enforces minimum guardrail/language coverage before the campaign is considered complete
 
@@ -23,9 +23,7 @@ const OUT_DIR = process.env.OUT_DIR || "./out";
 const LANGS = ["de", "fr", "it"];
 
 function countSourceFile() {
-  return fs.existsSync(path.join(OUT_DIR, "validated.jsonl"))
-    ? path.join(OUT_DIR, "validated.jsonl")
-    : path.join(OUT_DIR, "generated.jsonl");
+  return path.join(OUT_DIR, "generated.jsonl");
 }
 
 
@@ -162,18 +160,7 @@ function runGenerateWithRetry(guardrail, lang, count) {
   throw lastError;
 }
 
-function runValidateStep() {
-  console.log("  -> validating generated batch ...");
-  runNode(["validate.mjs"], "validate generated output");
-}
-
 function runAutoRepairStep() {
-  const flaggedFile = path.join(OUT_DIR, "flagged.jsonl");
-  if (!fs.existsSync(flaggedFile) || !fs.readFileSync(flaggedFile, "utf8").trim()) {
-    console.log("  -> no flagged failures available for prompt repair");
-    return;
-  }
-
   const args = [
     "repair_prompts.mjs",
     "--prompt", "generation.md",
@@ -183,12 +170,15 @@ function runAutoRepairStep() {
     args.push("--apply");
   }
   console.log(`  -> running prompt repair (${AUTO_REPAIR_APPLY ? "apply" : "dry-run"}) ...`);
-  runNode(args, "repair prompts");
+  try {
+    runNode(args, "repair prompts");
+  } catch (error) {
+    console.warn(`  ! prompt repair failed; continuing campaign. ${error.message}`);
+  }
 }
 
 function runBatch(guardrail, lang, count) {
   runGenerateWithRetry(guardrail, lang, count);
-  runValidateStep();
   if (AUTO_REPAIR || AUTO_REPAIR_APPLY) {
     runAutoRepairStep();
   }

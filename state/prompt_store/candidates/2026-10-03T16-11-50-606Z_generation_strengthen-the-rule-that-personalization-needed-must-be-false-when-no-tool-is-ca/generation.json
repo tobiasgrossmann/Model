@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the rule that personalization_needed must be false when no tool is called, and add a specific constraint to avoid diagnostic language in G4/G12 contexts without tool data.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T16:11:50.605Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T16-11-50-606Z_generation_strengthen-the-rule-that-personalization-needed-must-be-false-when-no-tool-is-ca/generation.md"
+}
