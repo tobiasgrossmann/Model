@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Strengthen constraints against unsupported medical claims, specific dietary advice for pre-existing conditions, and ensure personalization_needed is false when no tool is called.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-03T16:41:20.628Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-03T16-41-20-631Z_generation_strengthen-constraints-against-unsupported-medical-claims-specific-dietary-advic/generation.md"
-}

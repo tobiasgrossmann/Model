@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Strengthen constraints against unsupported medical claims, specific disease management advice, and incorrect personalization flags.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-03T16:48:38.357Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-03T16-48-38-358Z_generation_strengthen-constraints-against-unsupported-medical-claims-specific-disease-manag/generation.md"
-}

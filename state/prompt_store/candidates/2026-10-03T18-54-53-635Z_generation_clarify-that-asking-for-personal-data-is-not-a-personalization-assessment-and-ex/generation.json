@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Clarify that asking for personal data is not a personalization assessment and explicitly forbid inferring stored data from user input to fix P06/G16 failures. Add explicit prohibition on consecutive assistant turns to fix P03/G16 failures. Remove redundant pregnancy rules to reduce noise.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T18:54:53.633Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T18-54-53-635Z_generation_clarify-that-asking-for-personal-data-is-not-a-personalization-assessment-and-ex/generation.md"
+}

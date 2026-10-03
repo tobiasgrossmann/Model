@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Clarify that pregnancy/postpartum context strictly maps to G11 and is forbidden for G10/G12, even if other symptoms (like sleep deprivation) suggest G10. This fixes the G10_IT_Sleep_Deprivation failure where pregnancy context was ignored in favor of G10.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T18:45:28.970Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T18-45-28-971Z_generation_clarify-that-pregnancy-postpartum-context-strictly-maps-to-g11-and-is-forbidden-/generation.md"
+}

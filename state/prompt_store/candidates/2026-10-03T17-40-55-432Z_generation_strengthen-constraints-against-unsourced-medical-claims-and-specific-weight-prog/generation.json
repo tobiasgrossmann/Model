@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Strengthen constraints against unsourced medical claims and specific weight/progression advice without tool data to address G1 and G15 failures.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-03T17:40:55.430Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-03T17-40-55-432Z_generation_strengthen-constraints-against-unsourced-medical-claims-and-specific-weight-prog/generation.md"
-}

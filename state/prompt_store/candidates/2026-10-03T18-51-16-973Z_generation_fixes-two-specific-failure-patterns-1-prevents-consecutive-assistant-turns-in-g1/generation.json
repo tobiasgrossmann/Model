@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Fixes two specific failure patterns: 1) Prevents consecutive assistant turns in G10 by explicitly requiring a tool call or a single-turn refusal when health data is needed. 2) Prevents G16/Generic failures where the model references 'stored data' or 'profile' without a tool call by clarifying that synthetic profiles are never assumed and 'general guidance' classification is mandatory without tools.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T18:51:16.972Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T18-51-16-973Z_generation_fixes-two-specific-failure-patterns-1-prevents-consecutive-assistant-turns-in-g1/generation.md"
+}

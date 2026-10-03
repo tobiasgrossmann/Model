@@ -249,7 +249,7 @@ row
 Requirements:
 
 - Validation covers: selected-intent guardrails, global guardrails, existing validation rules, schema validity and applicable tool-usage requirements.
-- **Port the existing `validate.mjs` checks, do not drop them.** Move them into a rule registry (`validation/rules/*.mjs`), one rule per file or small group. Each rule has an `id`, applies to specified guardrails or globally, and returns a list of issues.
+- **Preserve all existing validation checks, do not drop them.** Keep them in the rule registry (`validation/rules/*.mjs`), one rule per file or small group. Each rule has an `id`, applies to specified guardrails or globally, and returns a list of issues.
 - Rule data (expected triggers per guardrail, regex lists, banned phrases, content contracts) comes from data files.
 - **No "REVIEW" outcomes.** The pipeline has no human review. Every check is either a hard fail or a non-blocking warning written to the run log. Existing `REVIEW:` checks must be converted to hard fails or sent to the semantic check (layer 4).
 - The semantic check uses a prompt file and returns a structured verdict `{pass: boolean, reasons: string[]}`. Parse failures count as a fail.
@@ -321,7 +321,7 @@ Notes from the current code that should change during the refactor:
 
 - `generate.mjs` embeds roughly 150 lines of prompt text, per-guardrail variants and policy tables. Move all of it to `prompts/` and `specs/`.
 - `normalizeToolMessages` derives `tool_policy`, `trigger` and `response_policy` from regexes after generation. Policy fields should come from the intent definition, not be inferred from the output.
-- `validate.mjs` runs as a separate post-hoc script. Validation now runs inline per row, so retries are possible. A standalone `validate` command may remain for re-checking an existing file.
+- Validation runs inline per row, so retries are possible. Do not introduce or rely on a standalone post-hoc `validate` command.
 - IDs are currently assigned after validation in a different script. Keep deterministic ID assignment, but do it in `output.mjs` at write time.
 - Prompts must ask for exactly the row count requested and a machine-parseable format. Row parsing and recovery stay in code.
 

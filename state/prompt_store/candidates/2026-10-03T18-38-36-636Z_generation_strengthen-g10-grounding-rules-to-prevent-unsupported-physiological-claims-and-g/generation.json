@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen G10 grounding rules to prevent unsupported physiological claims and G9 weight-reference rules to prevent weight-specific language without tool data.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T18:38:36.635Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T18-38-36-636Z_generation_strengthen-g10-grounding-rules-to-prevent-unsupported-physiological-claims-and-g/generation.md"
+}

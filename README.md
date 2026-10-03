@@ -15,9 +15,9 @@ The repair command reads recent validation failures from `state/prompt_store/`, 
 
 ## What this command actually does
 - Runs `generate.mjs` for each guardrail/language batch.
-- Validation happens inline inside `generate.mjs` using the full validator rule set from `validate.mjs`.
+- Validation happens inline inside `generate.mjs` using `src/validation/index.mjs`.
 - Uses `out/generated.jsonl` as the progress source.
-- `--fresh` clears `out/generated.jsonl`, `out/validated.jsonl`, `out/flagged.jsonl`, `out/rejects.log` first.
+- `--fresh` clears `out/generated.jsonl`, `out/training_ready.jsonl`, `out/flagged.jsonl`, `out/rejects.log` first.
 - Includes a warm-up pass over all `guardrail x language (de/fr/it)` combinations unless `--skip-warmup` is set.
 
 ## How prompts are built in `generate.mjs`

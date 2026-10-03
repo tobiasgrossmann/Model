@@ -33,6 +33,7 @@ const BENCHMARK_TARGETS = parseInt(process.env.REPAIR_BENCHMARK_TARGETS || argVa
 const BENCHMARK_MAX_ALLOWED_SCORE_DROP = Number(process.env.REPAIR_BENCHMARK_MAX_SCORE_DROP || argValue('benchmark-max-score-drop', '0.20'));
 const BENCHMARK_MAX_ALLOWED_FLAGGED_INCREASE = parseInt(process.env.REPAIR_BENCHMARK_MAX_FLAGGED_INCREASE || argValue('benchmark-max-flagged-increase', '1'), 10);
 const BENCHMARK_MIN_ATTEMPTS = parseInt(process.env.REPAIR_BENCHMARK_MIN_ATTEMPTS || argValue('benchmark-min-attempts', '2'), 10);
+const REPAIR_STREAM = hasFlag('no-stream') ? false : true;
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
@@ -281,7 +282,7 @@ function isRetryableError(error) {
   return msg.includes('fetch failed') || msg.includes('headers timeout') || msg.includes('socket');
 }
 
-async function callRepairModelOnce(systemPrompt, userPrompt) {
+async function callRepairModelOnce(systemPrompt, userPrompt, { streamOutput = true } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REPAIR_REQUEST_TIMEOUT_MS);
   let response;
@@ -315,6 +316,9 @@ async function callRepairModelOnce(systemPrompt, userPrompt) {
 
   let full = '';
   let buffer = '';
+  if (streamOutput) {
+    process.stdout.write('\n--- streaming prompt repair ---\n');
+  }
   for await (const chunk of response.body) {
     buffer += Buffer.from(chunk).toString('utf8');
     let idx;
@@ -339,18 +343,25 @@ async function callRepairModelOnce(systemPrompt, userPrompt) {
       const delta = json.choices?.[0]?.delta?.content;
       if (delta) {
         full += delta;
+        if (streamOutput) {
+          process.stdout.write(delta);
+        }
       }
     }
+  }
+
+  if (streamOutput) {
+    process.stdout.write('\n--- end prompt repair stream ---\n');
   }
 
   return full;
 }
 
-async function callRepairModel(systemPrompt, userPrompt) {
+async function callRepairModel(systemPrompt, userPrompt, options = {}) {
   let lastError;
   for (let attempt = 1; attempt <= REPAIR_FETCH_RETRIES; attempt++) {
     try {
-      return await callRepairModelOnce(systemPrompt, userPrompt);
+      return await callRepairModelOnce(systemPrompt, userPrompt, options);
     } catch (error) {
       lastError = error;
       if (!isRetryableError(error) || attempt >= REPAIR_FETCH_RETRIES) {
@@ -453,7 +464,9 @@ async function main() {
     validation_guidance: 'Keep the validator contract unchanged. Fix only the prompt text with the smallest exact edits possible.',
   });
 
-  const raw = await callRepairModel(systemPrompt, 'Produce a revised prompt patch as a single JSON object.');
+  const raw = await callRepairModel(systemPrompt, 'Produce a revised prompt patch as a single JSON object.', {
+    streamOutput: REPAIR_STREAM,
+  });
   const parsed = parseFirstJsonObject(raw);
   if (!parsed || typeof parsed !== 'object') {
     throw new Error(`Could not parse prompt repair response as JSON. Raw response: ${raw.slice(0, 1000)}`);

@@ -83,7 +83,7 @@ function loadGuardrailIds() {
 
 function resetOutFiles() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  const files = ["generated.jsonl", "training_ready.jsonl", "validated.jsonl", "flagged.jsonl", "rejects.log"];
+  const files = ["generated.jsonl", "training_ready.jsonl", "flagged.jsonl", "rejects.log"];
   for (const name of files) {
     fs.writeFileSync(path.join(OUT_DIR, name), "", "utf8");
   }

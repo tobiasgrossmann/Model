@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Fix G10/G11 guardrail precedence for pregnancy context and correct French tool description to match validator expectations.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T18:48:32.972Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T18-48-32-973Z_generation_fix-g10-g11-guardrail-precedence-for-pregnancy-context-and-correct-french-tool-d/generation.md"
+}

@@ -167,7 +167,7 @@ That keeps the initial scope small and avoids overengineering.
 Implemented so far:
 
 - `src/prompt_store.mjs` writes failure records and candidate files to `state/prompt_store/` (no snapshot/history versioning).
-- `generate.mjs` now runs full validation inline (using shared `validate.mjs` rule logic) and records each failed example as structured file-based feedback.
+- `generate.mjs` now runs full validation inline (using `src/validation/index.mjs` rule logic) and records each failed example as structured file-based feedback.
 - `repair_prompts.mjs` reads recent failures, asks the local LLM for a revised prompt, stores a candidate, and promotes only if tests pass and a benchmark run does not degrade quality.
 - A test file covers failure recording, candidate creation, and promotion behavior.
 
