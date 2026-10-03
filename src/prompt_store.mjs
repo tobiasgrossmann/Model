@@ -116,16 +116,75 @@ export function writeTextFile(filePath, content) {
   fs.writeFileSync(filePath, `${String(content || '')}`, 'utf8');
 }
 
-export function listRecentFailures({ baseDir = DEFAULT_PROMPT_STORE_DIR, guardrail = null, language = null, limit = 20 } = {}) {
+export function failureFingerprint(record) {
+  const issues = Array.isArray(record?.issues) ? record.issues.join('|') : '';
+  return `${record?.id || ''}::${record?.guardrail || ''}::${record?.language || ''}::${issues}`;
+}
+
+function readProcessedFailureSet(root) {
+  const processedFile = path.join(root, 'failures', 'processed_failures.jsonl');
+  const processed = new Set();
+  for (const row of readJsonl(processedFile)) {
+    if (row?.fingerprint) processed.add(String(row.fingerprint));
+  }
+  return processed;
+}
+
+export function listRecentFailures({
+  baseDir = DEFAULT_PROMPT_STORE_DIR,
+  guardrail = null,
+  language = null,
+  limit = 20,
+  includeProcessed = false,
+} = {}) {
   const root = ensurePromptStore(baseDir);
+  const processed = includeProcessed ? new Set() : readProcessedFailureSet(root);
   const records = readJsonl(path.join(root, 'failures', 'failures.jsonl'))
     .filter((record) => {
       if (guardrail && String(record.guardrail || '').toUpperCase() !== String(guardrail).toUpperCase()) return false;
       if (language && String(record.language || '').toLowerCase() !== String(language).toLowerCase()) return false;
+      if (!includeProcessed && processed.has(failureFingerprint(record))) return false;
       return true;
     });
 
   return records.slice(Math.max(0, records.length - Math.max(0, limit)));
+}
+
+export function markFailuresProcessed({
+  records = [],
+  baseDir = DEFAULT_PROMPT_STORE_DIR,
+  source = 'repair',
+  note = null,
+} = {}) {
+  if (!Array.isArray(records) || !records.length) {
+    return { marked: 0, skipped: 0 };
+  }
+  const root = ensurePromptStore(baseDir);
+  const processedFile = path.join(root, 'failures', 'processed_failures.jsonl');
+  const existing = readProcessedFailureSet(root);
+  let marked = 0;
+  let skipped = 0;
+
+  for (const record of records) {
+    const fingerprint = failureFingerprint(record);
+    if (!fingerprint || existing.has(fingerprint)) {
+      skipped += 1;
+      continue;
+    }
+    appendJsonl(processedFile, {
+      processed_at: new Date().toISOString(),
+      source,
+      note,
+      fingerprint,
+      id: record?.id || null,
+      guardrail: record?.guardrail || null,
+      language: record?.language || null,
+    });
+    existing.add(fingerprint);
+    marked += 1;
+  }
+
+  return { marked, skipped };
 }
 
 export function importFlaggedFailures({
@@ -139,8 +198,7 @@ export function importFlaggedFailures({
   const root = ensurePromptStore(baseDir);
   const existing = new Set(
     readJsonl(path.join(root, 'failures', 'failures.jsonl')).map((record) => {
-      const issues = Array.isArray(record.issues) ? record.issues.join('|') : '';
-      return `${record.id || ''}::${record.guardrail || ''}::${record.language || ''}::${issues}`;
+      return failureFingerprint(record);
     })
   );
 
@@ -158,7 +216,12 @@ export function importFlaggedFailures({
       : row?.reason
         ? [String(row.reason)]
         : [];
-    const key = `${row?.id || example?.id || ''}::${example?.guardrail || ''}::${example?.language || ''}::${issues.join('|')}`;
+    const key = failureFingerprint({
+      id: row?.id || example?.id || '',
+      guardrail: example?.guardrail || '',
+      language: example?.language || '',
+      issues,
+    });
     if (existing.has(key)) {
       skipped += 1;
       continue;

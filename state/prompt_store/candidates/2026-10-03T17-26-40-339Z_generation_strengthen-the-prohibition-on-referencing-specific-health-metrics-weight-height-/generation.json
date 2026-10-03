@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the prohibition on referencing specific health metrics (weight, height, BMI) without a tool call and clarify that asking for data does not constitute a health assessment.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T17:26:40.338Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T17-26-40-339Z_generation_strengthen-the-prohibition-on-referencing-specific-health-metrics-weight-height-/generation.md"
+}

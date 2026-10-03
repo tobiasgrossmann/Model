@@ -8,6 +8,10 @@ const LEAK_PATTERNS = [
   /Pflicht\):/i,
 ];
 
+const LEXICAL_HALLUCINATION_PATTERNS = [
+  { pattern: /\bcardiolite\b/i, message: 'lexical anomaly detected: use attività cardio/esercizi cardiovascolari instead of cardiolite' },
+];
+
 export const leakageRule = {
   id: 'leakage',
   validate(example) {
@@ -17,6 +21,12 @@ export const leakageRule = {
         for (const pattern of LEAK_PATTERNS) {
           if (pattern.test(value)) {
             issues.push(`generator leakage detected: ${pattern.source}`);
+            return;
+          }
+        }
+        for (const entry of LEXICAL_HALLUCINATION_PATTERNS) {
+          if (entry.pattern.test(value)) {
+            issues.push(entry.message);
             return;
           }
         }

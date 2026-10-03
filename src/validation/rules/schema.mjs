@@ -61,6 +61,15 @@ export const schemaRule = {
       }
     }
 
+    for (let index = 1; index < messages.length; index += 1) {
+      const previous = messages[index - 1];
+      const current = messages[index];
+      if (previous?.role === 'assistant' && current?.role === 'assistant') {
+        issues.push('consecutive assistant turns are not allowed');
+        break;
+      }
+    }
+
     const lastMessage = messages[messages.length - 1];
     if (!lastMessage || lastMessage.role !== 'assistant') {
       issues.push('conversation must end with assistant response');
@@ -76,6 +85,12 @@ export const schemaRule = {
 
     if (hasToolResult(example) && !hasToolCall(example)) {
       issues.push('tool result message exists without preceding assistant tool_calls');
+    }
+
+    const declaredTools = Array.isArray(example?.tools) ? example.tools : [];
+    const hasAnyToolCalls = hasToolCall(example);
+    if (declaredTools.length > 0 && !hasAnyToolCalls) {
+      issues.push('tools schema present without any assistant tool_calls');
     }
 
     if (typeof example?.language !== 'string' || !example.language.trim()) {

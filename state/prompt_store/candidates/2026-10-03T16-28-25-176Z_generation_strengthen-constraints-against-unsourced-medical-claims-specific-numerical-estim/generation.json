@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Strengthen constraints against unsourced medical claims, specific numerical estimates, and diagnostic language to address recent validation failures.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-03T16:28:25.173Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-03T16-28-25-176Z_generation_strengthen-constraints-against-unsourced-medical-claims-specific-numerical-estim/generation.md"
-}

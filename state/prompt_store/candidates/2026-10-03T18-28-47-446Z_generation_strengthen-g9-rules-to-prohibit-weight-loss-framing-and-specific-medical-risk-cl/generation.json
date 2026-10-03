@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen G9 rules to prohibit weight-loss framing and specific medical risk claims without tool data, and clarify that general hydration advice does not constitute a health assessment.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T18:28:47.445Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T18-28-47-446Z_generation_strengthen-g9-rules-to-prohibit-weight-loss-framing-and-specific-medical-risk-cl/generation.md"
+}

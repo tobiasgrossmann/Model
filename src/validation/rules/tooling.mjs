@@ -26,7 +26,7 @@ function expectedToolDescription(language) {
     return /liefert aktuelle daten der person|liefert aktuelle daten/i;
   }
   if (lang === 'fr') {
-    return /(?:l'outil fournit|le tool fournit|l'outils? fournit|le outil fournit|l'outil donne|le tool donne|fournit les donn(?:é|e)es(?: actuelles)?(?: de sant(?:é|e)| de la personne| de l'utilisateur| des infos)|donn(?:é|e)es(?: actuelles)?(?: biom(?:é|e)triques| de sant(?:é|e) de l'utilisateur| de la personne| de l'utilisateur))/i;
+    return /(?:l'outil fournit|cet outil fournit|l'outil donne|fournit les donn(?:é|e)es(?: actuelles)?(?: de sant(?:é|e)| de la personne| de l'utilisateur| des infos)|donn(?:é|e)es(?: actuelles)?(?: biom(?:é|e)triques| de sant(?:é|e) de l'utilisateur| de la personne| de l'utilisateur))/i;
   }
   if (lang === 'it') {
     return /lo strumento fornisce|fornisce i dati|fornisce i dati biometrici|dati biometrici.*utente|dati dell'utente|dati personali/i;
@@ -127,6 +127,9 @@ export const toolingRule = {
       ? example.tools.find((tool) => (tool?.function?.name || tool?.name) === 'get_user_health_data')
       : null;
     const toolDescription = toolEntry?.function?.description || toolEntry?.description;
+    if (String(example?.language || '').toLowerCase() === 'fr' && typeof toolDescription === 'string' && /\ble\s+tool\b|\btool\b/i.test(toolDescription)) {
+      issues.push(`tool description language mismatch: expected fr wording for get_user_health_data but found ${toolDescription}`);
+    }
     const expectedDescriptionPattern = expectedToolDescription(example?.language);
     if (typeof toolDescription === 'string' && expectedDescriptionPattern && !expectedDescriptionPattern.test(toolDescription)) {
       issues.push(`tool description language mismatch: expected ${example?.language || 'unknown'} wording for get_user_health_data but found ${toolDescription}`);

@@ -155,7 +155,7 @@ test('accepts the French wording used by the generator for get_user_health_data'
       type: 'function',
       function: {
         name: 'get_user_health_data',
-        description: 'Le tool fournit les données actuelles de la personne : âge, poids, taille et niveau d\'activité.',
+        description: 'L\'outil fournit les données actuelles de la personne : âge, poids, taille et niveau d\'activité.',
         parameters: { type: 'object', properties: {} },
       },
     }],
@@ -274,4 +274,61 @@ test('rejects BMI threshold claims that contradict the computed BMI', () => {
 
   const issues = validateRow(row, { guardrail: 'G14' });
   assert.ok(issues.some((issue) => /BMI.*threshold|IMC.*35|threshold.*35|computed BMI/i.test(issue)));
+});
+
+test('rejects consecutive assistant turns', () => {
+  const row = {
+    id: 'test-consecutive-assistant',
+    language: 'it',
+    guardrail: 'G13',
+    messages: [
+      { role: 'system', content: 'HEICO_SYSTEM_PROMPT_IT' },
+      { role: 'user', content: 'Ho 52 anni e pre-diabete: il digiuno intermittente è sicuro?' },
+      { role: 'assistant', content: 'Non posso fornire una valutazione medica specifica senza supervisione clinica.' },
+      { role: 'assistant', content: 'Non posso fornire una valutazione medica specifica senza supervisione clinica.' },
+    ],
+  };
+
+  const issues = validateRow(row, { guardrail: 'G13' });
+  assert.ok(issues.some((issue) => issue.includes('consecutive assistant turns')));
+});
+
+test('rejects tools schema when no tool call is used', () => {
+  const row = {
+    id: 'test-tools-without-call',
+    language: 'it',
+    guardrail: 'G8',
+    tools: [{
+      type: 'function',
+      function: {
+        name: 'get_user_health_data',
+        description: 'Lo strumento fornisce i dati attuali della persona: età, peso, altezza e livello di attività.',
+        parameters: { type: 'object', properties: {}, required: [] },
+      },
+    }],
+    messages: [
+      { role: 'system', content: 'HEICO_SYSTEM_PROMPT_IT' },
+      { role: 'user', content: 'Voglio risultati rapidi ma senza farmaci: cosa faccio?' },
+      { role: 'assistant', content: 'Possiamo lavorare con progressione graduale, alimentazione bilanciata e recupero.' },
+    ],
+  };
+
+  const issues = validateRow(row, { guardrail: 'G8' });
+  assert.ok(issues.some((issue) => issue.includes('tools schema present without any assistant tool_calls')));
+});
+
+test('rejects lexical hallucination cardiolite', () => {
+  const row = {
+    id: 'test-lexical-cardiolite',
+    language: 'it',
+    guardrail: 'G8',
+    messages: [
+      { role: 'system', content: 'HEICO_SYSTEM_PROMPT_IT' },
+      { role: 'user', content: 'Come posso migliorare in sicurezza senza steroidi?' },
+      { role: 'assistant', content: 'Punta su allenamenti di forza 3 volte a settimana e cardiolite 2 volte.' },
+    ],
+  };
+
+  const issues = validateRow(row, { guardrail: 'G8' });
+  assert.ok(issues.some((issue) => issue.includes('cardiolite')));
 });

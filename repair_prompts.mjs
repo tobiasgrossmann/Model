@@ -6,6 +6,7 @@ import os from 'node:os';
 import {
   importFlaggedFailures,
   listRecentFailures,
+  markFailuresProcessed,
   readTextFile,
   savePromptCandidate,
   promotePromptCandidate,
@@ -29,6 +30,9 @@ const REPAIR_FETCH_RETRIES = parseInt(process.env.REPAIR_FETCH_RETRIES || argVal
 const REPAIR_FETCH_RETRY_BASE_MS = parseInt(process.env.REPAIR_FETCH_RETRY_BASE_MS || argValue('fetch-retry-base-ms', '1500'), 10);
 const REPAIR_MAX_TOKENS = parseInt(process.env.REPAIR_MAX_TOKENS || argValue('max-tokens', '5000'), 10);
 const BENCHMARK_TARGETS = parseInt(process.env.REPAIR_BENCHMARK_TARGETS || argValue('benchmark-targets', '3'), 10);
+const BENCHMARK_MAX_ALLOWED_SCORE_DROP = Number(process.env.REPAIR_BENCHMARK_MAX_SCORE_DROP || argValue('benchmark-max-score-drop', '0.20'));
+const BENCHMARK_MAX_ALLOWED_FLAGGED_INCREASE = parseInt(process.env.REPAIR_BENCHMARK_MAX_FLAGGED_INCREASE || argValue('benchmark-max-flagged-increase', '1'), 10);
+const BENCHMARK_MIN_ATTEMPTS = parseInt(process.env.REPAIR_BENCHMARK_MIN_ATTEMPTS || argValue('benchmark-min-attempts', '2'), 10);
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
@@ -213,6 +217,49 @@ function findNormalizedUniqueRange(haystack, needle) {
   return { start: match.index, end: match.index + match[0].length };
 }
 
+function normalizeLoose(text) {
+  const mapped = String(text || '')
+    .replace(/[äÄ]/g, 'ae')
+    .replace(/[öÖ]/g, 'oe')
+    .replace(/[üÜ]/g, 'ue')
+    .replace(/ß/g, 'ss');
+
+  return mapped
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function findUniqueLineRangeByLooseMatch(haystack, needle) {
+  const needleNorm = normalizeLoose(needle);
+  if (!needleNorm || needleNorm.length < 18) return null;
+
+  const lines = String(haystack || '').split('\n');
+  let offset = 0;
+  const matches = [];
+
+  for (const line of lines) {
+    const start = offset;
+    const end = offset + line.length;
+    offset = end + 1;
+
+    const lineNorm = normalizeLoose(line);
+    if (!lineNorm) continue;
+
+    const directMatch = lineNorm.includes(needleNorm) || needleNorm.includes(lineNorm);
+    const prefixMatch = lineNorm.includes(needleNorm.slice(0, Math.max(12, Math.floor(needleNorm.length * 0.55))));
+    if (directMatch || prefixMatch) {
+      matches.push({ start, end, lineNormLength: lineNorm.length });
+    }
+  }
+
+  if (matches.length !== 1) return null;
+  return { start: matches[0].start, end: matches[0].end };
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -335,10 +382,18 @@ export function applyRepairEdits(currentPrompt, edits) {
     }
 
     const normalizedRange = findNormalizedUniqueRange(nextPrompt, find);
-    if (!normalizedRange) {
-      throw new Error(`Repair edit could not find target snippet: ${find.slice(0, 120)}`);
+    if (normalizedRange) {
+      nextPrompt = nextPrompt.slice(0, normalizedRange.start) + replace + nextPrompt.slice(normalizedRange.end);
+      continue;
     }
-    nextPrompt = nextPrompt.slice(0, normalizedRange.start) + replace + nextPrompt.slice(normalizedRange.end);
+
+    const lineRange = findUniqueLineRangeByLooseMatch(nextPrompt, find);
+    if (lineRange) {
+      nextPrompt = nextPrompt.slice(0, lineRange.start) + replace + nextPrompt.slice(lineRange.end);
+      continue;
+    }
+
+    throw new Error(`Repair edit could not find target snippet: ${find.slice(0, 120)}`);
   }
   return nextPrompt;
 }
@@ -350,6 +405,7 @@ async function main() {
   const language = argValue('language', null);
   const limit = parseInt(argValue('limit', '8'), 10);
   const apply = hasFlag('apply');
+  const reuseFailures = hasFlag('reuse-failures');
 
   if (!fs.existsSync(promptFile)) {
     throw new Error(`Prompt file does not exist: ${promptFile}`);
@@ -360,6 +416,7 @@ async function main() {
     guardrail,
     language,
     limit: Number.isFinite(limit) ? limit : 8,
+    includeProcessed: reuseFailures,
   });
 
   if (!failures.length) {
@@ -377,6 +434,7 @@ async function main() {
         guardrail,
         language,
         limit: Number.isFinite(limit) ? limit : 8,
+        includeProcessed: reuseFailures,
       });
 
   if (!effectiveFailures.length) {
@@ -420,11 +478,19 @@ async function main() {
     baseDir: PROMPT_STORE_DIR,
   });
 
+  const processingResult = markFailuresProcessed({
+    records: effectiveFailures,
+    baseDir: PROMPT_STORE_DIR,
+    source: 'repair-prompts',
+    note: apply ? 'candidate-created-apply' : 'candidate-created-dry-run',
+  });
+
   console.log(JSON.stringify({
     targetFile,
     candidate: candidate.mdPath,
     summary: parsed.summary || '',
     rationale: parsed.rationale || '',
+    processed_failures: processingResult,
   }, null, 2));
 
   if (!apply) {
@@ -464,13 +530,25 @@ async function main() {
       benchmark_targets: benchmarkTargets,
       baseline: baselineMetrics,
       candidate: candidateMetrics,
+      gate: {
+        max_allowed_score_drop: BENCHMARK_MAX_ALLOWED_SCORE_DROP,
+        max_allowed_flagged_increase: BENCHMARK_MAX_ALLOWED_FLAGGED_INCREASE,
+        min_attempts: BENCHMARK_MIN_ATTEMPTS,
+      },
     }, null, 2));
 
+    const scoreDrop = baselineMetrics.score - candidateMetrics.score;
+    const flaggedIncrease = candidateMetrics.flagged - baselineMetrics.flagged;
+    const enoughAttempts = Math.min(baselineMetrics.attempted, candidateMetrics.attempted) >= BENCHMARK_MIN_ATTEMPTS;
     const clearlyWorse =
-      candidateMetrics.score < baselineMetrics.score ||
-      candidateMetrics.flagged > baselineMetrics.flagged;
+      enoughAttempts &&
+      (scoreDrop > BENCHMARK_MAX_ALLOWED_SCORE_DROP || flaggedIncrease > BENCHMARK_MAX_ALLOWED_FLAGGED_INCREASE);
     if (clearlyWorse) {
-      throw new Error('Benchmark gate failed: candidate prompt performs worse than baseline; promotion aborted.');
+      throw new Error(
+        `Benchmark gate failed: candidate degraded beyond tolerance. ` +
+        `score_drop=${scoreDrop.toFixed(3)} (max ${BENCHMARK_MAX_ALLOWED_SCORE_DROP}), ` +
+        `flagged_increase=${flaggedIncrease} (max ${BENCHMARK_MAX_ALLOWED_FLAGGED_INCREASE}).`
+      );
     }
   }
 

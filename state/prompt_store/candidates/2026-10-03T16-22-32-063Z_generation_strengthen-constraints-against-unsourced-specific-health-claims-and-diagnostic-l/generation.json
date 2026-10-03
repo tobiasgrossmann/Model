@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Strengthen constraints against unsourced specific health claims and diagnostic language, and reinforce the rule that personalization_needed must be false when no tool is called.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-03T16:22:32.062Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-03T16-22-32-063Z_generation_strengthen-constraints-against-unsourced-specific-health-claims-and-diagnostic-l/generation.md"
-}

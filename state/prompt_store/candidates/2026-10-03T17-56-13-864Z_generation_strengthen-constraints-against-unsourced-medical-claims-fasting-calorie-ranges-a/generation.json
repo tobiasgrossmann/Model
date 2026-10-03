@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen constraints against unsourced medical claims (fasting, calorie ranges) and clarify that general safety advice regarding technique or general health risks does not constitute a 'health/weight-specific assessment' requiring a tool call.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T17:56:13.862Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T17-56-13-864Z_generation_strengthen-constraints-against-unsourced-medical-claims-fasting-calorie-ranges-a/generation.md"
+}

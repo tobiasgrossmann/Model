@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { recordValidationFailure, savePromptCandidate, listRecentFailures, promotePromptCandidate, importFlaggedFailures } from '../src/prompt_store.mjs';
+import { recordValidationFailure, savePromptCandidate, listRecentFailures, promotePromptCandidate, importFlaggedFailures, markFailuresProcessed } from '../src/prompt_store.mjs';
 
 function makeTempDir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -105,4 +105,33 @@ test('importFlaggedFailures bootstraps prompt-store failures from flagged.jsonl'
   const failures = listRecentFailures({ baseDir, guardrail: 'G10', language: 'de', limit: 5 });
   assert.equal(failures.length, 1);
   assert.equal(failures[0].id, 'flagged-1');
+});
+
+test('processed failures are skipped by default and can be re-included explicitly', () => {
+  const root = makeTempDir('prompt-store-');
+  const baseDir = path.join(root, 'store');
+
+  recordValidationFailure({
+    example: { id: 'row-1', language: 'de', guardrail: 'G10', messages: [] },
+    issues: ['a'],
+    baseDir,
+  });
+  recordValidationFailure({
+    example: { id: 'row-2', language: 'de', guardrail: 'G10', messages: [] },
+    issues: ['b'],
+    baseDir,
+  });
+
+  const initial = listRecentFailures({ baseDir, guardrail: 'G10', language: 'de', limit: 10 });
+  assert.equal(initial.length, 2);
+
+  const markResult = markFailuresProcessed({ records: [initial[0]], baseDir });
+  assert.equal(markResult.marked, 1);
+
+  const filtered = listRecentFailures({ baseDir, guardrail: 'G10', language: 'de', limit: 10 });
+  assert.equal(filtered.length, 1);
+  assert.equal(filtered[0].id, 'row-2');
+
+  const withProcessed = listRecentFailures({ baseDir, guardrail: 'G10', language: 'de', limit: 10, includeProcessed: true });
+  assert.equal(withProcessed.length, 2);
 });

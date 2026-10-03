@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen constraints against unsourced causal claims, specific disease management advice, and weight-specific assessments without tool calls.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T18:07:20.054Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T18-07-20-055Z_generation_strengthen-constraints-against-unsourced-causal-claims-specific-disease-manageme/generation.md"
+}

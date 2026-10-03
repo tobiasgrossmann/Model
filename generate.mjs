@@ -723,6 +723,13 @@ function normalizeToolMessages(example) {
     return sanitized;
   });
 
+  const hasAnyToolCalls = normalized.messages.some((message) =>
+    Array.isArray(message?.tool_calls) && message.tool_calls.length > 0
+  );
+  if (!hasAnyToolCalls && Array.isArray(normalized.tools) && normalized.tools.length > 0) {
+    delete normalized.tools;
+  }
+
   normalized.notes = sanitizeNotes(normalized);
   normalized.tool_policy = deriveToolPolicy(normalized);
   const splitPolicy = deriveTriggerAndResponsePolicy(normalized);
