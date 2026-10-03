@@ -1,7 +1,7 @@
 {
   "totals": {
-    "validated_examples": 4,
-    "compared_pairs": 6,
+    "validated_examples": 9,
+    "compared_pairs": 36,
     "high_overlap_pairs": 0,
     "high_overlap_ratio": 0,
     "overlap_threshold": 0.85,
@@ -9,37 +9,42 @@
   },
   "distribution": {
     "language": {
-      "it": 2,
-      "de": 1,
-      "fr": 1
+      "it": 3,
+      "de": 2,
+      "fr": 4
     },
     "guardrail": {
       "G10": 1,
-      "G12": 3
+      "G12": 3,
+      "G15": 1,
+      "G5": 1,
+      "G16": 3
     },
     "intent_basis": {
-      "guardrail": 4
+      "guardrail": 9
     },
     "persona": {
       "sex": {
-        "male": 1,
-        "unknown": 3
+        "male": 4,
+        "unknown": 5
       },
       "age_band": {
-        "30-44": 1,
-        "unknown": 3
+        "30-44": 2,
+        "unknown": 5,
+        "18-29": 2
       },
       "height_band_cm": {
-        "175-189": 1,
-        "unknown": 3
+        "175-189": 4,
+        "unknown": 5
       },
       "weight_band_kg": {
-        "unknown": 4
+        "unknown": 9
       }
     },
     "topic": {
       "medical_scope": 3,
-      "other": 1
+      "other": 5,
+      "weight_loss": 1
     }
   }
 }

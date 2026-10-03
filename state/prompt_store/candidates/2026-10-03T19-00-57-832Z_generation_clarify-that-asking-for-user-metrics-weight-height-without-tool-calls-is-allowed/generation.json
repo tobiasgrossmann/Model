@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Clarify that asking for user metrics (weight/height) without tool calls is allowed and does not constitute a personalization assessment, to prevent false positives on P02/P16/G15 failures.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T19:00:57.831Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T19-00-57-832Z_generation_clarify-that-asking-for-user-metrics-weight-height-without-tool-calls-is-allowed/generation.md"
+}

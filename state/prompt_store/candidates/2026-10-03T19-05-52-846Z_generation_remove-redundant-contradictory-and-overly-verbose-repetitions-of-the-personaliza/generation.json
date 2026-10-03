@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Remove redundant, contradictory, and overly verbose repetitions of the 'personalization_needed' and 'assessment' rules to reduce hallucination of personal data and guardrail mismatches.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T19:05:52.845Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T19-05-52-846Z_generation_remove-redundant-contradictory-and-overly-verbose-repetitions-of-the-personaliza/generation.md"
+}

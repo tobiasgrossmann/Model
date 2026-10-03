@@ -1,20 +1,24 @@
 ---
-name: Improve Generation Prompts
-description: Improve and optimize generation prompts according to specified guidelines and best practices.
-argument-hint: The code or file to be refactored according to the specified guidelines and best practices.
+name: Improve Architecture
+description: Move from free-form generation to contract-first generation. Make the teacher output an intermediate plan object first, then render messages from that plan deterministically.
+Suggested split
 
-
-# AGENTS.md
-
-Instructions for coding agents working on the fitness-coach training-data pipeline.
-Read this file fully before changing anything.
-Teacher model is ggml-org/Qwen3.8-27B-GGUF:Q8_0 with a 64k context window.
----
-
-## 1. Goal
-Your job is now to improve the generation prompts so less and less is rejected or fails validation.
-Adapt the generation prompts to minimize rejections and validation failures.
-Improve the Specs to reduce validation failures.
-Improve the guardrail_variants to reduce validation failures.
-Improve guardrails_spec to reduce validation failures.
-Improve pilot_examples to reduce validation failures.
+Step 1: intent decision object (guardrail, tool_needed yes/no, reason category, language, response_style).
+Step 2: conversation skeleton object (turn types only: system, user, assistant_tool_call, tool, assistant_final).
+Step 3: text realization (only fills content fields, cannot change structure).
+This removes many structural failures before validation even runs.
+Best place to integrate: generate.mjs, index.mjs, generation.md.
+Add a deterministic policy engine before the model call.
+Right now, the teacher often decides things it should not.
+Add a small preflight policy module that computes:
+tool required or forbidden
+allowed response mode (refusal, cautious guidance, generic principles)
+forbidden claims (BMI/personal risk without tool call)
+Then inject this as locked input, not optional instruction.
+This directly addresses your top failure category from flagged.jsonl.
+Introduce a finite-state turn compiler.
+Instead of asking the model to “write a conversation,” ask it only for text chunks for predefined slots.
+State machine example:
+start -> assistant_tool_call? -> tool_result? -> assistant_final -> end
+If tool call exists, compiler enforces presence of tool and final assistant turn.
+This eliminates unresolved tool_calls and bad endings structurally.

@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Strengthen G9 hydration safety constraints to prevent ungrounded strong claims and enforce personalization_needed=false when no tool is called.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-03T18:14:12.663Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-03T18-14-12-665Z_generation_strengthen-g9-hydration-safety-constraints-to-prevent-ungrounded-strong-claims-a/generation.md"
-}

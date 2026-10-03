@@ -53,6 +53,10 @@ function renderPromptTemplate(template, values = {}) {
 
 const SYSTEM_PROMPT_TEMPLATE = readPromptTemplate("system.md");
 const GENERATION_PROMPT_TEMPLATE = readPromptTemplate("generation.md");
+const CONTRACT_INTENT_PROMPT_TEMPLATE = readPromptTemplate("generation.md", "Contract Intent Prompt Template");
+const CONTRACT_SKELETON_PROMPT_TEMPLATE = readPromptTemplate("generation.md", "Contract Skeleton Prompt Template");
+const CONTRACT_REALIZATION_PROMPT_TEMPLATE = readPromptTemplate("generation.md", "Contract Realization Prompt Template");
+const CONTRACT_SEGMENT_REPAIR_PROMPT_TEMPLATE = readPromptTemplate("generation.md", "Contract Segment Repair Prompt Template");
 const SEED_SYSTEM_TEMPLATE = readPromptTemplate("seed_generation.md", "System Prompt Template");
 const SEED_USER_TEMPLATE = readPromptTemplate("seed_generation.md", "User Prompt Template");
 
@@ -74,6 +78,7 @@ const DEDUP_NGRAM = parseInt(argVal("dedup-ngram", "3"), 10);
 const DEDUP_THRESHOLD = Number(argVal("dedup-threshold", "0.88"));
 const FETCH_RETRIES = parseInt(argVal("fetch-retries", "3"), 10);
 const FETCH_RETRY_BASE_MS = parseInt(argVal("fetch-retry-base-ms", "1200"), 10);
+const REPAIR_ATTEMPTS_PER_EXAMPLE = parseInt(argVal("repair-attempts", "2"), 10);
 
 if (!Number.isFinite(REQUESTED_COUNT) || REQUESTED_COUNT < 1) {
   throw new Error("--count must be a positive integer");
@@ -475,6 +480,632 @@ function buildPrompt(guardrail, lang, count, rotationIndex, docSeed, selectedUse
   const user = NO_THINK ? `/no_think\n${userBody}` : userBody;
 
   return { system: systemWithMode, user, retrieval };
+}
+
+function canonicalToolDescription(language) {
+  const lang = String(language || "").toLowerCase();
+  if (lang === "de") {
+    return "Liefert aktuelle Daten der Person: Alter, Gewicht, Größe und Aktivitätsniveau.";
+  }
+  if (lang === "fr") {
+    return "Fournit les données actuelles de santé de l'utilisateur (âge, poids, taille) pour évaluer le contexte sécurité.";
+  }
+  return "Lo strumento fornisce i dati attuali della persona: età, peso, altezza e livello di attività.";
+}
+
+function classifyReasonCategory(text, guardrailId) {
+  const t = String(text || "").toLowerCase();
+  if (/pregnan|schwanger|enceinte|incinta|postpartum|stillen|allatt/i.test(t)) return "pregnancy_or_postpartum";
+  if (/fast|je[uû]n|digiuno|kcal|calori|supplement|creatin|dose|dosage/.test(t)) return "intake_or_supplement_safety";
+  if (/hydrat|electrolyt|sel|salt|acqua|wasser/.test(t)) return "hydration_and_electrolytes";
+  if (/train|hiit|cardio|belastung|fatigue|erm[üu]d|recuper|overtrain/.test(t)) return "training_load_and_recovery";
+  const fallbackTrigger = (GUARDRAIL_POLICIES[guardrailId] || DEFAULT_POLICY).trigger;
+  return fallbackTrigger || "general_safety";
+}
+
+function computePreflightPolicy({ guardrail, lang, selectedQuestion, selectedUserIntent }) {
+  const sourceText = [
+    selectedQuestion,
+    selectedUserIntent?.intent,
+    selectedUserIntent?.example,
+    guardrail?.name,
+    guardrail?.hard_when_text,
+  ].filter(Boolean).join("\n");
+
+  const guardrailId = String(guardrail?.id || "").toUpperCase();
+  const metricSensitiveGuardrails = new Set(["G10", "G15", "G14"]);
+  const metricSensitiveTopic = /(bmi|imc|gewicht|poids|peso|taille|gr(?:ö|o)sse|altezza|kcal|calori|dose|dosage|supplement|creatin|prediab|blood pressure|blutdruck|pressione)/i.test(sourceText);
+  const pregnancyContext = /(pregnan|schwanger|enceinte|incinta|postpartum|stillen|allatt)/i.test(sourceText);
+
+  const toolRequired = pregnancyContext ? false : (metricSensitiveGuardrails.has(guardrailId) || metricSensitiveTopic);
+  const responseMode = pregnancyContext
+    ? "cautious_referral"
+    : (guardrailId === "G16" ? "generic_principles" : (guardrailId === "G15" ? "safety_refusal" : "cautious_guidance"));
+
+  return {
+    guardrail: guardrailId,
+    language: lang,
+    tool_required: toolRequired,
+    tool_forbidden: false,
+    response_mode: responseMode,
+    reason_category: classifyReasonCategory(sourceText, guardrailId),
+    forbidden_claims: [
+      "No BMI or personal risk claim without prior get_user_health_data call.",
+      "No profile-memory claims (do not imply historical stored user data).",
+      "No unresolved assistant tool_calls at conversation end.",
+    ],
+  };
+}
+
+function normalizeIntentDecision(raw, preflight) {
+  const responseStyle = String(raw?.response_style || preflight.response_mode || "cautious_guidance").trim() || "cautious_guidance";
+  return {
+    guardrail: preflight.guardrail,
+    language: preflight.language,
+    tool_needed: preflight.tool_required ? true : Boolean(raw?.tool_needed),
+    reason_category: String(raw?.reason_category || preflight.reason_category || "general_safety"),
+    response_style: responseStyle,
+  };
+}
+
+function compileTurnTypes(rawSkeleton, intentDecision) {
+  const expected = intentDecision.tool_needed
+    ? ["system", "user", "assistant_tool_call", "tool", "assistant_final"]
+    : ["system", "user", "assistant_final"];
+
+  const supplied = Array.isArray(rawSkeleton?.turn_types)
+    ? rawSkeleton.turn_types.map((value) => String(value || "").trim().toLowerCase()).filter(Boolean)
+    : [];
+
+  if (!supplied.length) return expected;
+
+  const validSet = new Set(["system", "user", "assistant_tool_call", "tool", "assistant_final"]);
+  const allValid = supplied.every((value) => validSet.has(value));
+  if (!allValid) return expected;
+
+  const hasRequired = expected.every((value) => supplied.includes(value));
+  if (!hasRequired) return expected;
+
+  const canonical = [];
+  for (const step of expected) canonical.push(step);
+  return canonical;
+}
+
+function buildDeterministicHealthPayload(guardrailId, rotationIndex) {
+  const profiles = [
+    { age: 24, weight_kg: 68.0, height_cm: 172, sex: "female", active_calories_burned: 320, basal_energy_burned: 1450, exercise_minutes: 45, stand_hours: 9, sleep_duration_hours: 7.4, hrv_ms: 42, resting_heart_rate_bpm: 61 },
+    { age: 31, weight_kg: 82.5, height_cm: 180, sex: "male", active_calories_burned: 460, basal_energy_burned: 1680, exercise_minutes: 60, stand_hours: 8, sleep_duration_hours: 6.8, hrv_ms: 36, resting_heart_rate_bpm: 64 },
+    { age: 38, weight_kg: 74.0, height_cm: 169, sex: "female", active_calories_burned: 250, basal_energy_burned: 1510, exercise_minutes: 35, stand_hours: 7, sleep_duration_hours: 6.2, hrv_ms: 30, resting_heart_rate_bpm: 70 },
+  ];
+  const index = Math.abs(Number(rotationIndex || 0)) % profiles.length;
+  const payload = { ...profiles[index] };
+  if (String(guardrailId || "").toUpperCase() === "G11") {
+    payload.sex = "female";
+    payload.pregnancy_status = "pregnant";
+  }
+  return payload;
+}
+
+function fallbackUserText(lang, selectedQuestion, selectedUserIntent) {
+  if (selectedUserIntent?.example) return String(selectedUserIntent.example).trim();
+  if (selectedQuestion) return String(selectedQuestion).trim();
+  if (lang === "fr") return "J'ai une question de sécurité sur mon entraînement et mon alimentation.";
+  if (lang === "it") return "Ho una domanda sulla sicurezza del mio allenamento e della mia alimentazione.";
+  return "Ich habe eine Sicherheitsfrage zu Training und Ernährung.";
+}
+
+function fallbackAssistantText(lang, mode) {
+  if (lang === "fr") {
+    if (mode === "safety_refusal") return "Je ne peux pas valider cette approche en l'état. Je peux te proposer des alternatives générales plus sûres, et pour une décision personnalisée parle avec un professionnel de santé.";
+    return "Je peux te donner des repères généraux de sécurité, mais pour une recommandation personnalisée il faut une évaluation professionnelle.";
+  }
+  if (lang === "it") {
+    if (mode === "safety_refusal") return "Non posso approvare questo approccio così com'è. Posso darti alternative generali più sicure e, per una decisione personalizzata, è importante confrontarsi con un professionista sanitario.";
+    return "Posso darti indicazioni generali di sicurezza, ma per una raccomandazione personalizzata serve una valutazione professionale.";
+  }
+  if (mode === "safety_refusal") {
+    return "Ich kann dieses Vorgehen so nicht freigeben. Ich kann dir sichere allgemeine Alternativen nennen; für eine personalisierte Entscheidung sprich bitte mit einer Fachperson.";
+  }
+  return "Ich kann dir allgemeine, sichere Leitlinien geben; für eine personalisierte Empfehlung ist eine fachliche Abklärung nötig.";
+}
+
+function violatesLockedConstraints(text, guardrailId, preflight) {
+  const value = String(text || "");
+  if (!value.trim()) return true;
+
+  if (String(guardrailId || "").toUpperCase() !== "G12") {
+    if (/(schwanger|schwangerschaft|postpartum|pregnan|enceinte|incinta|still(?:en|zeit)|allatt)/i.test(value)) {
+      return true;
+    }
+  }
+
+  if (!preflight?.tool_required) {
+    if (/(\bBMI\b|\bIMC\b|dein(?:e|er)?\s+gewicht|ton\s+poids|il\s+tuo\s+peso)/i.test(value)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function compileExampleFromContract({
+  guardrail,
+  lang,
+  preflight,
+  intentDecision,
+  turnTypes,
+  realization,
+  selectedQuestion,
+  selectedUserIntent,
+  rotationIndex,
+}) {
+  const systemMarker = `HEICO_SYSTEM_PROMPT_${lang.toUpperCase()}`;
+  const userText = String(realization?.user_text || "").trim() || fallbackUserText(lang, selectedQuestion, selectedUserIntent);
+  let assistantFinal = String(realization?.assistant_final_text || "").trim() || fallbackAssistantText(lang, intentDecision.response_style);
+  if (violatesLockedConstraints(assistantFinal, guardrail.id, preflight)) {
+    assistantFinal = fallbackAssistantText(lang, intentDecision.response_style);
+  }
+  const messages = [
+    { role: "system", content: systemMarker },
+  ];
+
+  for (const turn of turnTypes) {
+    if (turn === "system") continue;
+    if (turn === "user") {
+      messages.push({ role: "user", content: userText });
+      continue;
+    }
+    if (turn === "assistant_tool_call") {
+      messages.push({
+        role: "assistant",
+        content: null,
+        tool_calls: [{
+          id: "call_1",
+          type: "function",
+          function: {
+            name: "get_user_health_data",
+            arguments: JSON.stringify({ requested_metrics: ["age", "height_cm", "weight_kg", "activity"] }),
+          },
+        }],
+      });
+      continue;
+    }
+    if (turn === "tool") {
+      messages.push({
+        role: "tool",
+        content: JSON.stringify(buildDeterministicHealthPayload(guardrail.id, rotationIndex)),
+        tool_call_id: "call_1",
+      });
+      continue;
+    }
+    if (turn === "assistant_final") {
+      messages.push({ role: "assistant", content: assistantFinal });
+    }
+  }
+
+  const example = {
+    id: `${guardrail.id}_${lang}_${Date.now()}`,
+    language: lang,
+    guardrail: guardrail.id,
+    role_focus: String(intentDecision.response_style || "Safety Coach"),
+    messages,
+  };
+
+  if (intentDecision.tool_needed) {
+    example.tools = [{
+      type: "function",
+      function: {
+        name: "get_user_health_data",
+        description: canonicalToolDescription(lang),
+        parameters: {
+          type: "object",
+          properties: {},
+          required: [],
+        },
+      },
+    }];
+  }
+
+  return example;
+}
+
+function parseRequiredObject(rawText, label) {
+  const parsed = parseFirstJsonObject(rawText);
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error(`${label}: model response is not valid JSON object`);
+  }
+  return parsed;
+}
+
+function setCanonicalToolDescription(example, lang) {
+  if (!Array.isArray(example?.tools)) return false;
+  let changed = false;
+  for (const tool of example.tools) {
+    const name = tool?.function?.name || tool?.name;
+    if (name !== "get_user_health_data") continue;
+    const canonical = canonicalToolDescription(lang);
+    if (tool?.function) {
+      if (tool.function.description !== canonical) {
+        tool.function.description = canonical;
+        changed = true;
+      }
+    } else if (tool && typeof tool === "object") {
+      if (tool.description !== canonical) {
+        tool.description = canonical;
+        changed = true;
+      }
+    }
+  }
+  return changed;
+}
+
+function applyLanguageHygiene(example) {
+  const next = JSON.parse(JSON.stringify(example || {}));
+  const edits = [];
+  const lang = String(next?.language || "").toLowerCase();
+
+  const replaceText = (value) => {
+    if (typeof value !== "string") return value;
+    let out = value;
+    const before = out;
+
+    if (lang === "it") {
+      out = out.replace(/\bfreigabe\b/gi, "autorizzazione");
+      out = out.replace(/grazie(?: mille)? per la dicitura\./gi, "Grazie per il chiarimento.");
+      out = out.replace(/\bcardiolite\b/gi, "attività cardio");
+      out = out.replace(/\bLe tool\b/g, "L'outil");
+      out = out.replace(/\ble tool\b/g, "l'outil");
+    }
+
+    if (lang === "fr") {
+      out = out.replace(/\bLe tool\b/g, "L'outil");
+      out = out.replace(/\ble tool\b/g, "l'outil");
+      out = out.replace(/\bcardiolite\b/gi, "exercice cardio");
+    }
+
+    if (lang === "de") {
+      out = out.replace(/\bcardiolite\b/gi, "Cardiotraining");
+    }
+
+    if (out !== before) {
+      edits.push({ before, after: out });
+    }
+    return out;
+  };
+
+  next.messages = Array.isArray(next.messages)
+    ? next.messages.map((message) => {
+        if (!message || typeof message !== "object") return message;
+        const updated = { ...message };
+        if (typeof updated.content === "string") {
+          updated.content = replaceText(updated.content);
+        }
+        return updated;
+      })
+    : next.messages;
+
+  if (Array.isArray(next.tools)) {
+    for (const tool of next.tools) {
+      const name = tool?.function?.name || tool?.name;
+      if (name !== "get_user_health_data") continue;
+      if (tool?.function && typeof tool.function.description === "string") {
+        tool.function.description = replaceText(tool.function.description);
+      } else if (tool && typeof tool.description === "string") {
+        tool.description = replaceText(tool.description);
+      }
+    }
+  }
+
+  if (setCanonicalToolDescription(next, lang)) {
+    edits.push({ before: "tool_description", after: canonicalToolDescription(lang) });
+  }
+
+  return { example: next, edits };
+}
+
+function enforceToolSequence(example, guardrailId, lang, rotationIndex) {
+  const systemMessage = (example?.messages || []).find((message) => message?.role === "system" && typeof message.content === "string")
+    || { role: "system", content: `HEICO_SYSTEM_PROMPT_${String(lang || "").toUpperCase()}` };
+  const userMessage = (example?.messages || []).find((message) => message?.role === "user" && typeof message.content === "string")
+    || { role: "user", content: fallbackUserText(lang, null, null) };
+  const finalAssistant = [...(example?.messages || [])]
+    .reverse()
+    .find((message) => message?.role === "assistant" && typeof message.content === "string" && message.content.trim());
+
+  const normalized = {
+    ...example,
+    messages: [
+      { role: "system", content: systemMessage.content },
+      { role: "user", content: userMessage.content },
+      {
+        role: "assistant",
+        content: null,
+        tool_calls: [{
+          id: "call_1",
+          type: "function",
+          function: {
+            name: "get_user_health_data",
+            arguments: JSON.stringify({ requested_metrics: ["age", "height_cm", "weight_kg", "activity"] }),
+          },
+        }],
+      },
+      {
+        role: "tool",
+        content: JSON.stringify(buildDeterministicHealthPayload(guardrailId, rotationIndex)),
+        tool_call_id: "call_1",
+      },
+      {
+        role: "assistant",
+        content: finalAssistant?.content || fallbackAssistantText(lang, "cautious_guidance"),
+      },
+    ],
+    tools: [{
+      type: "function",
+      function: {
+        name: "get_user_health_data",
+        description: canonicalToolDescription(lang),
+        parameters: { type: "object", properties: {}, required: [] },
+      },
+    }],
+  };
+
+  return normalized;
+}
+
+function classifyValidationIssue(issues) {
+  const joined = (Array.isArray(issues) ? issues : [issues]).join(" | ").toLowerCase();
+  if (/tool description language mismatch/.test(joined)) return "tool_description";
+  if (/without a get_user_health_data call|missing tool call|bmi\/weight-dependent safety reasoning/.test(joined)) return "missing_tool_call";
+  if (/conversation does not end with assistant message|unresolved assistant tool_calls|conversation ends with empty assistant content|tool result message exists without preceding assistant tool_calls|tool message/.test(joined)) return "sequencing";
+  if (/health-data tool result missing|payload is not valid json/.test(joined)) return "tool_payload";
+  if (/lexical anomaly detected/.test(joined)) return "lexical_hygiene";
+  if (/guardrail mismatch: pregnancy context indicates g12/.test(joined)) return "pregnancy_leakage";
+  return "generic";
+}
+
+function buildSegmentRepairPrompt({ lang, guardrailId, repairClass, issues, preflight, example, repairTarget }) {
+  return renderPromptTemplate(CONTRACT_SEGMENT_REPAIR_PROMPT_TEMPLATE, {
+    lang,
+    guardrail_id: guardrailId,
+    repair_class: repairClass,
+    issue_list: JSON.stringify(issues, null, 2),
+    preflight_policy: JSON.stringify(preflight, null, 2),
+    current_example: JSON.stringify(example, null, 2),
+    repair_target: repairTarget,
+  });
+}
+
+async function regenerateSegment({ lang, guardrailId, repairClass, issues, preflight, example, repairTarget }) {
+  const system = NO_THINK ? `/no_think\n${SYSTEM_PROMPT_TEMPLATE}` : SYSTEM_PROMPT_TEMPLATE;
+  const prompt = buildSegmentRepairPrompt({
+    lang,
+    guardrailId,
+    repairClass,
+    issues,
+    preflight,
+    example,
+    repairTarget,
+  });
+  const raw = await callServer(system, prompt, {
+    label: `segment-repair/${guardrailId}/${lang}/${repairClass}`,
+    streamOverride: false,
+    maxTokensOverride: 700,
+    temperatureOverride: 0.2,
+  });
+  return parseRequiredObject(raw, `segment-repair-${repairClass}`);
+}
+
+async function attemptFailureAwareRepair({ example, issues, guardrail, lang, rotationIndex, preflight }) {
+  const repairClass = classifyValidationIssue(issues);
+  let repaired = JSON.parse(JSON.stringify(example || {}));
+  let changed = false;
+
+  if (repairClass === "tool_description") {
+    changed = setCanonicalToolDescription(repaired, lang) || changed;
+  }
+
+  if (repairClass === "missing_tool_call") {
+    repaired = enforceToolSequence(repaired, guardrail.id, lang, rotationIndex);
+    changed = true;
+    try {
+      const patch = await regenerateSegment({
+        lang,
+        guardrailId: guardrail.id,
+        repairClass,
+        issues,
+        preflight,
+        example: repaired,
+        repairTarget: "assistant_final_text",
+      });
+      const updatedText = String(patch?.assistant_final_text || "").trim();
+      if (updatedText) {
+        const lastAssistantIndex = repaired.messages.map((m) => m.role).lastIndexOf("assistant");
+        if (lastAssistantIndex >= 0) {
+          repaired.messages[lastAssistantIndex].content = updatedText;
+          changed = true;
+        }
+      }
+    } catch {
+      // Keep deterministic repaired structure if segment regeneration fails.
+    }
+  }
+
+  if (repairClass === "sequencing") {
+    const hasToolCall = hasHealthToolCall(repaired);
+    if (hasToolCall) {
+      repaired = enforceToolSequence(repaired, guardrail.id, lang, rotationIndex);
+      changed = true;
+    } else {
+      const assistantTurns = (repaired.messages || []).filter((m) => m.role === "assistant");
+      const lastAssistant = assistantTurns.length ? assistantTurns[assistantTurns.length - 1] : null;
+      repaired.messages = (repaired.messages || []).filter((m) => m.role === "system" || m.role === "user");
+      repaired.messages.push({
+        role: "assistant",
+        content: (typeof lastAssistant?.content === "string" && lastAssistant.content.trim())
+          ? lastAssistant.content
+          : fallbackAssistantText(lang, "cautious_guidance"),
+      });
+      changed = true;
+    }
+  }
+
+  if (repairClass === "tool_payload") {
+    const toolIndex = (repaired.messages || []).findIndex((m) => m.role === "tool");
+    if (toolIndex >= 0) {
+      repaired.messages[toolIndex].content = JSON.stringify(buildDeterministicHealthPayload(guardrail.id, rotationIndex));
+      if (!repaired.messages[toolIndex].tool_call_id) repaired.messages[toolIndex].tool_call_id = "call_1";
+      changed = true;
+    } else {
+      repaired = enforceToolSequence(repaired, guardrail.id, lang, rotationIndex);
+      changed = true;
+    }
+  }
+
+  if (repairClass === "pregnancy_leakage") {
+    repaired.messages = (repaired.messages || []).map((message) => {
+      if (message?.role !== "tool" || typeof message.content !== "string") return message;
+      try {
+        const payload = JSON.parse(message.content);
+        if (payload && typeof payload === "object" && Object.prototype.hasOwnProperty.call(payload, "pregnancy_status")) {
+          delete payload.pregnancy_status;
+          changed = true;
+          return { ...message, content: JSON.stringify(payload) };
+        }
+      } catch {
+        // ignore malformed payload
+      }
+      return message;
+    });
+  }
+
+  const hygiene = applyLanguageHygiene(repaired);
+  repaired = hygiene.example;
+  if (hygiene.edits.length) changed = true;
+
+  return {
+    repaired,
+    changed,
+    strategy: repairClass,
+  };
+}
+
+function buildContractPromptContext({ guardrail, lang, docSeed, selectedQuestion, selectedUserIntent, retrieval, preflight, intentDecision = null, turnTypes = null }) {
+  return {
+    lang,
+    guardrail_id: guardrail.id,
+    guardrail_name: guardrail.name,
+    guardrail_hard_when: guardrail.hard_when_text || "",
+    selected_question: selectedQuestion || "",
+    selected_user_intent: selectedUserIntent ? `${selectedUserIntent.intent} | ${selectedUserIntent.example}` : "",
+    doc_seed_summary: docSeed?.summary || "",
+    evidence_block: formatEvidenceBlock(retrieval),
+    preflight_policy: JSON.stringify(preflight, null, 2),
+    intent_decision: intentDecision ? JSON.stringify(intentDecision, null, 2) : "",
+    turn_types: turnTypes ? JSON.stringify(turnTypes) : "",
+  };
+}
+
+async function generateContractExamples({ guardrail, lang, count, rotationIndex, docSeed, selectedQuestion, selectedUserIntent, retrieval }) {
+  const system = NO_THINK ? `/no_think\n${SYSTEM_PROMPT_TEMPLATE}` : SYSTEM_PROMPT_TEMPLATE;
+  const accepted = [];
+  const rejected = [];
+
+  for (let i = 0; i < count; i += 1) {
+    const localRotation = rotationIndex + i;
+    const preflight = computePreflightPolicy({
+      guardrail,
+      lang,
+      selectedQuestion,
+      selectedUserIntent,
+    });
+
+    try {
+      const intentPrompt = renderPromptTemplate(CONTRACT_INTENT_PROMPT_TEMPLATE, buildContractPromptContext({
+        guardrail,
+        lang,
+        docSeed,
+        selectedQuestion,
+        selectedUserIntent,
+        retrieval,
+        preflight,
+      }));
+      const intentRaw = await callServer(system, intentPrompt, {
+        label: `contract-intent/${guardrail.id}/${lang}`,
+        streamOverride: false,
+        maxTokensOverride: 900,
+        temperatureOverride: 0.2,
+      });
+      const intentDecision = normalizeIntentDecision(parseRequiredObject(intentRaw, "intent-decision"), preflight);
+
+      const skeletonPrompt = renderPromptTemplate(CONTRACT_SKELETON_PROMPT_TEMPLATE, buildContractPromptContext({
+        guardrail,
+        lang,
+        docSeed,
+        selectedQuestion,
+        selectedUserIntent,
+        retrieval,
+        preflight,
+        intentDecision,
+      }));
+      const skeletonRaw = await callServer(system, skeletonPrompt, {
+        label: `contract-skeleton/${guardrail.id}/${lang}`,
+        streamOverride: false,
+        maxTokensOverride: 700,
+        temperatureOverride: 0.15,
+      });
+      const skeletonObj = parseRequiredObject(skeletonRaw, "conversation-skeleton");
+      const turnTypes = compileTurnTypes(skeletonObj, intentDecision);
+
+      const realizationPrompt = renderPromptTemplate(CONTRACT_REALIZATION_PROMPT_TEMPLATE, buildContractPromptContext({
+        guardrail,
+        lang,
+        docSeed,
+        selectedQuestion,
+        selectedUserIntent,
+        retrieval,
+        preflight,
+        intentDecision,
+        turnTypes,
+      }));
+      const realizationRaw = await callServer(system, realizationPrompt, {
+        label: `contract-realization/${guardrail.id}/${lang}`,
+        streamOverride: false,
+        maxTokensOverride: 1400,
+        temperatureOverride: 0.45,
+      });
+      const realization = parseRequiredObject(realizationRaw, "text-realization");
+
+      const compiled = compileExampleFromContract({
+        guardrail,
+        lang,
+        preflight,
+        intentDecision,
+        turnTypes,
+        realization,
+        selectedQuestion,
+        selectedUserIntent,
+        rotationIndex: localRotation,
+      });
+
+      accepted.push(compiled);
+    } catch (error) {
+      rejected.push({
+        reason: `contract-first generation failed: ${String(error?.message || error)}`,
+        example: {
+          id: `${guardrail.id}_${lang}_contract_failure`,
+          language: lang,
+          guardrail: guardrail.id,
+          messages: [
+            { role: "system", content: `HEICO_SYSTEM_PROMPT_${lang.toUpperCase()}` },
+            { role: "user", content: fallbackUserText(lang, selectedQuestion, selectedUserIntent) },
+            { role: "assistant", content: fallbackAssistantText(lang, "cautious_guidance") },
+          ],
+        },
+      });
+    }
+  }
+
+  return { accepted, rejected };
 }
 
 function normalizeText(s) {
@@ -1342,7 +1973,7 @@ async function runBatch(guardrail, lang, count) {
     const matchingIntentPool = RANDOM_USER_INTENTS.filter((entry) => entry.guardrail === guardrail.id);
     const selectedUserIntent = matchingIntentPool.length ? randomItem(matchingIntentPool) : null;
     console.log(`   • doc-seed ${seed.file_name}: ${selectedQuestion}${selectedUserIntent ? ` | intent: ${selectedUserIntent.intent}` : ""}`);
-    const { system, user, retrieval } = buildPrompt(
+    const { retrieval } = buildPrompt(
       guardrail,
       lang,
       remaining,
@@ -1354,31 +1985,71 @@ async function runBatch(guardrail, lang, count) {
       selectedUserIntent
     );
 
-    const approxTokens = Math.ceil((system.length + user.length) / 4);
-    if (approxTokens > 15000) {
-      console.warn(`  ! prompt ~${approxTokens} tokens — consider trimming behavior/fewshot`);
-    }
-
-    const raw = await callServer(system, user, { label: `${guardrail.id}/${lang}` });
-    const { good, bad } = parseJsonlSafely(raw, guardrail.id, lang);
-    const { accepted: prepared, rejected: malformed } = prepareExamples(good);
+    const { accepted: stagedExamples, rejected: malformed } = await generateContractExamples({
+      guardrail,
+      lang,
+      count: remaining,
+      rotationIndex: promptRotationIndex,
+      docSeed: seed,
+      selectedQuestion,
+      selectedUserIntent,
+      retrieval,
+    });
+    const preparedParse = prepareExamples(stagedExamples);
+    const prepared = preparedParse.accepted;
+    const bad = [];
     const validated = [];
     const validationRejects = [];
 
     for (const [idx, example] of prepared.entries()) {
-      const issues = validateRow(example, { guardrail: guardrail.id, language: lang });
-      if (issues.length) {
+      const preflight = computePreflightPolicy({
+        guardrail,
+        lang,
+        selectedQuestion,
+        selectedUserIntent,
+      });
+      let working = applyLanguageHygiene(example).example;
+      let issues = validateRow(working, { guardrail: guardrail.id, language: lang });
+
+      if (!issues.length) {
+        console.log(`   [validate PASS] ${guardrail.id}/${lang} example ${idx + 1}`);
+        validated.push(working);
+        continue;
+      }
+
+      let repaired = false;
+      let strategy = "";
+      for (let repairAttempt = 1; repairAttempt <= REPAIR_ATTEMPTS_PER_EXAMPLE && issues.length; repairAttempt += 1) {
+        const result = await attemptFailureAwareRepair({
+          example: working,
+          issues,
+          guardrail,
+          lang,
+          rotationIndex: promptRotationIndex + idx + repairAttempt,
+          preflight,
+        });
+
+        if (!result.changed) break;
+        working = normalizeToolMessages(result.repaired);
+        issues = validateRow(working, { guardrail: guardrail.id, language: lang });
+        strategy = result.strategy;
+        if (!issues.length) {
+          repaired = true;
+          console.log(`   [repair PASS] ${guardrail.id}/${lang} example ${idx + 1} via ${strategy}`);
+          validated.push(working);
+          break;
+        }
+      }
+
+      if (!repaired && issues.length) {
         const reason = issues.join('; ');
         console.warn(`   [validate FAIL] ${guardrail.id}/${lang} example ${idx + 1}: ${reason}`);
         recordValidationFailure({
-          example,
+          example: working,
           issues,
           source: "generate-inline-validate",
         });
-        validationRejects.push({ reason, example });
-      } else {
-        console.log(`   [validate PASS] ${guardrail.id}/${lang} example ${idx + 1}`);
-        validated.push(example);
+        validationRejects.push({ reason, example: working });
       }
     }
 

@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Fix structural failures where conversations end with unresolved tool_calls or missing final assistant message by strengthening the tool-sequence and ending constraints.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T19:13:54.708Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T19-13-54-708Z_generation_fix-structural-failures-where-conversations-end-with-unresolved-tool-calls-or-mi/generation.md"
+}
