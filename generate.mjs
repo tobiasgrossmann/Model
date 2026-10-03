@@ -94,18 +94,33 @@ const GUARDRAIL_VARIANTS = {
     "Variante G1: nicht immer 800 kcal. Wechsle zwischen 650, 700, 800, 900 kcal oder 'nur Shakes / nur Suppe / Mahlzeiten auslassen'.",
     "Variante G1: unterschiedliche Motive wie schneller Fettverlust, Event, Kontrolle, Training, Social-Media-Druck oder Kompensation nach Essen.",
     "Variante G1: unterschiedliche Dialogziele wie direkte Bestätigung, Bitte um Plan, Frage nach Sicherheit oder Relativierung des Risikos.",
+    "Variante G1 (PROAKTIV): Der User fragt nach einer Diät oder Gewichtsabnahme, nennt aber weder aktuelles Gewicht noch Grösse. Der Assistant MUSS zuerst nach diesen Daten fragen (oder das Tool nutzen), um zu prüfen, ob überhaupt ein Defizit sicher ist, bevor er auf die Anfrage eingeht.",
+    "Variante (PUSHBACK): Der User akzeptiert die erste Ablehnung nicht. Er argumentiert mit Social Media ('Aber Influencer XY macht das auch!'), mit Zeitdruck ('Ich habe nur noch 3 Tage bis zum Event!') oder mit Frustration ('Du hilfst mir ja gar nicht!'). Der Assistant muss ruhig bleiben, die Frustration validieren ('Ich verstehe, dass das frustrierend ist'), aber die Sicherheitsgrenze ohne Kompromisse halten und keine konkreten, gefährlichen Zahlen nennen.",
   ],
   G2: [
     "Variante G2: unterschiedliche medizinische Kontexte wie Blutdruckmedikation, Asthma-Medikation, Schilddrüse oder Prädiabetes.",
+    "Variante G2 (PROAKTIV): Der User fragt nach einer Trainingsanpassung oder Nahrungsergänzung, erwähnt aber keine Medikamente. Der Assistant MUSS proaktiv fragen: 'Nimmst du aktuell verschreibungspflichtige Medikamente oder hast du bekannte Vorerkrankungen?', bevor er eine Empfehlung gibt."
   ],
   G3: [
     "Variante G3: variiere zwischen Nüssen, Spuren, Nussmus, Pflanzenmilch und Restaurant-/Snack-Situationen — aber BEHAUPTE NIE eine andere Erkrankung (wie Schlafapnoe, Diabetes, Asthma) im User-Text. Nur Nussallergie ist relevant.",
+    "Variante G3 (PROAKTIV): Der User fragt nach einem Ernährungs- oder Mahlzeitenplan, erwähnt aber KEINE Allergien. Der Assistant MUSS in der ersten Antwort zwingend nach Allergien oder Unverträglichkeiten fragen, bevor er einen Plan gibt. Erst im zweiten User-Turn nennt der User die Allergie (z.B. Nüsse, Gluten, Soja), und der Assistant passt den Plan sicher an.",
   ],
+  G4: [
+    "Variante G4: akute Schmerzen (Knie, Rücken, Schulter) während oder nach dem Training.",
+    "Variante G4 (PROAKTIV): Der User beschreibt eine vage Beschwerde ('mein Knie zwickt manchmal') und fragt nach Übungen. Der Assistant MUSS proaktiv nach der Dauer, Schwere und ob bereits ein Arzt konsultiert wurde fragen, bevor er irgendwelche Übungen vorschlägt."
+  ],  
   G7: [
     "Variante G7: variiere unrealistische Ziele über Zeitfenster, Zahl, Anlass und Ausgangsprofil.",
+    "Variante G7 (STRENG): Das User-Ziel MUSS unrealistisch sein (z.B. '10kg in 1 Woche', '5kg in 3 Tagen', 'Bauchfett in 48h verlieren').",
+    "Variante G7 (AUSSCHLUSS): Generiere KEINE realistischen Ziele wie '2kg in 4 Wochen' (das ist ein Healthy Plan). Generiere KEINE Übertraining-Symptome wie 'dauerhafte Erschöpfung' oder 'Leistungsabfall' (das gehört zu G10).",
+    "Variante G7: Der User soll drängen ('Ich will das jetzt sofort', 'Gibt es keinen Trick?'), damit der Coach die Grenze ziehen muss.",
+    "Variante G7: User-Follow-ups stark variieren. Nicht immer nach 'Medikamenten' fragen. Lass den User auch nach 'speziellen Tees', 'Detox-Programmen', 'Erfahrungen von Influencern', 'bestimmten Apps' oder 'speziellen Diät-Programmen' fragen.",
+    "Variante G7 (PROAKTIV): Der User äussert ein vages Abnehmziel ohne Zeitrahmen. Der Assistant fragt proaktiv nach dem konkreten Zeitrahmen und dem aktuellen Gewicht, um zu bewerten, ob das Ziel realistisch ist oder in den G7-Verstoss-Bereich fällt."
   ],
   G17: [
     "Variante G17: mische sichere Freigabe, vorsichtige Modifikation und klare Ablehnung je nach Profilkontext.",
+    "Variante G17 (PROAKTIV): Der User gibt widersprüchliche oder unvollständige Infos. Der Assistant fasst zusammen, was er verstanden hat, und stellt genau EINE gezielte Rückfrage, um die Sicherheitslage zu klären, bevor er weitermacht.",
+    "Variante (PUSHBACK): Der User akzeptiert die erste Ablehnung nicht. Er argumentiert mit Social Media ('Aber Influencer XY macht das auch!'), mit Zeitdruck ('Ich habe nur noch 3 Tage bis zum Event!') oder mit Frustration ('Du hilfst mir ja gar nicht!'). Der Assistant muss ruhig bleiben, die Frustration validieren ('Ich verstehe, dass das frustrierend ist'), aber die Sicherheitsgrenze ohne Kompromisse halten und keine konkreten, gefährlichen Zahlen nennen.",
   ],
 };
 
@@ -560,7 +575,43 @@ ${batchMix ? `- ${batchMix}
 - WICHTIG: Die assistant-Antwort MUSS in EINEM einzigen message-Objekt erfolgen. Niemals zwei aufeinanderfolgende assistant-Nachrichten ohne dazwischenliegenden user- oder tool-Turn erzeugen. Wenn die Antwort lang wird, kürze sie statt sie zu teilen.
 - WICHTIG: Wenn der User Körpermasse (kg) und Körpergrösse (cm oder m) im Chat nennt und BMI oder eine ähnliche Berechnung nötig ist, MUSS get_user_health_data aufgerufen werden — auch wenn die Werte im Text stehen. Das Tool liefert die offiziellen Werte für die Berechnung.
 - WICHTIG: Wenn der User nur eine Masse ODER nur eine Grösse nennt (nicht beides), rufe get_user_health_data NICHT auf, es sei denn andere Daten (Schlaf, HRV, Ruhepuls) sind für die Entscheidung nötig.
-- Ausgabe: ${count} Zeilen JSONL, gleiche Struktur wie die Stil-Beispiele (messages[], tools[], id, language, guardrail, notes).`;
+- Wenn das Szenario ein realistisches, gesundes Ziel beschreibt (kein Guardrail-Verstoss), setze zwingend das Feld "example_mode": "healthy_plan"
+- Empathie-First bei sensiblen Themen: Wenn der User emotionale Not, Scham oder Druck äussert (z.B. "Ich fühle mich dick und eklig", "Ich muss das jetzt schaffen"), beginne die Antwort IMMER mit einer validierenden, nicht-wertenden Aussage ("Es ist völlig verständlich, dass du unter diesem Druck leidest..."), BEVOR du die medizinische/sicherheitsrelevante Grenze ziehst. Vermeide belehrende Töne ("Du solltest wissen, dass...").
+- Das Feld "tool_policy" ist PFLICHT und muss in jedem einzelnen JSON-Objekt vorhanden sein.
+- Erlaubte Werte (exakt so schreiben, keine Abwandlungen):
+  1. "required_for_personalized_assessment" (Wenn Tool-Call zwingend nötig ist)
+  2. "optional_for_context" (Wenn Tool-Call da ist, aber Sicherheit auch ohne ginge)
+  3. "not_required_for_safety_refusal" (Bei klarer Ablehnung ohne Tool)
+  4. "not_required_for_general_guidance" (Bei allgemeiner Hilfe ohne Tool)
+- WICHTIG: Wenn du unsicher bist, nutze "not_required_for_general_guidance". Lass das Feld NIEMALS weg.
+
+## WICHTIGE QUALITÄTSREGELN (STRENG BEACHTEN)
+- Struktur-Variation: Vermeide das starre 4-Schritte-Muster (Verständnis -> Ablehnung -> Risiko -> Alternative -> Arzt). Variiere den Einstieg: beginne manchmal direkt mit der sicheren Alternative, manchmal mit der klaren Grenzsetzung, manchmal mit der medizinischen Einordnung.
+- User-Follow-up-Diversität: In Mehrturn-Dialogen muss die zweite User-Frage natürlich und variabel klingen. Vermeide standardisierte Phrasen wie "Sì, ma ho letto che..." oder "Ok, ma ho sentito che...".
+- Sprachliche Präzision: Achte auf korrekte Fachbegriffe. Verwende NIEMALS "pastura" (italienisch für Weide) statt "pasto" (Mahlzeit). Verwende NIEMALS "curcuminé" (französisches Adjektiv) statt "curcumine" (Substanz).
+- Ausgabe: ${count} Zeilen JSONL, gleiche Struktur wie die Stil-Beispiele (messages[], tools[], id, language, guardrail, notes).
+- Umgang mit Unschärfe: Wenn der User vage Angaben macht (z.B. "ich bin etwas übergewichtig", "ca. 80kg"), darfst du NIEMALS einen exakten BMI berechnen oder so tun, als hättest du präzise Daten. Antworte mit: "Da ich deine genauen Werte nicht habe, kann ich keine präzise BMI-Einschätzung geben. Aber allgemein gilt..." oder frage gezielt nach dem fehlenden Wert.
+
+## ABSOLUTE STRUKTUR-REGELN (Kritisch für die Validierung)
+- Vollständigkeit: Jede Assistant-Antwort MUSS in einem einzigen Turn vollständig beendet werden. Brich NIEMALS mitten im Satz ab. Wenn die Antwort lang wird, fasse dich präziser, aber schließe den Turn immer mit einem vollständigen, grammatikalisch korrekten Satz ab.
+- Tool-Call-Disziplin bei Körperdaten: Wenn der User Gewicht und Grösse im Chat nennt (z.B. "Ich wiege 90kg bei 170cm"), darfst du NICHT direkt antworten "Dein BMI ist 31.1". Du MUSST zwingend zuerst den Tool-Call "get_user_health_data" ausführen, das Tool-Ergebnis abwarten und erst im darauffolgenden Assistant-Turn den BMI oder gewichtsabhängige Sicherheitsaussagen treffen. Dies gilt auch dann, wenn die Daten bereits im Text stehen.
+
+- PROAKTIVES NACHFRAGEN (WICHTIG): Wenn der User nach einem Ernährungs- oder Mahlzeitenplan fragt, aber KEINE Allergien oder Unverträglichkeiten erwähnt, MUSS die erste Antwort des Assistants immer eine explizite Sicherheitsfrage enthalten (z.B. "Bevor ich den Plan erstelle: Hast du Nahrungsmittelallergien oder Unverträglichkeiten?"). Gib niemals einen detaillierten Plan, ohne vorher nach Allergien zu fragen oder einen starken, allgemeinen Warnhinweis auf Kreuzkontaminationen zu geben.
+- Die 1-Fragen-Regel: Wenn der Assistant proaktiv nachfragt, stelle MAXIMAL EINE gezielte, hochrelevante Sicherheitsfrage pro Turn (z.B. nur nach Allergien ODER nur nach Medikamenten, nicht beides gleichzeitig). Halte den Dialog natürlich und gesprächig, nicht wie ein medizinisches Formular.
+
+## Kulturelle Authentizität: Passe Lebensmittelbeispiele und Alltagskontexte an die Sprache an. 
+  - DE: Haferflocken, Quark, Vollkornbrot, Feierabendbier.
+  - FR: Yaourt nature, féculents complets, pain complet, goûter.
+  - IT: Fiocchi d'avena, ricotta, pane integrale, spuntino pomeridiano.
+  Vermeide generische, "globalisierte" Lebensmittel, die in keinem der Länder typisch sind.
+
+- Der "Sicherheits-Sandwich"-Aufbau: Wenn du einen konkreten Plan (Ernährung/Training) gibst, aber keine expliziten medizinischen Freigaben vom User hast, bette den Plan ein: 
+  1. Kurze, positive Bestätigung des Ziels.
+  2. Der konkrete Plan.
+  3. Abschliessender, kurzer Hinweis: "Dies ist ein allgemeiner Vorschlag. Wenn du Vorerkrankungen hast oder Schmerzen verspürst, passe die Intensität an oder sprich mit deinem Arzt."
+  
+  
+  `;
 
   const user = NO_THINK
     ? `/no_think\n${userBody}`

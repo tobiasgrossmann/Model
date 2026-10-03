@@ -395,19 +395,25 @@ function checkPersonaReuse(example) {
 //    tool result), recompute BMI and flag if the reply's own stated BMI
 //    (e.g. "BMI liegt bei 32,6") doesn't match arithmetic.
 function checkBmiMath(example) {
+  const issues = [];
   const text = extractText(example);
   const dims = extractAnthropometrics(text);
-  if (dims.height == null || dims.weight == null) return [];
+  
+  if (dims.height == null || dims.weight == null) return issues;
+  
   const h = dims.height / 100;
   const w = dims.weight;
   const trueBmi = w / (h * h);
+  
+  // Prüfe auf explizite BMI-Nennung im Text
   const claimed = extractExplicitBmiClaim(text);
   if (claimed != null) {
     if (Math.abs(claimed - trueBmi) > 0.3) {
-      return [`stated BMI ${claimed} doesn't match computed ${trueBmi.toFixed(1)}`];
+      issues.push(`BMI-Rechenfehler: Behauptet ${claimed}, berechnet ${trueBmi.toFixed(1)} (Differenz > 0.3)`);
     }
   }
-  return [];
+  
+  return issues;
 }
 
 function bmiWarning(example) {
@@ -484,18 +490,40 @@ function checkPromptLeakage(example) {
 
 function checkGeneratorMetaLeak(example) {
   const issues = [];
-  const leakPattern = /Batch-Mix|Datensatz-Balance|Pflicht\):/i;
-  let found = false;
-  walkStrings(example, (value) => {
-    if (!found && leakPattern.test(value)) {
-      found = true;
+  const leakPatterns = [
+    /Batch-Mix/i,
+    /Datensatz-Balance/i,
+    /Pflicht\):/i,
+    /Rotationsvorgabe/i,
+    /Variante G\d+/i,
+  ];
+  
+  // Rekursive Prüfung aller String-Felder im Beispiel
+  function checkValue(value) {
+    if (typeof value === "string") {
+      for (const pattern of leakPatterns) {
+        if (pattern.test(value)) {
+          issues.push(`LEAKAGE: Generator-Anweisung '${pattern.source}' in Beispielfeld gefunden`);
+          return;
+        }
+      }
+    } else if (Array.isArray(value)) {
+      for (const item of value) {
+        checkValue(item);
+      }
+    } else if (value && typeof value === "object") {
+      for (const nested of Object.values(value)) {
+        checkValue(nested);
+      }
     }
-  });
-  if (found) {
-    issues.push("generator meta instructions leaked into example fields");
   }
+  
+  checkValue(example);
   return issues;
 }
+
+
+const BATCH_ID = `batch_${Date.now()}`;
 
 function assignValidatedIds(examples) {
   const counters = new Map();
@@ -505,27 +533,31 @@ function assignValidatedIds(examples) {
     const key = `${guardrail}_${language}`;
     const next = (counters.get(key) || 0) + 1;
     counters.set(key, next);
+    
+    const originalId = example.id || example.source_id || "unknown";
     return {
       ...example,
-      source_id: example.id,
-      id: `${guardrail}_${language}_${String(next).padStart(3, "0")}`,
+      source_id: originalId,
+      // Eindeutige ID: Batch-Zeitstempel + Guardrail + Sprache + laufende Nummer
+      id: `${BATCH_ID}_${guardrail}_${language}_${String(next).padStart(3, "0")}`,
     };
   });
 }
 
 function toTrainingReadyExample(example) {
+  // Strikte Schema-Trennung: Nur diese Felder dürfen in training_ready.jsonl
   const ready = {
     id: example.id,
     language: example.language,
     guardrail: example.guardrail,
-    tool_policy: example.tool_policy,
     messages: example.messages,
   };
-  if (hasAnyAssistantToolCalls(example)) {
-    ready.tools = Array.isArray(example.tools) && example.tools.length
-      ? example.tools
-      : defaultHealthToolSchema();
+  
+  // Tools nur hinzufügen, wenn tatsächlich vorhanden
+  if (Array.isArray(example.tools) && example.tools.length > 0) {
+    ready.tools = example.tools;
   }
+  
   return ready;
 }
 
@@ -645,22 +677,43 @@ function checkToolBypassForBmiOrWeightClaims(example) {
 function checkGuardrailThemeSanity(example) {
   const issues = [];
   const guardrail = canonicalGuardrail(example.guardrail);
-  const conversation = extractUserAssistantText(example);
-
+  const text = extractText(example).toLowerCase();
+  
+  // G1: Extreme Restriktion
   if (guardrail === "G1") {
-    const hasG1Cue = /kcal|kalorien|kalorienzahl|calories?|restriktiv|restriction|restrictif|restrittiv|crash|meal replacement|shakes?|suppe|omad|one meal a day|je(?:û|u)ne extr(?:ê|e)me|digiuno estremo|10\s*kg|rapid(?:e|o) dimagr/i.test(conversation);
-    if (!hasG1Cue) {
-      issues.push("G1 theme sanity check failed: missing kcal/restriction cue; send to manual review");
+    const hasRestrictionCue = /\d{3,4}\s*kcal|restriktiv|restriction|restrictif|restrittiv|extrem|crash|meal replacement|shakes?|suppe|omad|one meal a day|je(?:û|u)ne extr(?:ê|e)me|digiuno estremo/i.test(text);
+    if (!hasRestrictionCue) {
+      issues.push("REVIEW: G1-Label, aber keine Restriktions-Kennzeichnung (kcal/restrik*/*extrem*) im Text gefunden");
     }
   }
-
+  
+  // G3: Allergie
+  if (guardrail === "G3") {
+    const hasAllergyCue = /allerg|allergi|allergie|allergique|allergico|unvertr[aä]glichkeit|intoleran|nuss|noix|noci|erdnuss|arachid|gluten|noisette|mandel/i.test(text);
+    if (!hasAllergyCue) {
+      issues.push("REVIEW: G3-Label, aber keine Allergie/Unverträglichkeit im Text gefunden");
+    }
+  }
+  
+  // G5: Fasten
   if (guardrail === "G5") {
-    const hasG5Cue = /fasten|fasting|je(?:û|u)ne|digiuno/i.test(conversation);
-    if (!hasG5Cue) {
-      issues.push("G5 theme sanity check failed: missing fasting cue; send to manual review");
+    const hasFastingCue = /fasten|fasting|je(?:û|u)ne|digiuno|48\s*h|48\s*hours|48\s*ore/i.test(text);
+    if (!hasFastingCue) {
+      issues.push("REVIEW: G5-Label, aber kein Fasten-Kontext (fasten/jeûne/digiuno) im Text gefunden");
     }
   }
-
+  
+  // G8: Zielkonflikt (schwieriger zu erkennen, aber wir prüfen auf widersprüchliche Signale)
+  if (guardrail === "G8") {
+    const hasMultipleTurns = (example.messages || []).filter(m => m.role === "user").length >= 2;
+    const hasConflictCue = /aber|trotzdem|dennoch|doch|widerspruch|konflikt|inconsisten|contradiction|cependant|pourtant|mais|incoh(é|e)rence|per(ò|o)|tuttavia|contraddizion/i.test(text);
+    const hasGoalCue = /ziel|goal|objectif|obiettivo|abnehm|lose weight|perdre|dimagr|muskel|muscle|kg|kcal/i.test(text);
+    
+    if (!hasMultipleTurns || !hasConflictCue || !hasGoalCue) {
+      issues.push("REVIEW: G8-Label, aber kein erkennbarer Zielkonflikt (mind. 2 User-Turns + Widerspruch + Ziel-Erwähnung) im Text gefunden");
+    }
+  }
+  
   return issues;
 }
 
@@ -936,35 +989,37 @@ function checkNotesAlignment(example) {
   return issues;
 }
 
+// NEU: Separate Prüfung für WHO-Kategorie-Fehllabels (kritischer als reine Zahlenabweichung)
 function checkBmiCategoryConsistency(example) {
   const issues = [];
   const text = extractText(example);
   const assistant = extractAssistantText(example);
   const dims = extractAnthropometrics(text);
+  
   if (dims.height == null || dims.weight == null) return issues;
-
+  
   const bmi = dims.weight / ((dims.height / 100) ** 2);
+  
+  // Kategorie-Erkennung im Text
   const saysUnderweight = /untergewichtig|insuffisance pond(é|e)rale|sous le seuil de 18,5|sottopeso/i.test(assistant);
-  const saysNormal = /normalbereich|poids normal|normopeso/i.test(assistant);
-  const saysOverweight = /übergewicht|surpoids|sovrappeso|overweight|peso eccessivo/i.test(assistant);
-  const acknowledgesBoundary = /grenz|border|limite|limite|unteren normalbereich|limite inférieure|limite inferiore/i.test(assistant);
-
-  if (bmi > 18.55 && saysUnderweight && !acknowledgesBoundary) {
-    issues.push(`assistant labels BMI ${bmi.toFixed(1)} as underweight without acknowledging the cutoff boundary`);
+  const saysNormal = /normalbereich|poids normal|normopeso|normalgewicht|normal weight/i.test(assistant);
+  const saysOverweight = /übergewicht|surpoids|sovrappeso|overweight/i.test(assistant);
+  const saysObese = /adipositas|obésité|obesità|obese/i.test(assistant);
+  
+  // WHO-Grenzen prüfen
+  if (bmi < 18.5 && !saysUnderweight && (saysNormal || saysOverweight || saysObese)) {
+    issues.push(`KRITISCH: BMI ${bmi.toFixed(1)} (Untergewicht), aber Text labelt als ${saysNormal ? 'normal' : saysOverweight ? 'übergewicht' : 'adipös'}`);
   }
-  if (bmi < 18.45 && saysNormal) {
-    issues.push(`assistant labels BMI ${bmi.toFixed(1)} as normal despite being below cutoff`);
+  if (bmi >= 18.5 && bmi < 25 && (saysUnderweight || saysOverweight || saysObese)) {
+    issues.push(`KRITISCH: BMI ${bmi.toFixed(1)} (Normalgewicht), aber Text labelt als ${saysUnderweight ? 'untergewichtig' : saysOverweight ? 'übergewicht' : 'adipös'}`);
   }
-  if (bmi >= 25 && saysNormal) {
-    issues.push(`assistant labels BMI ${bmi.toFixed(1)} as normal despite being above the normal range cutoff`);
+  if (bmi >= 25 && bmi < 30 && (saysUnderweight || saysNormal || saysObese)) {
+    issues.push(`KRITISCH: BMI ${bmi.toFixed(1)} (Übergewicht), aber Text labelt als ${saysUnderweight ? 'untergewichtig' : saysNormal ? 'normal' : 'adipös'}`);
   }
-  if (bmi < 25 && saysOverweight) {
-    issues.push(`assistant labels BMI ${bmi.toFixed(1)} as overweight despite being below the overweight cutoff`);
+  if (bmi >= 30 && (saysUnderweight || saysNormal || saysOverweight)) {
+    issues.push(`KRITISCH: BMI ${bmi.toFixed(1)} (Adipositas), aber Text labelt als ${saysUnderweight ? 'untergewichtig' : saysNormal ? 'normal' : 'übergewicht'}`);
   }
-  if (bmi >= 18.45 && bmi <= 18.55 && saysUnderweight && saysNormal && !acknowledgesBoundary) {
-    issues.push(`assistant mixes normal and underweight labels around BMI ${bmi.toFixed(1)} without explicit boundary framing`);
-  }
-
+  
   return issues;
 }
 
@@ -1068,6 +1123,170 @@ function checkGroundingConsistency(example) {
   return issues;
 }
 
+function checkLinguisticQuality(example) {
+  const issues = [];
+  const text = extractText(example).toLowerCase();
+  
+  if (/\bpastura\b/.test(text)) issues.push("linguistic error: 'pastura' instead of 'pasto'");
+  if (/\bcurcuminé\b/.test(text)) issues.push("linguistic error: 'curcuminé' instead of 'curcumine'");
+  if (/\bklingut\b/.test(text)) issues.push("linguistic error: 'klingut' instead of 'klingt' (German)");
+  if (/\bpesò\b/.test(text)) issues.push("linguistic error: 'pesò' instead of 'peso' (Italian)");
+  
+  return issues;
+}
+
+function checkRepetitiveUserFollowUp(example) {
+  const issues = [];
+  const userMessages = (example.messages || [])
+    .filter((m) => m.role === "user" && typeof m.content === "string")
+    .map((m) => m.content.toLowerCase());
+  
+  if (userMessages.length >= 2) {
+    const followUp = userMessages[1];
+    // Catch the exact synthetic templates observed in the G7 Italian examples
+    if (/sì,?\s*(ma|grazie).*ho (letto|sentito) che (i nuovi farmaci|l'obesità è)/i.test(followUp)) {
+      issues.push("synthetic artifact: repetitive user follow-up template detected");
+    }
+  }
+  return issues;
+}
+
+function checkFormulaicRefusalPattern(example) {
+  const issues = [];
+  const assistant = extractAssistantText(example).toLowerCase();
+  
+  // Flag responses that rigidly follow the exact same 4-step sentence structure
+  if (example.language === "it" && /capisco la frustrazione.*tuttavia, perdere.*è un obiettivo non sicuro.*ti suggerisco di impostare un obiettivo più sostenibile.*se sei interessato a valutare opzioni farmacologiche, ti consiglio di parlarne con il tuo medico/i.test(assistant)) {
+    issues.push("assistant response follows a highly formulaic, templated structure");
+  }
+  return issues;
+}
+
+function checkGuardrailIdAlignment(example) {
+  const issues = [];
+  const guardrail = canonicalGuardrail(example.guardrail);
+  const text = extractText(example).toLowerCase();
+
+  // Pregnancy must be G12
+  if (guardrail !== "G12" && /(enceinte|pregnan|incinta|gravid|pregnant)/i.test(text)) {
+    issues.push(`guardrail mismatch: text indicates pregnancy but guardrail is ${guardrail} (should be G12)`);
+  }
+  
+  // Minors must be G13
+  if (guardrail === "G13" && !/(adolescent|teen|mineur|minorenne|under 18|sotto i 18|moins de 18)/i.test(text)) {
+    // Allow some flexibility, but flag if it explicitly states an adult age like 25
+    if (/\b(2[0-9]|3[0-9]|4[0-9])\s*(ans|anni|jahre|years)\b/i.test(text)) {
+      issues.push(`guardrail mismatch: text indicates adult age but guardrail is G13 (minor context)`);
+    }
+  }
+
+  // Disordered eating must be G6
+  if (guardrail !== "G6" && /(trouble alimentaire|disturbi alimentari|eating disorder|anorexi|bulimi)/i.test(text)) {
+    issues.push(`guardrail mismatch: text indicates disordered eating but guardrail is ${guardrail} (should be G6)`);
+  }
+
+  return issues;
+}
+
+
+// --- NEU: Strenge Alternierungs- und Vollständigkeitsprüfung (Punkt 1) ---
+function checkStrictAlternation(example) {
+  const issues = [];
+  const messages = Array.isArray(example?.messages) ? example.messages : [];
+  if (messages.length < 2) {
+    return ["messages-Array ist zu kurz (mindestens system/user und assistant erforderlich)"];
+  }
+
+  let expectedRoles = ["system", "user"]; // Startzustand
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    const role = msg?.role;
+
+    if (!expectedRoles.includes(role)) {
+      issues.push(`Ungültige Rollen-Sequenz bei Index ${i}: Erwarte ${expectedRoles.join(' oder ')}, gefunden '${role}'`);
+    }
+
+    // Nächste erwartete Rollen basierend auf aktueller Rolle bestimmen
+    if (role === "system") {
+      expectedRoles = ["user"];
+    } else if (role === "user") {
+      expectedRoles = ["assistant"];
+    } else if (role === "assistant") {
+      const hasToolCalls = Array.isArray(msg?.tool_calls) && msg.tool_calls.length > 0;
+      const hasContent = typeof msg?.content === "string" && msg.content.trim().length > 0;
+      
+      if (i === messages.length - 1) {
+        // Letzter Turn: Muss Assistant mit Content ODER Tool-Calls sein
+        if (!hasContent && !hasToolCalls) {
+          issues.push("Letzter Assistant-Turn hat weder 'content' noch 'tool_calls' (leere Antwort oder Abbruch)");
+        }
+      }
+      
+      if (hasToolCalls) {
+        expectedRoles = ["tool"];
+      } else {
+        expectedRoles = ["user", "assistant"]; // Assistant kann theoretisch mehrmals kommen, wenn es ein Multi-Agent-Setup wäre, aber hier erwarten wir user oder Ende. Wir erlauben "user" als primären nächsten Schritt.
+        // Präziser: Nach Assistant ohne Tool-Call muss entweder Ende sein oder User kommen.
+        expectedRoles = ["user"]; 
+      }
+    } else if (role === "tool") {
+      expectedRoles = ["assistant"];
+    }
+  }
+
+  // Abschließende Prüfung des letzten Turns
+  const lastMsg = messages[messages.length - 1];
+  if (lastMsg?.role !== "assistant") {
+    issues.push(`Konversation endet nicht mit 'assistant' (endet mit '${lastMsg?.role}')`);
+  } else if (typeof lastMsg?.content !== "string" || lastMsg.content.trim() === "") {
+    if (!Array.isArray(lastMsg?.tool_calls) || lastMsg.tool_calls.length === 0) {
+      issues.push("Letzter Assistant-Turn ist leer oder unvollständig (möglicher max_tokens-Abbruch)");
+    }
+  }
+
+  return issues;
+}
+
+// --- NEU: Tool-Call-Disziplin bei BMI/Gewicht (Punkt 2) ---
+function checkBmiToolDiscipline(example) {
+  const issues = [];
+  const assistantText = extractAssistantText(example);
+  const hasHealthToolCall = hasToolCall(example, "get_user_health_data");
+  
+  // Prüfe auf BMI-Nennung oder gewichtsabhängige Sicherheitsaussagen
+  const mentionsBmi = /\b(BMI|IMC)\b[^\n.]{0,30}\d{1,2}(?:[.,]\d+)?/i.test(assistantText) || /\b(BMI|IMC)\b/i.test(assistantText);
+  const weightDependentSafety = /(?:dein(?:e|er)?|deiner|bei deiner|ton|ta|tes|votre|tuo|tua|con i tuoi|con le tue).{0,70}(?:gewicht|gr(?:ö|o)sse|taille|poids|peso|altezza|bmi|imc).{0,90}(?:gef(?:ä|a)hr|risk|risque|pericol|contre-indiqu|unsafe|zu wenig|trop peu|troppo poco|nicht geeignet|inadatt|non adatto)/i.test(assistantText);
+
+  if ((mentionsBmi || weightDependentSafety) && !hasHealthToolCall) {
+    issues.push("KRITISCH: Assistant trifft BMI- oder gewichtsabhängige Sicherheitsaussage, ohne vorher 'get_user_health_data' aufzurufen (auch wenn User-Daten im Chat stehen).");
+  }
+
+  return issues;
+}
+
+
+function checkShamingOrCondescendingTone(example) {
+  const issues = [];
+  const assistant = extractAssistantText(example).toLowerCase();
+  
+  // Wörter/Phrasen, die Bevormundung, Scham oder Ungeduld ausdrücken
+  const redFlags = [
+    /offensichtlich/i, /natürlich solltest du/i, /jeder weiss doch/i, 
+    /du musst einfach nur/i, /lazy/i, /faul/i, /disziplinlos/i,
+    /évidemment/i, /tu dois simplement/i, /ovviamente/i, /devi solo/i
+  ];
+
+  for (const flag of redFlags) {
+    if (flag.test(assistant)) {
+      issues.push("KRITISCH: Assistant verwendet potenziell beschämenden, bevormundenden oder ungeduldigen Tonfall.");
+      break;
+    }
+  }
+  return issues;
+}
+
+
 function main() {
   const inFile = path.join(OUT_DIR, "generated.jsonl");
   fs.mkdirSync(OUT_DIR, { recursive: true });
@@ -1092,6 +1311,10 @@ function main() {
     }
     const issues = [
       ...checkStructure(example),
+      ...checkLinguisticQuality(example),              
+      ...checkRepetitiveUserFollowUp(example),         
+      ...checkFormulaicRefusalPattern(example),     
+      ...checkGuardrailIdAlignment(example),
       ...checkPromptLeakage(example),
       ...checkGeneratorMetaLeak(example),
       ...checkCitations(example),
@@ -1113,6 +1336,9 @@ function main() {
       ...checkNotesAlignment(example),
       ...checkUncertaintyHandling(example),
       ...checkInventedMeasurements(example),
+      ...checkStrictAlternation(example),
+      ...checkBmiToolDiscipline(example),
+      ...checkShamingOrCondescendingTone(example)
     ];
     const bmiWarn = bmiWarning(example);
     if (bmiWarn) bmiWarnings.push(bmiWarn);
