@@ -406,25 +406,94 @@
         "returns": {
           "age": "int",
           "weight_kg": "float",
+          "height_cm": "float",
+          "sex": "string",
+          "pregnancy_status": "string",
           "active_calories_burned": "int",
+          "basal_energy_burned": "int",
           "exercise_minutes": "int",
-          "stand_hours": "int"
+          "stand_hours": "int",
+          "sleep_duration_hours": "float",
+          "hrv_ms": "int",
+          "resting_heart_rate_bpm": "int"
         },
         "observations": [
-          "Enthält weder Grösse noch Geschlecht, Erkrankungen, Allergien, Schwangerschaft, Ziele oder Kalorienziel.",
-          "Kein Datumsparameter; das Zeitfenster ist unbekannt (in den Pilots als 'heute' angenommen).",
-          "Wearable-artige Werte (aktive Kalorien, Trainingsminuten, Stehstunden).",
-          "Alter und Gewicht kommen nur aus diesem Tool. Das Profil im Systemprompt enthält sie nicht (keine Doppelung)."
+          "Enthält weder Krankheits- oder Allergie-Details, noch dauerhaftes Profil- oder Ziel-Tracking.",
+          "Alter, Gewicht und Körpermasse kommen aus diesem Tool, wenn sie für BMI oder Sicherheitslogik gebraucht werden.",
+          "Wearable-artige Werte (aktive Kalorien, Trainingsminuten, Stehstunden, Schlaf, HRV) sind gültig, sofern sie im Resultat gesetzt sind.",
+          "Bei einem Sicherheitsausspruch zu BMI, Gewicht oder Tempo muss das Tool vorangegangen sein."
         ],
         "usage": {
           "call_when": [
             "Bewegungs- oder Tagesfragen ('Wie war mein Tag?')",
-            "BMI, Tempo oder Belastung müssen beurteilt werden (Gewicht, Alter)",
-            "Trainingsempfehlung soll am Ausgangsniveau ausgerichtet werden"
+            "BMI, Tempo oder Belastung müssen beurteilt werden (Gewicht, Alter, Größe)",
+            "Trainingsempfehlung soll am Ausgangsniveau ausgerichtet werden",
+            "Der User bittet explizit um einen persönlichen Ernährungs- oder Trainingsplan, den gespeichert werden soll"
           ],
           "do_not_call_when": [
             "Frage braucht keine Alter-/Gewichts-/Aktivitätsdaten (Allergie, Kalorienziel im Profil, emotionale Themen)",
-            "Werte wurden im selben Gespräch schon abgerufen"
+            "Werte wurden im selben Gespräch schon abgerufen",
+            "Der User will nur Allgemeinberatung ohne persönliche Messdaten zu speichern"
+          ]
+        }
+      },
+      {
+        "name": "save_food_plan",
+        "arguments": {
+          "plan": {
+            "type": "object",
+            "required": ["id", "language", "duration_days", "days"],
+            "properties": {
+              "id": "string",
+              "language": "string",
+              "duration_days": "int",
+              "days": "array"
+            }
+          }
+        },
+        "returns": {
+          "status": "string"
+        },
+        "usage": {
+          "call_when": [
+            "Der User bittet um einen Ernährungsplan für mehrere Tage oder eine Woche",
+            "Der Plan muss persistiert werden, damit er später weiterverwendet werden kann",
+            "Das Gespräch enthält echte Tages-/Mahlzeiten-Details, die als gespeicherter Plan weiterlaufen sollen"
+          ],
+          "do_not_call_when": [
+            "Es geht nur um allgemeine Ernährungsempfehlungen ohne Persistenz",
+            "Der User fragt nach einer einmaligen Mahlzeit oder nur nach einem Rezept",
+            "Der Plan noch nicht konkret genug ist und nicht gespeichert werden soll"
+          ]
+        }
+      },
+      {
+        "name": "save_training_plan",
+        "arguments": {
+          "plan": {
+            "type": "object",
+            "required": ["id", "language", "duration_days", "days"],
+            "properties": {
+              "id": "string",
+              "language": "string",
+              "duration_days": "int",
+              "days": "array"
+            }
+          }
+        },
+        "returns": {
+          "status": "string"
+        },
+        "usage": {
+          "call_when": [
+            "Der User bittet um einen Trainingsplan oder eine Wochen-/Mehrtages-Trainingsstruktur",
+            "Der Plan soll gespeichert und später abgefragt werden",
+            "Das Gespräch liefert konkrete Übungen, Dauer, Häufigkeit und Fokus pro Tag"
+          ],
+          "do_not_call_when": [
+            "Es geht nur um ein einzelnes Training oder allgemeine Tipps ohne Speicherbedarf",
+            "Der User fragt nur nach einer Übung oder einem warm-up, nicht nach einem planbaren Zeitfenster",
+            "Der Plan nicht konkret genug ist, um als persistenter Plan gespeichert zu werden"
           ]
         }
       }
@@ -437,7 +506,7 @@
       "set_activity_goals",
       "plan_meals"
     ],
-    "note": "Es gibt nur ein Tool (get_user_health_data). Es gibt kein Schreib-/Speicher-Tool fürs Profil. Angaben der Person zu Allergien, Krankheiten, Schwangerschaft etc. gelten nur für das laufende Gespräch und werden nicht persistiert."
+    "note": "Es gibt einen lesenden Gesundheits-Tool-Call (get_user_health_data) und zwei Schreib-/Persistenz-Tools (save_food_plan, save_training_plan). Der Coach darf nur dann einen Persistenz-Call machen, wenn der User einen konkreten Ernährungs- oder Trainingsplan verlangt, der gespeichert werden soll. Angaben der Person zu Allergien, Krankheiten, Schwangerschaft etc. gelten nur für das laufende Gespräch und werden nicht dauerhaft gespeichert."
   },
   "open_dependencies": [
     "Gibt es überhaupt einen Weg, neue Angaben dauerhaft zu speichern (z. B. ein separates Onboarding-Formular)? Falls nein, informiert der Coach die Person, das selbst dort nachzutragen.",

@@ -62,8 +62,8 @@ function argVal(name, fallback) {
 }
 const ONLY_GUARDRAIL = argVal("guardrail", null);
 const ONLY_LANG = argVal("lang", null);
-const REQUESTED_COUNT = parseInt(argVal("count", "10"), 10);
-const MAX_EXAMPLES_PER_RUN = 3;
+const REQUESTED_COUNT = parseInt(argVal("count", "1"), 10);
+const MAX_EXAMPLES_PER_RUN = 1;
 const COUNT = Math.min(REQUESTED_COUNT, MAX_EXAMPLES_PER_RUN);
 const STREAM = process.argv.includes("--no-stream") ? false : true;
 const NO_THINK = process.argv.includes("--think") ? false : true;
@@ -95,6 +95,7 @@ const guardrailsSpec = JSON.parse(fs.readFileSync(path.join(SPEC_DIR, "guardrail
 const behaviorSpec = JSON.parse(fs.readFileSync(path.join(SPEC_DIR, "coach_behavior_spec.json"), "utf8"));
 const pilots = fs.readFileSync(path.join(SPEC_DIR, "pilot_examples.jsonl"), "utf8")
   .trim().split("\n").map(JSON.parse);
+const RANDOM_USER_INTENTS = JSON.parse(fs.readFileSync(path.join(SPEC_DIR, "random_user_intents.json"), "utf8"));
 const localRag = createLocalRag({ ragDir: RAG_DIR, specDir: SPEC_DIR });
 const ragDocuments = localRag.listDocuments();
 
@@ -416,7 +417,7 @@ async function getOrCreateDocSeed({ doc, lang, guardrail }) {
   return entry;
 }
 
-function buildPrompt(guardrail, lang, count, rotationIndex, docSeed) {
+function buildPrompt(guardrail, lang, count, rotationIndex, docSeed, selectedUserIntent = null) {
   const behavior = compactBehaviorSummary(behaviorSpec);
   const fewShot = pickFewShot(lang);
   const coverageWarning = noCoverageWarning(guardrailsSpec, guardrail.id);
@@ -454,7 +455,8 @@ function buildPrompt(guardrail, lang, count, rotationIndex, docSeed) {
       `- Quelle: ${docSeed?.file_name || "-"}`,
       `- Zusammenfassung: ${docSeed?.summary || "-"}`,
       `- Startfrage (muss thematisch erkennbar eingebaut werden): ${docSeed?.selected_question || "-"}`,
-    ].join("\n"),
+      selectedUserIntent ? `- Zusätzliche reale User-Intention: ${selectedUserIntent.intent} | ${selectedUserIntent.example}` : "",
+    ].filter(Boolean).join("\n"),
     grounding_instruction: groundingInstruction ? `## Guardrail-spezifische Grounding-Regel\n${groundingInstruction}\n` : "",
     few_shot_examples: fewShot.map((p) => JSON.stringify(p)).join("\n"),
     count,
@@ -765,6 +767,34 @@ function checkSequencingIssues(example) {
   return issues;
 }
 
+function checkHealthDataPayload(example) {
+  const messages = Array.isArray(example?.messages) ? example.messages : [];
+  const toolCalls = messages.filter((message) => message?.role === "assistant" && Array.isArray(message.tool_calls));
+  const healthCall = toolCalls.some((message) =>
+    message.tool_calls.some((toolCall) => toolCall?.function?.name === "get_user_health_data")
+  );
+  if (!healthCall) return [];
+
+  const lastToolMessage = [...messages].reverse().find((message) => message?.role === "tool" && message?.tool_call_id);
+  if (!lastToolMessage || typeof lastToolMessage.content !== "string") {
+    return ["health-data tool result missing payload content"];
+  }
+
+  try {
+    const payload = JSON.parse(lastToolMessage.content);
+    const missing = ["age", "height_cm", "weight_kg"].filter(
+      (field) => payload[field] == null || String(payload[field]).trim() === ""
+    );
+    if (missing.length) {
+      return [`health-data tool result missing ${missing.join(", ")}`];
+    }
+  } catch {
+    return ["health-data tool result payload is not valid JSON"];
+  }
+
+  return [];
+}
+
 function prepareExamples(examples) {
   const accepted = [];
   const rejected = [];
@@ -776,13 +806,59 @@ function prepareExamples(examples) {
       rejected.push({ reason: sequencingIssues.join("; "), example: normalized });
       continue;
     }
+    const payloadIssues = checkHealthDataPayload(normalized);
+    if (payloadIssues.length) {
+      rejected.push({ reason: payloadIssues.join("; "), example: normalized });
+      continue;
+    }
     accepted.push(normalized);
   }
 
   return { accepted, rejected };
 }
 
-function attachGroundingMetadata(examples, retrieval) {
+function inc(map, key) {
+  map[key] = (map[key] || 0) + 1;
+}
+
+function extractText(example) {
+  return (example?.messages || [])
+    .filter((m) => typeof m?.content === "string")
+    .map((m) => m.content)
+    .join("\n");
+}
+
+function extractAssistantText(example) {
+  return (example?.messages || [])
+    .filter((m) => m.role === "assistant" && typeof m.content === "string")
+    .map((m) => m.content)
+    .join("\n");
+}
+
+function extractUserAssistantText(example) {
+  return (example?.messages || [])
+    .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+    .map((m) => m.content)
+    .join("\n");
+}
+
+function topicFromText(text) {
+  const t = normalizeText(text);
+  const rules = [
+    { k: "allergy", re: /allerg|nuss|gluten|laktose|soja|schalenfrucht|erdnuss/ },
+    { k: "pregnancy", re: /schwanger|pregnan|grossesse|incinta/ },
+    { k: "weight_loss", re: /abnehm|lose weight|perdre|dimagr|kalorienziel|kcal/ },
+    { k: "medical_scope", re: /diagnos|medikament|supplement|arzt|docteur|medico/ },
+    { k: "exercise", re: /train|exercise|bewegung|cardio|kraft|hiit/ },
+    { k: "sleep_recovery", re: /schlaf|sleep|hrv|resting heart|regeneration/ },
+  ];
+  for (const rule of rules) {
+    if (rule.re.test(t)) return rule.k;
+  }
+  return "other";
+}
+
+function attachGroundingMetadata(examples, retrieval, intentBasis = "rag") {
   const sources = [];
   const seen = new Set();
   for (const snippet of retrieval.snippets) {
@@ -800,11 +876,99 @@ function attachGroundingMetadata(examples, retrieval) {
 
   return examples.map((example) => ({
     ...example,
+    intent_basis: intentBasis,
+    intent_source: {
+      basis: intentBasis,
+      guardrail_id: example.guardrail,
+      rag_document: retrieval?.query ? true : false,
+    },
     grounding: {
       query: retrieval.query,
       sources,
     },
   }));
+}
+
+function buildDiversityReport(examples) {
+  const overlapThreshold = 0.85;
+  const gramsByExample = [];
+  let overlapPairs = 0;
+  let comparedPairs = 0;
+  const sampledPairCap = 150000;
+
+  const persona = {
+    sex: {},
+    age_band: {},
+    height_band_cm: {},
+    weight_band_kg: {},
+  };
+  const topics = {};
+  const byLanguage = {};
+  const byGuardrail = {};
+  const byIntentBasis = {};
+
+  for (const ex of examples) {
+    const text = extractText(ex);
+    const assistantText = (ex?.messages || [])
+      .filter((m) => m.role === "assistant" && typeof m.content === "string")
+      .map((m) => m.content)
+      .join("\n");
+    const convoText = (ex?.messages || [])
+      .filter((m) => ["user", "assistant"].includes(m.role) && typeof m.content === "string")
+      .map((m) => m.content)
+      .join("\n");
+    const combined = `${text}\n${assistantText}`;
+    const grams = toNgrams(combined, 3);
+    gramsByExample.push(grams);
+
+    const genderMatch = text.match(/"sex"\s*:\s*"([^"]+)"/i);
+    const sex = genderMatch ? genderMatch[1].toLowerCase() : "unknown";
+    const age = text.match(/"age"\s*:\s*(\d+)/i)?.[1] ? Number(text.match(/"age"\s*:\s*(\d+)/i)[1]) : null;
+    const height = text.match(/"height_cm"\s*:\s*(\d+)/i)?.[1] ? Number(text.match(/"height_cm"\s*:\s*(\d+)/i)[1]) : null;
+    const weight = text.match(/"weight_kg"\s*:\s*(\d+(?:[.,]\d+)?)"/i)?.[1] ? Number(String(text.match(/"weight_kg"\s*:\s*(\d+(?:[.,]\d+)?)"/i)[1]).replace(",", ".")) : null;
+
+    const ageBand = age == null ? "unknown" : age < 30 ? "18-29" : age < 45 ? "30-44" : age < 60 ? "45-59" : "60+";
+    const heightBand = height == null ? "unknown" : height < 160 ? "<160" : height < 175 ? "160-174" : height < 190 ? "175-189" : "190+";
+    const weightBand = weight == null ? "unknown" : weight < 60 ? "<60" : weight < 75 ? "60-74" : weight < 90 ? "75-89" : "90+";
+
+    const basis = String(ex.intent_basis || ex.intent_source?.basis || "guardrail").trim().toLowerCase();
+    inc(byIntentBasis, basis || "guardrail");
+    inc(persona.sex, sex);
+    inc(persona.age_band, ageBand);
+    inc(persona.height_band_cm, heightBand);
+    inc(persona.weight_band_kg, weightBand);
+    inc(topics, topicFromText(convoText));
+    inc(byLanguage, ex.language || "unknown");
+    inc(byGuardrail, canonicalGuardrailId(ex.guardrail));
+  }
+
+  for (let i = 0; i < gramsByExample.length; i++) {
+    for (let j = i + 1; j < gramsByExample.length; j++) {
+      if (comparedPairs >= sampledPairCap) break;
+      comparedPairs += 1;
+      const ov = jaccard(gramsByExample[i], gramsByExample[j]);
+      if (ov >= overlapThreshold) overlapPairs += 1;
+    }
+    if (comparedPairs >= sampledPairCap) break;
+  }
+
+  return {
+    totals: {
+      validated_examples: examples.length,
+      compared_pairs: comparedPairs,
+      high_overlap_pairs: overlapPairs,
+      high_overlap_ratio: comparedPairs ? Number((overlapPairs / comparedPairs).toFixed(4)) : 0,
+      overlap_threshold: overlapThreshold,
+      compared_pairs_cap: sampledPairCap,
+    },
+    distribution: {
+      language: byLanguage,
+      guardrail: byGuardrail,
+      intent_basis: byIntentBasis,
+      persona,
+      topic: topics,
+    },
+  };
 }
 
 function loadExistingDedupState(outFile) {
@@ -1128,7 +1292,9 @@ async function runBatch(guardrail, lang, count) {
     const randomDoc = randomItem(ragDocuments);
     const seed = await getOrCreateDocSeed({ doc: randomDoc, lang, guardrail });
     const selectedQuestion = randomItem(seed.questions);
-    console.log(`   • doc-seed ${seed.file_name}: ${selectedQuestion}`);
+    const matchingIntentPool = RANDOM_USER_INTENTS.filter((entry) => entry.guardrail === guardrail.id);
+    const selectedUserIntent = matchingIntentPool.length ? randomItem(matchingIntentPool) : null;
+    console.log(`   • doc-seed ${seed.file_name}: ${selectedQuestion}${selectedUserIntent ? ` | intent: ${selectedUserIntent.intent}` : ""}`);
     const { system, user, retrieval } = buildPrompt(
       guardrail,
       lang,
@@ -1137,7 +1303,8 @@ async function runBatch(guardrail, lang, count) {
       {
         ...seed,
         selected_question: selectedQuestion,
-      }
+      },
+      selectedUserIntent
     );
 
     const approxTokens = Math.ceil((system.length + user.length) / 4);
@@ -1151,17 +1318,33 @@ async function runBatch(guardrail, lang, count) {
     const validated = [];
     const validationRejects = [];
 
-    for (const example of prepared) {
+    for (const [idx, example] of prepared.entries()) {
       const issues = validateRow(example, { guardrail: guardrail.id, language: lang });
       if (issues.length) {
-        validationRejects.push({ reason: issues.join('; '), example });
+        const reason = issues.join('; ');
+        console.warn(`   [validate FAIL] ${guardrail.id}/${lang} example ${idx + 1}: ${reason}`);
+        validationRejects.push({ reason, example });
       } else {
+        console.log(`   [validate PASS] ${guardrail.id}/${lang} example ${idx + 1}`);
         validated.push(example);
       }
     }
 
-    const withGrounding = attachGroundingMetadata(validated, retrieval).map((example) => ({
+    if (bad.length) {
+      for (const badLine of bad) {
+        console.warn(`   [parse REJECT] ${guardrail.id}/${lang}: unparseable output line -> ${String(badLine).slice(0, 220)}`);
+      }
+    }
+    if (malformed.length) {
+      for (const item of malformed) {
+        console.warn(`   [prepare REJECT] ${guardrail.id}/${lang}: ${item.reason}`);
+      }
+    }
+
+    const intentBasis = selectedUserIntent ? "random_user_intent" : "rag";
+    const withGrounding = attachGroundingMetadata(validated, retrieval, intentBasis).map((example) => ({
       ...example,
+      intent_basis: intentBasis,
       doc_seed: {
         file_name: seed.file_name,
         title: seed.title,
@@ -1172,6 +1355,11 @@ async function runBatch(guardrail, lang, count) {
     const { accepted, rejected } = filterNovelExamples(withGrounding, dedupState);
 
     totalAccepted.push(...accepted);
+    if (rejected.length) {
+      for (const item of rejected) {
+        console.warn(`   [dedup REJECT] ${guardrail.id}/${lang}: ${item.reason}`);
+      }
+    }
     totalRejectLines.push(
       ...bad,
       ...malformed.map((r) => JSON.stringify({ reason: r.reason, example: r.example })),
@@ -1197,6 +1385,7 @@ async function runBatch(guardrail, lang, count) {
     );
   }
   console.log(`   ✓ ${totalAccepted.length} written, ${totalRejectLines.length} rejected`);
+  return { accepted: totalAccepted };
 }
 
 async function main() {
@@ -1204,12 +1393,20 @@ async function main() {
     ? [ONLY_GUARDRAIL]
     : guardrailsSpec.guardrails.map((g) => g.id);
   const langs = ONLY_LANG ? [ONLY_LANG] : LANGS;
+  const allGenerated = [];
 
   for (const gid of guardrailIds) {
     const guardrail = pickGuardrail(guardrailsSpec, gid);
     for (const lang of langs) {
-      await runBatch(guardrail, lang, COUNT);
+      const result = await runBatch(guardrail, lang, COUNT);
+      allGenerated.push(...(result?.accepted || []));
     }
+  }
+
+  if (allGenerated.length) {
+    const diversity = buildDiversityReport(allGenerated);
+    fs.writeFileSync(path.join(OUT_DIR, "diversity_report.json"), JSON.stringify(diversity, null, 2) + "\n");
+    console.log(`Diversity report written to ${path.join(OUT_DIR, "diversity_report.json")}`);
   }
   console.log("Done.");
 }

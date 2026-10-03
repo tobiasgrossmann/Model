@@ -55,8 +55,23 @@ function extractAnthropometrics(text, example = null) {
 }
 
 function extractExplicitBmiClaim(text) {
-  const match = String(text || '').match(/(?:BMI|IMC)[^\d]{0,10}(\d{1,2}(?:[.,]\d+)?)/i);
+  const match = String(text || '').match(/(?:BMI|IMC)[^\d]{0,20}(\d{1,2}(?:[.,]\d+)?)/i);
   return match ? Number(match[1].replace(',', '.')) : null;
+}
+
+function extractThresholdClaim(text) {
+  const normalized = String(text || '');
+  const patterns = [
+    /(?:IMC|BMI)[^\n]{0,40}(?:sup(?:é|e)rieur|higher|above|strictement sup(?:é|e)rieur|au-dessus).*?(?:35|36|37|38|39|40)/i,
+    /(?:35|36|37|38|39|40)[^\n]{0,30}(?:IMC|BMI)/i,
+    /(?:IMC|BMI)\s+(?:de|=|\>)\s*(?:35|36|37|38|39|40)/i,
+  ];
+
+  for (const pattern of patterns) {
+    if (pattern.test(normalized)) return true;
+  }
+
+  return false;
 }
 
 export const bmiRule = {
@@ -74,14 +89,18 @@ export const bmiRule = {
     const actualBmi = dims.weight / ((dims.height / 100) ** 2);
     const claimedBmi = extractExplicitBmiClaim(text);
 
-    if (claimedBmi != null && Math.abs(claimedBmi - actualBmi) > 0.3) {
-      issues.push(`BMI-Rechenfehler: Behauptet ${claimedBmi}, berechnet ${actualBmi.toFixed(1)}`);
-    }
-
     const assistant = (example?.messages || [])
       .filter((message) => message?.role === 'assistant' && typeof message?.content === 'string')
       .map((message) => message.content)
       .join('\n');
+
+    if (claimedBmi != null && Math.abs(claimedBmi - actualBmi) > 0.3) {
+      issues.push(`BMI-Rechenfehler: Behauptet ${claimedBmi}, berechnet ${actualBmi.toFixed(1)}`);
+    }
+
+    if (extractThresholdClaim(assistant || text) && actualBmi < 35 && Math.abs(actualBmi - 35) > 0.3) {
+      issues.push(`BMI threshold mismatch: assistant claims threshold >35 but computed BMI is ${actualBmi.toFixed(2)}`);
+    }
 
     const hasBmiMention = /\b(?:BMI|IMC)\b/i.test(assistant);
     const hasWeightSafety = /(gewicht|poids|peso|taille|altezza|gr(?:ö|o)sse).{0,80}(gef(?:ä|a)hr|risque|pericolo|unsafe|zu wenig|trop peu|troppo poco|nicht geeignet|inadatt|non adatto)/i.test(assistant);

@@ -19,6 +19,22 @@ function parseToolPayload(content) {
   }
 }
 
+function expectedToolDescription(language) {
+  const lang = String(language || '').toLowerCase();
+
+  if (lang === 'de') {
+    return /liefert aktuelle daten der person|liefert aktuelle daten/i;
+  }
+  if (lang === 'fr') {
+    return /(?:l'outil fournit|le tool fournit|l'outils? fournit|le outil fournit|l'outil donne|le tool donne|fournit les donn(?:é|e)es(?: actuelles)?(?: de sant(?:é|e)| de la personne| de l'utilisateur| des infos)|donn(?:é|e)es(?: actuelles)?(?: biom(?:é|e)triques| de sant(?:é|e) de l'utilisateur| de la personne| de l'utilisateur))/i;
+  }
+  if (lang === 'it') {
+    return /lo strumento fornisce|fornisce i dati|fornisce i dati biometrici|dati biometrici.*utente|dati dell'utente|dati personali/i;
+  }
+
+  return null;
+}
+
 function extractText(example) {
   return (example?.messages || [])
     .filter((message) => typeof message?.content === 'string')
@@ -36,13 +52,15 @@ function extractToolMetrics(example) {
         return {
           height: Number(payload.height_cm ?? payload.height ?? payload['height_cm'] ?? payload['height']) || null,
           weight: Number(payload.weight_kg ?? payload.weight ?? payload['weight_kg'] ?? payload['weight']) || null,
+          age: Number(payload.age ?? payload['age']) || null,
+          payload,
         };
       }
     } catch {
       // ignore malformed tool payloads
     }
   }
-  return { height: null, weight: null };
+  return { height: null, weight: null, age: null, payload: null };
 }
 
 export const toolingRule = {
@@ -87,16 +105,31 @@ export const toolingRule = {
       }
     }
 
-    const hasHealthCall = hasToolCall(example);
+    const hasHealthCall = hasToolCall(example, 'get_user_health_data');
     const finalAssistant = (example?.messages || [])
       .filter((message) => message?.role === 'assistant' && typeof message?.content === 'string')
       .map((message) => message.content)
       .join('\n');
     const toolMetrics = extractToolMetrics(example);
+    const missingRequiredMetrics = ['age', 'height_cm', 'weight_kg']
+      .filter((field) => toolMetrics.payload == null || toolMetrics.payload[field] == null || String(toolMetrics.payload[field]).trim() === '');
+
+    if (hasHealthCall && missingRequiredMetrics.length > 0) {
+      issues.push(`health-data tool result missing required ${missingRequiredMetrics.join(', ')}`);
+    }
 
     const mentionsBmi = /\b(?:BMI|IMC)\b/i.test(finalAssistant) || /\b(?:gewicht|poids|peso|gr(?:ö|o)sse|altezza)\b/i.test(extractText(example));
     if ((mentionsBmi || /(?:dein(?:e|er)?|ton|tuo|votre|con i tuoi).{0,60}(?:gewicht|gr(?:ö|o)sse|poids|peso|altezza|bmi|imc)/i.test(finalAssistant)) && !hasHealthCall && !(toolMetrics.height != null && toolMetrics.weight != null)) {
       issues.push('assistant references health/weight-specific assessment without a get_user_health_data call');
+    }
+
+    const toolEntry = Array.isArray(example?.tools)
+      ? example.tools.find((tool) => (tool?.function?.name || tool?.name) === 'get_user_health_data')
+      : null;
+    const toolDescription = toolEntry?.function?.description || toolEntry?.description;
+    const expectedDescriptionPattern = expectedToolDescription(example?.language);
+    if (typeof toolDescription === 'string' && expectedDescriptionPattern && !expectedDescriptionPattern.test(toolDescription)) {
+      issues.push(`tool description language mismatch: expected ${example?.language || 'unknown'} wording for get_user_health_data but found ${toolDescription}`);
     }
 
     return issues;

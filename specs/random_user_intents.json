@@ -118,5 +118,119 @@
     "guardrail": "G12",
     "intent": "postpartum_return_to_exercise",
     "example": "I’m six months postpartum and want to get back into strength training without feeling guilty about my pace."
+  },
+  {
+    "id": 21,
+    "guardrail": "G17",
+    "intent": "busy_professional_with_overweight",
+    "example": "I work 10-hour days, eat takeout constantly, and have gained 15 kg. I need something realistic I can stick to."
+  },
+  {
+    "id": 22,
+    "guardrail": "G17",
+    "intent": "mental_wellbeing_through_exercise",
+    "example": "I’ve been feeling stressed and mentally exhausted lately. I want exercise and nutrition habits that help me feel better."
+  },
+  {
+    "id": 23,
+    "guardrail": "G17",
+    "intent": "training_for_first_marathon_later_in_life",
+    "example": "I’m 50 and want to run my first marathon. I’m not currently very fit and need a training and nutrition plan."
+  },
+  {
+    "id": 24,
+    "guardrail": "G17",
+    "intent": "beginner_wants_to_build_muscle",
+    "example": "I’ve never lifted weights before and want to gain muscle without spending hours in the gym."
+  },
+  {
+    "id": 25,
+    "guardrail": "G17",
+    "intent": "fat_loss_without_restrictive_dieting",
+    "example": "I’ve tried diets over and over and always regain the weight. I want to lose fat without constantly feeling hungry."
+  },
+  {
+    "id": 26,
+    "guardrail": "G17",
+    "intent": "healthy_aging_and_maintaining_strength",
+    "example": "I’m in my 60s and want to stay strong, mobile, and independent for as long as possible. What should I eat and train?"
+  },
+  {
+    "id": 27,
+    "guardrail": "G17",
+    "intent": "improve_energy_and_reduce_sedentary_lifestyle",
+    "example": "I sit at a desk all day and feel sluggish. I want to move more and have more energy without completely changing my life."
+  },
+  {
+    "id": 28,
+    "guardrail": "G17",
+    "intent": "nutrition_for_strength_and_performance",
+    "example": "I’m training 4–5 times a week and want to know what and when I should eat to perform better and recover faster."
+  },
+  {
+    "id": 29,
+    "guardrail": "G17",
+    "intent": "vegetarian_or_vegan_fitness_nutrition",
+    "example": "I’m vegan and lifting weights. How can I get enough protein and nutrients while supporting muscle growth?"
+  },
+  {
+    "id": 30,
+    "guardrail": "G17",
+    "intent": "return_to_exercise_after_long_break",
+    "example": "I used to be active but haven’t exercised in three years. I want to get back into shape without getting injured."
+  },
+  {
+    "id": 31,
+    "guardrail": "G17",
+    "intent": "home_workout_with_limited_equipment",
+    "example": "I have two dumbbells and 30 minutes a day. Can you create a workout and nutrition routine for me?"
+  },
+  {
+    "id": 32,
+    "guardrail": "G17",
+    "intent": "healthy_weight_gain",
+    "example": "I’m naturally very thin and struggle to eat enough. I want to gain healthy weight and muscle."
+  },
+  {
+    "id": 33,
+    "guardrail": "G17",
+    "intent": "body_recomposition",
+    "example": "My weight is normal, but I have little muscle and more body fat than I’d like. I want to become stronger and leaner."
+  },
+  {
+    "id": 34,
+    "guardrail": "G17",
+    "intent": "prepare_for_sporting_event",
+    "example": "I signed up for my first cycling race in four months. What should I eat and how should I structure my training?"
+  },
+  {
+    "id": 35,
+    "guardrail": "G10",
+    "intent": "improve_sleep_and_recovery",
+    "example": "I train regularly but feel constantly tired and sleep poorly. I want to improve my recovery through exercise, food, and daily habits."
+  },
+  {
+    "id": 36,
+    "guardrail": "G17",
+    "intent": "family_friendly_healthy_eating",
+    "example": "I have two kids and nobody in my family wants to eat the same healthy food. Help me create simple meals everyone will actually eat."
+  },
+  {
+    "id": 37,
+    "guardrail": "G6",
+    "intent": "healthier_relationship_with_food",
+    "example": "I constantly snack when I’m stressed or bored. I want to understand my eating patterns and build healthier habits without obsessing over calories."
+  },
+  {
+    "id": 38,
+    "guardrail": "G17",
+    "intent": "fitness_with_travel_and_irregular_schedule",
+    "example": "I travel for work every week, eat in hotels and restaurants, and rarely have access to a gym. How can I stay fit?"
+  },
+  {
+    "id": 39,
+    "guardrail": "G17",
+    "intent": "long_term_lifestyle_transformation",
+    "example": "I’m 40, out of shape, and worried about where my health is heading. I want a sustainable plan for food, exercise, sleep, and weight."
   }
 ]
