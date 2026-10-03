@@ -14,8 +14,9 @@ node repair_prompts.mjs --prompt generation.md --limit 8 --apply
 The repair command reads recent validation failures from `state/prompt_store/`, asks the local LLM for a prompt revision, stores the candidate on disk, and only promotes it after the full test suite passes when `--apply` is used.
 
 ## What this command actually does
-- Runs `generate.mjs` and then `validate.mjs` for each guardrail/language batch.
-- Uses `out/validated.jsonl` as the progress source (not `generated.jsonl`).
+- Runs `generate.mjs` for each guardrail/language batch.
+- Validation happens inline inside `generate.mjs` using the full validator rule set from `validate.mjs`.
+- Uses `out/generated.jsonl` as the progress source.
 - `--fresh` clears `out/generated.jsonl`, `out/validated.jsonl`, `out/flagged.jsonl`, `out/rejects.log` first.
 - Includes a warm-up pass over all `guardrail x language (de/fr/it)` combinations unless `--skip-warmup` is set.
 
@@ -34,7 +35,7 @@ Output examples are then normalized and enriched with:
 
 ## Important behavior to know
 - `generate.mjs --count` is capped at **3** examples per call (hard cap in code).
-- Campaign progress only increases when examples pass `validate.mjs` and land in `validated.jsonl`.
+- Campaign progress increases when examples pass inline validation and are written to `generated.jsonl`.
 - If many examples are flagged, campaign can run long with slow progress.
 - Exit code `130` usually means interrupted run (Ctrl+C / SIGINT), not necessarily a script bug.
 
@@ -42,7 +43,6 @@ Output examples are then normalized and enriched with:
 Run a minimal smoke test in a temporary folder:
 ```bash
 OUT_DIR=/tmp/model-smoke node generate.mjs --guardrail G1 --lang de --count 1 --no-stream
-OUT_DIR=/tmp/model-smoke node validate.mjs
 ```
 
 Then inspect:
@@ -53,4 +53,4 @@ jq -r '.issues[]' /tmp/model-smoke/flagged.jsonl | sort | uniq -c
 
 Interpretation:
 - Generation works if `generated.jsonl` has entries with `grounding` + `doc_seed`.
-- Campaign progress works only when entries pass validation and appear in `validated.jsonl`.
+- Inline failures and flags are written during generation (`flagged.jsonl`, `rejects.log`, and prompt-store failures).

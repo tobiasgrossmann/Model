@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen constraints against unsupported medical claims and enforce strict personalization_needed=false when no tool calls are made.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-03T17:09:35.076Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-03T17-09-35-077Z_generation_strengthen-constraints-against-unsupported-medical-claims-and-enforce-strict-per/generation.md"
+}

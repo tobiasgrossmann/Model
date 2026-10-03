@@ -151,7 +151,7 @@ const SUPPLEMENTAL_GUARDRAIL_DOCS = {
   G17: ["F-02", "F-05", "M-06", "M-07"],
 };
 
-export function createLocalRag({ ragDir, specDir, snippetCount = 4 }) {
+export function createLocalRag({ ragDir, specDir, snippetCount = 3 }) {
   const catalog = loadJson(path.join(specDir, "kb_source_catalog.json"));
   const guardrailsSpec = loadJson(path.join(specDir, "guardrails_spec.json"));
   const groundingSeeds = loadJson(path.join(specDir, "grounding_seed_prompts.json"));

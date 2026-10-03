@@ -3,28 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { snapshotPromptBundle, recordValidationFailure, savePromptCandidate, listRecentFailures, promotePromptCandidate, importFlaggedFailures } from '../src/prompt_store.mjs';
+import { recordValidationFailure, savePromptCandidate, listRecentFailures, promotePromptCandidate, importFlaggedFailures } from '../src/prompt_store.mjs';
 
 function makeTempDir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
-
-test('snapshotPromptBundle copies prompt and spec files into a file-based store', () => {
-  const root = makeTempDir('prompt-store-');
-  const promptDir = path.join(root, 'prompts');
-  const specDir = path.join(root, 'specs');
-  fs.mkdirSync(promptDir);
-  fs.mkdirSync(specDir);
-  fs.writeFileSync(path.join(promptDir, 'generation.md'), '# generation\n', 'utf8');
-  fs.writeFileSync(path.join(specDir, 'guardrails_spec.json'), '{"guardrails": []}\n', 'utf8');
-
-  const snapshot = snapshotPromptBundle({ promptDir, specDir, baseDir: path.join(root, 'store'), label: 'test-run' });
-
-  assert.ok(fs.existsSync(snapshot.snapshotDir));
-  assert.ok(fs.existsSync(path.join(snapshot.snapshotDir, 'prompts', 'generation.md')));
-  assert.ok(fs.existsSync(path.join(snapshot.snapshotDir, 'specs', 'guardrails_spec.json')));
-  assert.ok(fs.existsSync(snapshot.manifestPath));
-});
 
 test('recordValidationFailure writes a structured failure record', () => {
   const root = makeTempDir('prompt-store-');
@@ -84,7 +67,7 @@ test('listRecentFailures filters and limits stored failures', () => {
   assert.equal(failures[0].id, 'row-b');
 });
 
-test('promotePromptCandidate backs up the active prompt before overwriting it', () => {
+test('promotePromptCandidate overwrites the active prompt without snapshot history', () => {
   const root = makeTempDir('prompt-store-');
   const baseDir = path.join(root, 'store');
   const promptFile = path.join(root, 'prompts', 'generation.md');
@@ -103,7 +86,7 @@ test('promotePromptCandidate backs up the active prompt before overwriting it', 
   assert.equal(result.targetFile, promptFile);
   assert.equal(fs.readFileSync(promptFile, 'utf8'), 'candidate prompt\n');
   const snapshotsDir = path.join(baseDir, 'snapshots');
-  assert.ok(fs.existsSync(snapshotsDir));
+  assert.equal(fs.existsSync(snapshotsDir), false);
 });
 
 test('importFlaggedFailures bootstraps prompt-store failures from flagged.jsonl', () => {

@@ -16,7 +16,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createLocalRag } from "./local_rag.mjs";
-import { validateGeneratedExample } from "./validate.mjs";
+import { validateRow } from "./src/validation/index.mjs";
 import { recordValidationFailure } from "./src/prompt_store.mjs";
 import { BATCH_MIX_INSTRUCTIONS } from "./specs/batch_mix_instructions.mjs";
 import { HEALTHY_PLANNING_MIX } from "./specs/healthy_planning_mix.mjs";
@@ -231,9 +231,9 @@ function sanitizeFewShotExample(example, lang) {
   };
 }
 
-// Pick 2 pilot examples in the target language as few-shot style references.
+// Pick 1 pilot example in the target language as few-shot style reference.
 // Falls back to German pilots if none exist in that language yet.
-function pickFewShot(lang, n = 2) {
+function pickFewShot(lang, n = 1) {
   const inLang = pilots.filter((p) => p.language === lang);
   const pool = inLang.length ? inLang : pilots.filter((p) => p.language === "de");
   return shuffleInPlace([...pool])
@@ -972,6 +972,36 @@ function buildDiversityReport(examples) {
   };
 }
 
+function toTrainingReadyExample(example) {
+  const ready = {
+    id: example.id,
+    language: example.language,
+    guardrail: example.guardrail,
+    messages: example.messages,
+  };
+  if (Array.isArray(example.tools) && example.tools.length > 0) {
+    ready.tools = example.tools;
+  }
+  return ready;
+}
+
+function loadJsonlRecords(filePath) {
+  if (!fs.existsSync(filePath)) return [];
+  return fs
+    .readFileSync(filePath, "utf8")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+}
+
 function loadExistingDedupState(outFile) {
   const exact = new Set();
   const ngrams = [];
@@ -1278,10 +1308,14 @@ async function runBatch(guardrail, lang, count) {
   console.log(`-> ${guardrail.id} (${lang}), ${count} examples`);
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const outFile = path.join(OUT_DIR, "generated.jsonl");
+  const trainingReadyFile = path.join(OUT_DIR, "training_ready.jsonl");
   const rejFile = path.join(OUT_DIR, "rejects.log");
   const flaggedFile = path.join(OUT_DIR, "flagged.jsonl");
   if (!fs.existsSync(outFile)) {
     fs.writeFileSync(outFile, "", "utf8");
+  }
+  if (!fs.existsSync(trainingReadyFile)) {
+    fs.writeFileSync(trainingReadyFile, "", "utf8");
   }
   if (!fs.existsSync(flaggedFile)) {
     fs.writeFileSync(flaggedFile, "", "utf8");
@@ -1314,7 +1348,7 @@ async function runBatch(guardrail, lang, count) {
     );
 
     const approxTokens = Math.ceil((system.length + user.length) / 4);
-    if (approxTokens > 8000) {
+    if (approxTokens > 15000) {
       console.warn(`  ! prompt ~${approxTokens} tokens — consider trimming behavior/fewshot`);
     }
 
@@ -1325,7 +1359,7 @@ async function runBatch(guardrail, lang, count) {
     const validationRejects = [];
 
     for (const [idx, example] of prepared.entries()) {
-      const issues = validateGeneratedExample(example);
+      const issues = validateRow(example, { guardrail: guardrail.id, language: lang });
       if (issues.length) {
         const reason = issues.join('; ');
         console.warn(`   [validate FAIL] ${guardrail.id}/${lang} example ${idx + 1}: ${reason}`);
@@ -1390,6 +1424,8 @@ async function runBatch(guardrail, lang, count) {
 
   if (totalAccepted.length) {
     fs.appendFileSync(outFile, totalAccepted.map((o) => JSON.stringify(o)).join("\n") + "\n");
+    const trainingReadyRows = totalAccepted.map((example) => toTrainingReadyExample(example));
+    fs.appendFileSync(trainingReadyFile, trainingReadyRows.map((o) => JSON.stringify(o)).join("\n") + "\n");
   }
   if (totalFlaggedEntries.length) {
     fs.appendFileSync(flaggedFile, totalFlaggedEntries.map((entry) => JSON.stringify(entry)).join("\n") + "\n");
@@ -1422,8 +1458,10 @@ async function main() {
     }
   }
 
-  if (allGenerated.length) {
-    const diversity = buildDiversityReport(allGenerated);
+  const trainingReadyFile = path.join(OUT_DIR, "training_ready.jsonl");
+  const diversitySource = loadJsonlRecords(trainingReadyFile);
+  if (diversitySource.length || allGenerated.length) {
+    const diversity = buildDiversityReport(diversitySource.length ? diversitySource : allGenerated);
     fs.writeFileSync(path.join(OUT_DIR, "diversity_report.json"), JSON.stringify(diversity, null, 2) + "\n");
     console.log(`Diversity report written to ${path.join(OUT_DIR, "diversity_report.json")}`);
   }

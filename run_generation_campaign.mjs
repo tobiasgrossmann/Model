@@ -16,7 +16,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
-import { snapshotPromptBundle } from "./src/prompt_store.mjs";
 
 const SPEC_DIR = process.env.SPEC_DIR || "./specs";
 const OUT_DIR = process.env.OUT_DIR || "./out";
@@ -84,7 +83,7 @@ function loadGuardrailIds() {
 
 function resetOutFiles() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  const files = ["generated.jsonl", "validated.jsonl", "flagged.jsonl", "rejects.log"];
+  const files = ["generated.jsonl", "training_ready.jsonl", "validated.jsonl", "flagged.jsonl", "rejects.log"];
   for (const name of files) {
     fs.writeFileSync(path.join(OUT_DIR, name), "", "utf8");
   }
@@ -278,12 +277,6 @@ function main() {
     console.log("--fresh enabled: resetting out files");
     resetOutFiles();
   }
-
-  snapshotPromptBundle({
-    promptDir: "./prompts",
-    specDir: SPEC_DIR,
-    label: FRESH ? "campaign-fresh" : "campaign",
-  });
 
   let state = readLanguageCounts();
   printProgress("Start", state, guardrails);

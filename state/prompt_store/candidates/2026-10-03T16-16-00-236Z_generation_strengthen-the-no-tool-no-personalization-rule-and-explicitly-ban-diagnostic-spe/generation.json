@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Strengthen the 'no tool = no personalization' rule and explicitly ban diagnostic/speculative language in general guidance responses.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-03T16:16:00.235Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-03T16-16-00-236Z_generation_strengthen-the-no-tool-no-personalization-rule-and-explicitly-ban-diagnostic-spe/generation.md"
-}

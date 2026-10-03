@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import os from 'node:os';
 import {
   importFlaggedFailures,
   listRecentFailures,
@@ -27,6 +28,88 @@ const REPAIR_REQUEST_TIMEOUT_MS = parseInt(process.env.REPAIR_TIMEOUT_MS || argV
 const REPAIR_FETCH_RETRIES = parseInt(process.env.REPAIR_FETCH_RETRIES || argValue('fetch-retries', '3'), 10);
 const REPAIR_FETCH_RETRY_BASE_MS = parseInt(process.env.REPAIR_FETCH_RETRY_BASE_MS || argValue('fetch-retry-base-ms', '1500'), 10);
 const REPAIR_MAX_TOKENS = parseInt(process.env.REPAIR_MAX_TOKENS || argValue('max-tokens', '5000'), 10);
+const BENCHMARK_TARGETS = parseInt(process.env.REPAIR_BENCHMARK_TARGETS || argValue('benchmark-targets', '3'), 10);
+
+function ensureDir(dirPath) {
+  fs.mkdirSync(dirPath, { recursive: true });
+}
+
+function copyDirRecursive(src, dst) {
+  ensureDir(dst);
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    const from = path.join(src, entry.name);
+    const to = path.join(dst, entry.name);
+    if (entry.isDirectory()) {
+      copyDirRecursive(from, to);
+    } else if (entry.isFile()) {
+      fs.copyFileSync(from, to);
+    }
+  }
+}
+
+function chooseBenchmarkTargets(failures, maxTargets) {
+  const seen = new Set();
+  const targets = [];
+  for (const failure of failures) {
+    const guardrail = String(failure?.guardrail || '').toUpperCase();
+    const language = String(failure?.language || '').toLowerCase();
+    if (!guardrail || !language) continue;
+    const key = `${guardrail}/${language}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    targets.push({ guardrail, language });
+    if (targets.length >= maxTargets) break;
+  }
+  return targets;
+}
+
+function countJsonl(filePath) {
+  if (!fs.existsSync(filePath)) return 0;
+  return fs.readFileSync(filePath, 'utf8').split('\n').map((line) => line.trim()).filter(Boolean).length;
+}
+
+function runPromptBenchmark({ targets, promptFileName, promptContent = null }) {
+  const benchRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'prompt-benchmark-'));
+  const benchPromptsDir = path.join(benchRoot, 'prompts');
+  const benchOutDir = path.join(benchRoot, 'out');
+  ensureDir(benchOutDir);
+  copyDirRecursive(PROMPTS_DIR, benchPromptsDir);
+  if (promptContent != null) {
+    fs.writeFileSync(path.join(benchPromptsDir, promptFileName), String(promptContent), 'utf8');
+  }
+
+  let attempted = 0;
+  for (const target of targets) {
+    const args = [
+      'generate.mjs',
+      '--guardrail', target.guardrail,
+      '--lang', target.language,
+      '--count', '1',
+      '--no-stream',
+    ];
+    const res = spawnSync(process.execPath, args, {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PROMPTS_DIR: benchPromptsDir,
+        OUT_DIR: benchOutDir,
+      },
+      stdio: 'pipe',
+    });
+    attempted += 1;
+    if (res.status !== 0) {
+      fs.rmSync(benchRoot, { recursive: true, force: true });
+      throw new Error(`Benchmark generation failed for ${target.guardrail}/${target.language}: ${res.stderr || res.stdout}`);
+    }
+  }
+
+  const accepted = countJsonl(path.join(benchOutDir, 'generated.jsonl'));
+  const flagged = countJsonl(path.join(benchOutDir, 'flagged.jsonl'));
+  const score = attempted > 0 ? accepted / attempted : 0;
+  fs.rmSync(benchRoot, { recursive: true, force: true });
+  return { attempted, accepted, flagged, score };
+}
 
 function renderTemplate(template, values) {
   return String(template).replace(/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g, (_, key) => {
@@ -361,6 +444,34 @@ async function main() {
     process.stderr.write(testRun.stdout || '');
     process.stderr.write(testRun.stderr || '');
     throw new Error('Regression tests failed; prompt candidate was not promoted.');
+  }
+
+  const benchmarkTargets = chooseBenchmarkTargets(effectiveFailures, Math.max(1, BENCHMARK_TARGETS));
+  if (benchmarkTargets.length) {
+    const promptFileName = path.basename(targetFile);
+    const baselineMetrics = runPromptBenchmark({
+      targets: benchmarkTargets,
+      promptFileName,
+      promptContent: null,
+    });
+    const candidateMetrics = runPromptBenchmark({
+      targets: benchmarkTargets,
+      promptFileName,
+      promptContent: content,
+    });
+
+    console.log(JSON.stringify({
+      benchmark_targets: benchmarkTargets,
+      baseline: baselineMetrics,
+      candidate: candidateMetrics,
+    }, null, 2));
+
+    const clearlyWorse =
+      candidateMetrics.score < baselineMetrics.score ||
+      candidateMetrics.flagged > baselineMetrics.flagged;
+    if (clearlyWorse) {
+      throw new Error('Benchmark gate failed: candidate prompt performs worse than baseline; promotion aborted.');
+    }
   }
 
   promotePromptCandidate({

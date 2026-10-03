@@ -3,9 +3,7 @@ import path from 'node:path';
 
 const DEFAULT_PROMPT_STORE_DIR = process.env.PROMPT_STORE_DIR || './state/prompt_store';
 const PROMPT_STORE_RETENTION_DAYS = parseInt(process.env.PROMPT_STORE_RETENTION_DAYS || '1', 10);
-const PROMPT_STORE_MAX_SNAPSHOTS = parseInt(process.env.PROMPT_STORE_MAX_SNAPSHOTS || '8', 10);
 const PROMPT_STORE_MAX_CANDIDATES = parseInt(process.env.PROMPT_STORE_MAX_CANDIDATES || '12', 10);
-const PROMPT_STORE_MAX_HISTORY_LINES = parseInt(process.env.PROMPT_STORE_MAX_HISTORY_LINES || '20', 10);
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
@@ -69,48 +67,21 @@ function pruneDirectoryByAgeAndCount(dirPath, { retentionDays, maxEntries }) {
   }
 }
 
-function pruneHistoryFile(filePath, maxLines) {
-  if (!fs.existsSync(filePath)) return;
-  if (!Number.isFinite(maxLines) || maxLines < 1) {
-    fs.writeFileSync(filePath, '', 'utf8');
-    return;
-  }
-
-  const lines = fs.readFileSync(filePath, 'utf8')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-  if (lines.length <= maxLines) return;
-
-  const trimmed = lines.slice(lines.length - maxLines);
-  fs.writeFileSync(filePath, `${trimmed.join('\n')}\n`, 'utf8');
-}
-
 export function prunePromptStore(baseDir = DEFAULT_PROMPT_STORE_DIR) {
   const root = getPromptStoreDir(baseDir);
-  const snapshotsDir = path.join(root, 'snapshots');
   const candidatesDir = path.join(root, 'candidates');
-  const historyFile = path.join(root, 'history', 'prompt_versions.jsonl');
 
-  pruneDirectoryByAgeAndCount(snapshotsDir, {
-    retentionDays: PROMPT_STORE_RETENTION_DAYS,
-    maxEntries: PROMPT_STORE_MAX_SNAPSHOTS,
-  });
   pruneDirectoryByAgeAndCount(candidatesDir, {
     retentionDays: PROMPT_STORE_RETENTION_DAYS,
     maxEntries: PROMPT_STORE_MAX_CANDIDATES,
   });
-  pruneHistoryFile(historyFile, PROMPT_STORE_MAX_HISTORY_LINES);
 }
 
 export function ensurePromptStore(baseDir = DEFAULT_PROMPT_STORE_DIR) {
   const root = getPromptStoreDir(baseDir);
   ensureDir(root);
-  ensureDir(path.join(root, 'snapshots'));
   ensureDir(path.join(root, 'failures'));
   ensureDir(path.join(root, 'candidates'));
-  ensureDir(path.join(root, 'history'));
-  ensureDir(path.join(root, 'prompt_versions'));
   prunePromptStore(root);
   return root;
 }
@@ -205,104 +176,28 @@ export function importFlaggedFailures({
   return { imported, skipped };
 }
 
-export function backupPromptFile({ promptFile, baseDir = DEFAULT_PROMPT_STORE_DIR, label = 'pre-promotion' }) {
-  const root = ensurePromptStore(baseDir);
-  const source = path.isAbsolute(promptFile) ? promptFile : path.resolve(promptFile);
-  const backupDir = path.join(root, 'snapshots', `${timestampTag()}_${slugify(label)}`, 'prompts');
-  ensureDir(backupDir);
-  const target = path.join(backupDir, path.basename(source));
-  if (fs.existsSync(source)) {
-    fs.copyFileSync(source, target);
-  }
-  appendJsonl(path.join(root, 'history', 'prompt_versions.jsonl'), {
-    kind: 'backup',
-    created_at: new Date().toISOString(),
-    source_file: source,
-    backup_file: target,
-    label,
-  });
-  return { backupDir, backupFile: target };
-}
-
 export function promotePromptCandidate({ promptFile, candidateFile, baseDir = DEFAULT_PROMPT_STORE_DIR, label = 'promotion' }) {
-  const root = ensurePromptStore(baseDir);
+  ensurePromptStore(baseDir);
   const targetFile = path.isAbsolute(promptFile) ? promptFile : path.resolve(promptFile);
   const sourceFile = path.isAbsolute(candidateFile) ? candidateFile : path.resolve(candidateFile);
   if (!fs.existsSync(sourceFile)) {
     throw new Error(`Candidate file does not exist: ${sourceFile}`);
   }
-  backupPromptFile({ promptFile: targetFile, baseDir: root, label });
   ensureDir(path.dirname(targetFile));
   fs.copyFileSync(sourceFile, targetFile);
-  appendJsonl(path.join(root, 'history', 'prompt_versions.jsonl'), {
-    kind: 'promotion',
-    created_at: new Date().toISOString(),
-    source_file: sourceFile,
-    target_file: targetFile,
-    label,
-  });
   return { targetFile, sourceFile };
 }
 
 export function snapshotPromptBundle({ promptDir, specDir, baseDir = DEFAULT_PROMPT_STORE_DIR, label = 'campaign' }) {
   const root = ensurePromptStore(baseDir);
-  const stamp = `${timestampTag()}_${slugify(label)}`;
-  const snapshotDir = path.join(root, 'snapshots', stamp);
-  const snapshotPromptsDir = path.join(snapshotDir, 'prompts');
-  const snapshotSpecsDir = path.join(snapshotDir, 'specs');
-  ensureDir(snapshotPromptsDir);
-  ensureDir(snapshotSpecsDir);
-
-  const promptFiles = ['system.md', 'generation.md', 'retry.md', 'seed_generation.md', 'few_shot.md', 'prompt_repair.md'];
-  const specFiles = [
-    'guardrails_spec.json',
-    'guardrail_content_contracts.json',
-    'guardrail_policies.mjs',
-    'guardrail_grounding.mjs',
-    'batch_mix_instructions.json',
-    'healthy_planning_mix.json',
-    'random_user_intents.json',
-  ];
-
-  const copied = [];
-  for (const fileName of promptFiles) {
-    const source = path.join(promptDir, fileName);
-    if (!fs.existsSync(source)) continue;
-    const target = path.join(snapshotPromptsDir, fileName);
-    fs.copyFileSync(source, target);
-    copied.push({ type: 'prompt', file: fileName, path: target });
-  }
-
-  for (const fileName of specFiles) {
-    const source = path.join(specDir, fileName);
-    if (!fs.existsSync(source)) continue;
-    const target = path.join(snapshotSpecsDir, fileName);
-    fs.copyFileSync(source, target);
-    copied.push({ type: 'spec', file: fileName, path: target });
-  }
-
   const manifest = {
     created_at: new Date().toISOString(),
     label,
     prompt_dir: promptDir,
     spec_dir: specDir,
-    copied,
+    snapshots_disabled: true,
   };
-
-  const manifestPath = path.join(snapshotDir, 'manifest.json');
-  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
-
-  appendJsonl(path.join(root, 'history', 'prompt_versions.jsonl'), {
-    kind: 'snapshot',
-    created_at: manifest.created_at,
-    label,
-    snapshot_dir: snapshotDir,
-    prompt_dir: promptDir,
-    spec_dir: specDir,
-    files: copied.map((item) => item.file),
-  });
-
-  return { root, snapshotDir, manifestPath, manifest };
+  return { root, snapshotDir: null, manifestPath: null, manifest };
 }
 
 export function recordValidationFailure({ example, issues, source = 'validate', baseDir = DEFAULT_PROMPT_STORE_DIR }) {
@@ -355,16 +250,6 @@ export function savePromptCandidate({ promptId, content, reason, sourceFile = nu
   const jsonPath = path.join(candidateDir, `${safePromptId}.json`);
   fs.writeFileSync(mdPath, `${String(content || '')}\n`, 'utf8');
   fs.writeFileSync(jsonPath, `${JSON.stringify({ promptId, reason, sourceFile, createdAt, mdPath }, null, 2)}\n`, 'utf8');
-
-  appendJsonl(path.join(root, 'history', 'prompt_versions.jsonl'), {
-    kind: 'candidate',
-    prompt_id: promptId,
-    created_at: createdAt,
-    reason,
-    source_file: sourceFile,
-    md_path: mdPath,
-    json_path: jsonPath,
-  });
 
   return { candidateDir, mdPath, jsonPath };
 }
