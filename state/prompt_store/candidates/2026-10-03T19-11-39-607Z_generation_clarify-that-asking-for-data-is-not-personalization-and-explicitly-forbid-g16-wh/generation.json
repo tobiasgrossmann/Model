@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Clarify that asking for data is not personalization and explicitly forbid G16 when pregnancy context is present, resolving the two main failure patterns.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-03T19:11:39.606Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-03T19-11-39-607Z_generation_clarify-that-asking-for-data-is-not-personalization-and-explicitly-forbid-g16-wh/generation.md"
-}

@@ -989,12 +989,12 @@ function fallbackAssistantText(lang, mode, guardrailId = "") {
 
   if (gid === "G8") {
     if (lang === "fr") {
-      return "Si ton objectif est d'avancer sans risque, évite les stéroïdes ou autres raccourcis dangereux. Le cadre le plus sûr est de progresser par entraînement structuré, sommeil suffisant et alimentation régulière; pour aller plus loin sans te mettre en danger, valide avec un coach qualifié ou un professionnel de santé.";
+      return "Pour avancer sans risque, distingue bien les suppléments autorisés et sûrs (comme la créatine monohydrate ou la caféine aux doses habituelles) des substances dangereuses ou interdites (stéroïdes anabolisants, dopage). La créatine monohydrate est un supplément largement étudié, autorisé et considéré comme sûr chez les personnes en bonne santé; les stéroïdes anabolisants sont dangereux et interdits. Le cadre le plus sûr est de progresser par entraînement structuré, sommeil suffisant et alimentation régulière; pour des questions spécifiques sur un supplément ou un programme, valide avec un coach qualifié ou un professionnel de santé.";
     }
     if (lang === "it") {
-      return "Cercare di costruire muscoli e perdere peso aggressivamente nello stesso momento è una strategia in conflitto e aumenta il rischio di burnout o infortunio. Come linea generale sicura: evita i fat burner non regolamentati, punta su un lieve deficit calorico con proteine adeguate e allenamento di forza costante. Per bilanciare questi obiettivi senza rischi, confrontati con un nutrizionista sportivo.";
+      return "Per procedere in sicurezza, distingui chiaramente tra supplementi autorizzati e sicuri (come la creatina monoidrato o la caffeina alle dosi abituali) e sostanze pericolose o vietate (steroidi anabolizzanti, doping). La creatina monoidrato è un supplemento ampiamente studiato, autorizzato e considerato sicuro per persone sane; gli steroidi anabolizzanti sono pericolosi e vietati. Come linea generale sicura: evita i fat burner non regolamentati, punta su un lieve deficit calorico con proteine adeguate e allenamento di forza costante, e per bilanciare obiettivi senza rischi confrontati con un nutrizionista sportivo.";
     }
-    return "Wenn du sicher bleiben willst, vermeide Steroide oder andere riskante Abkürzungen. Der sicherste Weg sind strukturiertes Training, ausreichender Schlaf und eine verlässliche Ernährung; für einen weitergehenden Plan ohne Risiko bitte mit qualifiziertem Coach oder Fachperson abstimmen.";
+    return "Für sicheres Vorgehen unterscheide klar zwischen erlaubten, sicheren Supplementen (wie Kreatin-Monohydrat oder Koffein in üblichen Dosen) und gefährlichen, verbotenen Substanzen (anabole Steroide, Doping). Kreatin-Monohydrat ist ein gut erforschtes, zugelassenes und für gesunde Personen sicheres Supplement; anabole Steroide sind gefährlich und verboten. Der sicherste Weg sind strukturiertes Training, ausreichender Schlaf und eine verlässliche Ernährung; für gezielte Fragen zu einem Supplement oder Programm bitte mit qualifiziertem Coach oder Fachperson abstimmen.";
   }
 
   if (gid === "G10") {

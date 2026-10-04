@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Add explicit anti-duplicate constraints to the 'Qualitätsregeln' section to prevent the model from generating identical or near-identical generic safety responses for G16 and other guardrails.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-03T19:17:41.260Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-03T19-17-41-260Z_generation_add-explicit-anti-duplicate-constraints-to-the-qualit-tsregeln-section-to-preven/generation.md"
-}

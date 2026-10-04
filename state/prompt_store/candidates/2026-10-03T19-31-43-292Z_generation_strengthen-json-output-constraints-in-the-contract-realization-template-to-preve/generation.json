@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Strengthen JSON output constraints in the Contract Realization template to prevent plain text responses.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-03T19:31:43.291Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-03T19-31-43-292Z_generation_strengthen-json-output-constraints-in-the-contract-realization-template-to-preve/generation.md"
-}
