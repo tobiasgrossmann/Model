@@ -1,53 +1,79 @@
 {
   "totals": {
-    "validated_examples": 8,
-    "compared_pairs": 28,
-    "high_overlap_pairs": 0,
-    "high_overlap_ratio": 0,
+    "validated_examples": 59,
+    "compared_pairs": 1711,
+    "high_overlap_pairs": 2,
+    "high_overlap_ratio": 0.0012,
     "overlap_threshold": 0.85,
     "compared_pairs_cap": 150000
   },
   "distribution": {
     "language": {
-      "fr": 3,
-      "it": 4,
-      "de": 1
+      "fr": 19,
+      "de": 21,
+      "it": 19
     },
     "guardrail": {
-      "G17": 2,
+      "G12": 7,
+      "G2": 3,
+      "G13": 7,
+      "G15": 6,
+      "G8": 4,
+      "G9": 7,
       "G4": 3,
+      "G11": 5,
+      "G17": 6,
+      "G1": 2,
+      "G14": 3,
       "G5": 2,
-      "G2": 1
+      "G10": 2,
+      "G16": 2
     },
     "intent_basis": {
-      "guardrail": 8
+      "guardrail": 59
     },
     "tool_call": {
-      "get_user_health_data": 1
+      "get_user_health_data": 12,
+      "save_training_plan": 2,
+      "save_food_plan": 2
     },
     "tool_call_language": {
-      "get_user_health_data/it": 1
+      "get_user_health_data/fr": 3,
+      "get_user_health_data/de": 5,
+      "get_user_health_data/it": 4,
+      "save_training_plan/de": 1,
+      "save_training_plan/fr": 1,
+      "save_food_plan/fr": 2
     },
     "persona": {
       "sex": {
-        "unknown": 7,
-        "female": 1
+        "unknown": 47,
+        "female": 6,
+        "male": 6
       },
       "age_band": {
-        "unknown": 7,
-        "30-44": 1
+        "unknown": 47,
+        "18-29": 6,
+        "30-44": 4,
+        "60+": 1,
+        "45-59": 1
       },
       "height_band_cm": {
-        "unknown": 7,
-        "160-174": 1
+        "unknown": 47,
+        "160-174": 8,
+        "175-189": 4
       },
       "weight_band_kg": {
-        "unknown": 8
+        "unknown": 59
       }
     },
     "topic": {
-      "other": 7,
-      "medical_scope": 1
+      "other": 28,
+      "medical_scope": 8,
+      "exercise": 13,
+      "pregnancy": 5,
+      "weight_loss": 3,
+      "allergy": 2
     }
   }
 }
