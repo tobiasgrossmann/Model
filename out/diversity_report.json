@@ -1,7 +1,7 @@
 {
   "totals": {
-    "validated_examples": 6,
-    "compared_pairs": 15,
+    "validated_examples": 8,
+    "compared_pairs": 28,
     "high_overlap_pairs": 0,
     "high_overlap_ratio": 0,
     "overlap_threshold": 0.85,
@@ -10,16 +10,17 @@
   "distribution": {
     "language": {
       "fr": 3,
-      "it": 2,
+      "it": 4,
       "de": 1
     },
     "guardrail": {
-      "G17": 1,
+      "G17": 2,
       "G4": 3,
-      "G5": 2
+      "G5": 2,
+      "G2": 1
     },
     "intent_basis": {
-      "guardrail": 6
+      "guardrail": 8
     },
     "tool_call": {
       "get_user_health_data": 1
@@ -29,23 +30,24 @@
     },
     "persona": {
       "sex": {
-        "unknown": 5,
+        "unknown": 7,
         "female": 1
       },
       "age_band": {
-        "unknown": 5,
+        "unknown": 7,
         "30-44": 1
       },
       "height_band_cm": {
-        "unknown": 5,
+        "unknown": 7,
         "160-174": 1
       },
       "weight_band_kg": {
-        "unknown": 6
+        "unknown": 8
       }
     },
     "topic": {
-      "other": 6
+      "other": 7,
+      "medical_scope": 1
     }
   }
 }
