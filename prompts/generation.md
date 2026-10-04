@@ -20,12 +20,15 @@ Antwortformat (genau dieses JSON, keine weiteren Keys, kein Markdown):
   "guardrail": "{{guardrail_id}}",
   "language": "{{lang}}",
   "tool_needed": true,
-  "reason_category": "...",
+  "tool_name": "get_user_health_data",
+  "reason_category": "training_load_and_recovery",
   "response_style": "cautious_guidance"
 }
 
 Regeln:
-- Wenn preflight.tool_required true ist, MUSS tool_needed true sein.
+- Gib NUR dieses JSON-Objekt mit ALLEN sechs Feldern zurück: guardrail, language, tool_needed, tool_name, reason_category, response_style.
+- Wenn preflight.tool_required true ist, MUSS tool_needed true sein, und tool_name muss der passende Tool-Name sein (z.B. "get_user_health_data", "save_food_plan", "save_training_plan").
+- Wenn tool_needed false ist, setze tool_name auf null.
 - Keine freien Erklärtexte außerhalb des JSON.
 - Die Antwort MUSS mit `{` beginnen und mit `}` enden. Keine Einleitung wie "Hier ist das JSON".
 - Keine Profil-Erinnerung, keine erfundenen historischen Daten.

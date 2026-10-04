@@ -582,11 +582,17 @@ function computePreflightPolicy({ guardrail, lang, selectedQuestion, selectedUse
 
 function normalizeIntentDecision(raw, preflight) {
   const responseStyle = String(raw?.response_style || preflight.response_mode || "cautious_guidance").trim() || "cautious_guidance";
+  const toolNeeded = preflight.tool_required ? true : Boolean(raw?.tool_needed);
+  const explicitToolName = raw && raw.tool_name !== undefined && raw.tool_name !== null ? String(raw.tool_name).trim() : "";
+  const normalizedToolName = toolNeeded
+    ? (explicitToolName || preflight.preferred_tool || "get_user_health_data")
+    : "none";
+
   return {
-    guardrail: preflight.guardrail,
-    language: preflight.language,
-    tool_needed: preflight.tool_required ? true : Boolean(raw?.tool_needed),
-    tool_name: String(raw?.tool_name || preflight.preferred_tool || "get_user_health_data"),
+    guardrail: String(raw?.guardrail || preflight.guardrail || ""),
+    language: String(raw?.language || preflight.language || "de"),
+    tool_needed: toolNeeded,
+    tool_name: normalizedToolName,
     reason_category: String(raw?.reason_category || preflight.reason_category || "general_safety"),
     response_style: responseStyle,
   };
@@ -1052,9 +1058,10 @@ function parseRequiredObject(rawText, label) {
   }
 
   if (label === "intent-decision") {
-    const hasExpectedKey = ["tool_needed", "reason_category", "response_style", "tool_name"].some((key) => Object.prototype.hasOwnProperty.call(parsed, key));
-    if (!hasExpectedKey) {
-      throw new Error(`${label}: model response is missing intent-decision fields`);
+    const requiredKeys = ["guardrail", "language", "tool_needed", "tool_name", "reason_category", "response_style"];
+    const missing = requiredKeys.filter((key) => !Object.prototype.hasOwnProperty.call(parsed, key));
+    if (missing.length) {
+      throw new Error(`${label}: model response is missing intent-decision fields: ${missing.join(", ")}`);
     }
   }
 
