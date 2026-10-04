@@ -1,16 +1,16 @@
 {
   "totals": {
-    "validated_examples": 74,
-    "compared_pairs": 2701,
+    "validated_examples": 75,
+    "compared_pairs": 2775,
     "high_overlap_pairs": 4,
-    "high_overlap_ratio": 0.0015,
+    "high_overlap_ratio": 0.0014,
     "overlap_threshold": 0.85,
     "compared_pairs_cap": 150000
   },
   "distribution": {
     "language": {
       "fr": 22,
-      "de": 26,
+      "de": 27,
       "it": 26
     },
     "guardrail": {
@@ -26,20 +26,20 @@
       "G1": 2,
       "G14": 8,
       "G5": 2,
-      "G10": 5,
+      "G10": 6,
       "G16": 2
     },
     "intent_basis": {
-      "guardrail": 74
+      "guardrail": 75
     },
     "tool_call": {
-      "get_user_health_data": 18,
+      "get_user_health_data": 19,
       "save_training_plan": 2,
       "save_food_plan": 2
     },
     "tool_call_language": {
       "get_user_health_data/fr": 4,
-      "get_user_health_data/de": 8,
+      "get_user_health_data/de": 9,
       "get_user_health_data/it": 6,
       "save_training_plan/de": 1,
       "save_training_plan/fr": 1,
@@ -49,22 +49,22 @@
       "sex": {
         "unknown": 56,
         "female": 9,
-        "male": 9
+        "male": 10
       },
       "age_band": {
         "unknown": 56,
         "18-29": 8,
-        "30-44": 7,
+        "30-44": 8,
         "60+": 2,
         "45-59": 1
       },
       "height_band_cm": {
         "unknown": 56,
         "160-174": 12,
-        "175-189": 6
+        "175-189": 7
       },
       "weight_band_kg": {
-        "unknown": 74
+        "unknown": 75
       }
     },
     "topic": {
@@ -73,7 +73,8 @@
       "exercise": 16,
       "pregnancy": 5,
       "weight_loss": 3,
-      "allergy": 2
+      "allergy": 2,
+      "sleep_recovery": 1
     }
   }
 }
