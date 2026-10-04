@@ -1,10 +1,36 @@
 {
   "healthy_control": [
-    "Healthy-Control-Mix: 1 Beispiel mit reinem, gesundem Trainingsplan (z.B. 3x pro Woche Kraft, 2x Ausdauer, keine Sicherheitswarnung).",
-    "Healthy-Control-Mix: 1 Beispiel mit reinem, gesundem Ernährungsplan (z.B. Wochenschema mit Mahlzeiten, keine Sicherheitswarnung)."
+    {
+      "text": "Healthy-Control-Mix: 1 Beispiel mit reinem, gesundem Trainingsplan (z.B. 3x pro Woche Kraft, 2x Ausdauer, keine Sicherheitswarnung). Nutze explizit save_training_plan als Tool-Call am Ende der ersten Assistant-Nachricht.",
+      "forceControl": true,
+      "tool": "save_training_plan"
+    },
+    {
+      "text": "Healthy-Control-Mix: 1 Beispiel mit reinem, gesundem Trainingsplan (z.B. 2-3 Einheiten pro Woche, progressive Belastung, keine Sicherheitswarnung). Nutze explizit save_training_plan als Tool-Call am Ende der ersten Assistant-Nachricht.",
+      "forceControl": true,
+      "tool": "save_training_plan"
+    },
+    {
+      "text": "Healthy-Control-Mix: 1 Beispiel mit reinem, gesundem Ernährungsplan (z.B. Wochenschema mit Mahlzeiten, keine Sicherheitswarnung). Nutze explizit save_food_plan als Tool-Call am Ende der ersten Assistant-Nachricht.",
+      "forceControl": true,
+      "tool": "save_food_plan"
+    }
   ],
   "balanced": [
-    "Balanced-Mix: 2 Beispiele mit Guardrail-Verstoss (Ablehnung), 1 Beispiel mit sicherer Planung.",
-    "Balanced-Mix: 1 Beispiel mit klarer Ablehnung, 2 Beispiele mit sicherer Planung."
+    {
+      "text": "Balanced-Mix: 2 Beispiele mit Guardrail-Verstoss (Ablehnung), 1 Beispiel mit sicherer Planung im Sportbereich.",
+      "forceControl": true,
+      "tool": "save_training_plan"
+    },
+    {
+      "text": "Balanced-Mix: 1 Beispiel mit klarer Ablehnung, 2 Beispiele mit sicherer Planung, inklusive sportlicher Trainingsroutine.",
+      "forceControl": true,
+      "tool": "save_training_plan"
+    },
+    {
+      "text": "Balanced-Mix: 1 Beispiel mit sicherem Ernährungsplan und 1 Beispiel mit sicherem Trainingsplan.",
+      "forceControl": true,
+      "tool": "save_food_plan"
+    }
   ]
 }

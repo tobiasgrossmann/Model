@@ -83,8 +83,50 @@ function topicCoverageReview(example) {
   return ['uncovered_topic'];
 }
 
+function groundingMetadataReview(example) {
+  const reviewIssues = [];
+  const basis = String(example?.intent_basis || example?.intent_source?.basis || '').toLowerCase();
+  const ragDocument = Boolean(example?.intent_source?.rag_document);
+  const sources = Array.isArray(example?.grounding?.sources) ? example.grounding.sources : [];
+  const docSeed = example?.doc_seed || null;
+  const guardrailId = canonicalGuardrail(example?.guardrail);
+
+  const userText = normalizeText((example?.messages || [])
+    .filter((message) => message?.role === 'user' && typeof message?.content === 'string')
+    .map((message) => message.content)
+    .join('\n'));
+  const groundingQuery = normalizeText(String(example?.grounding?.query || ''));
+  const intentKey = String(example?.intent_key || '').toLowerCase();
+
+  if (basis === 'random_user_intent') {
+    if (ragDocument) {
+      reviewIssues.push('grounding mismatch: random_user_intent rows must set intent_source.rag_document=false');
+    }
+    if (sources.length > 0) {
+      reviewIssues.push('grounding mismatch: random_user_intent rows should not attach rag document sources');
+    }
+    if (docSeed && docSeed.file_name) {
+      reviewIssues.push('grounding mismatch: random_user_intent rows should not carry a document-backed doc_seed file_name');
+    }
+  }
+
+  if (guardrailId === 'G4') {
+    const redFlagBackPainPattern = /(r[üu]cken|lomb|schiena).*(ausstrahl|irrad|bein|jambe|gamba)|(ausstrahl|irrad).*(bein|jambe|gamba)/i;
+    const sleepPattern = /(schlaf|sleep|insomn|m[üu]de aber wach|fatigue mais|dormir|sommeil|insonnia)/i;
+    if (redFlagBackPainPattern.test(userText) && sleepPattern.test(groundingQuery)) {
+      reviewIssues.push('grounding mismatch: G4 red-flag pain prompt is paired with sleep/insomnia grounding query');
+    }
+    if (redFlagBackPainPattern.test(userText) && /knee_pain_during_lifting/.test(intentKey)) {
+      reviewIssues.push('grounding mismatch: G4 red-flag back-pain prompt uses mismatched knee-lifting intent_key');
+    }
+  }
+
+  return reviewIssues;
+}
+
 function guardrailRule(example, guardrailId) {
   const issues = [];
+  const messages = Array.isArray(example?.messages) ? example.messages : [];
   const text = (example?.messages || [])
     .filter((message) => typeof message?.content === 'string')
     .map((message) => message.content)
@@ -103,6 +145,125 @@ function guardrailRule(example, guardrailId) {
 
   if (guardrailId !== 'G11' && pregnancyPattern.test(normalizedText)) {
     issues.push(`guardrail mismatch: pregnancy context indicates G11 but guardrail is ${guardrailId}`);
+  }
+
+  const normalizedTopicText = normalizeText((example?.messages || [])
+    .filter((message) => typeof message?.content === 'string')
+    .map((message) => message.content)
+    .join('\n'));
+
+  const userText = normalizeText(messages
+    .filter((message) => message?.role === 'user' && typeof message?.content === 'string')
+    .map((message) => message.content)
+    .join('\n'));
+  const assistantText = normalizeText(messages
+    .filter((message) => message?.role === 'assistant' && typeof message?.content === 'string')
+    .map((message) => message.content)
+    .join('\n'));
+
+  // G17 is reserved for contextual exercise safety screening, not supplement-topic safety.
+  const supplementSafetyPattern = /(supplement|supplements|complement|complements|proteine|protein|whey|creatin|creatine|pre workout|preworkout|integratore|integratori|powder)/i;
+  if (guardrailId === 'G17' && supplementSafetyPattern.test(normalizedTopicText)) {
+    if (/(allerg|allergie|allergia|allergy|nuss|nuts|arachide|cacahuete|frutta a guscio)/i.test(userText)) {
+      issues.push('guardrail mismatch: supplement allergy focus should use G3, not G17');
+    } else {
+      issues.push('guardrail mismatch: supplement/nutrition safety belongs to G12, not G17');
+    }
+  }
+
+  // Creatine should not be framed as equivalent to anabolic steroids.
+  if (/creatin/.test(userText) && /steroid/.test(assistantText)) {
+    const explicitDistinction = /(not a steroid|is not a steroid|n est pas un steroid|pas un steroid|kein steroid|non e uno steroide|pas equivalent|nicht gleich|different de|distinto da)/i;
+    if (!explicitDistinction.test(assistantText)) {
+      issues.push('factual mismatch: do not equate creatine with steroids');
+    }
+  }
+
+  // G5 is strictly for acute psychological crisis signals, not physical hydration topics.
+  if (guardrailId === 'G5') {
+    const crisisPattern = /(psychisch|psycholog|psicolog|kein(?:en)?\s+ausweg|am\s+ende|angst\s+vor\s+meinen\s+eigenen\s+gedanken|selbstverletz|suizid|krise|hopeless|self harm|suicid|aucune\s+issue|id[ée]es\s+noires|penser\s+a\s+me\s+faire\s+du\s+mal|sans\s+issue|au\s+bout|non\s+vedo\s+(?:alcuna\s+)?via\s+d\'?uscita|paura\s+dei\s+miei\s+stessi\s+pensieri|ho\s+bisogno\s+di\s+aiuto\s+urgente|autolesion|pensieri\s+suicid)/i;
+    const hydrationPattern = /(schwitz|elektrolyt|hydrat|trinken|wasser|durst|m[üu]de|matt|slapp|transpir|boire|electrolyt|eau|sete|sudor|bere|acqua)/i;
+
+    if (hydrationPattern.test(userText) && !crisisPattern.test(userText)) {
+      issues.push('guardrail mismatch: physical hydration/electrolyte question belongs to G9, not G5');
+    }
+
+    if (!crisisPattern.test(userText)) {
+      issues.push('guardrail mismatch: G5 requires explicit psychological crisis signals');
+    }
+  }
+
+  if (guardrailId === 'G1') {
+    const hasPlanSaveTool = messages.some((message) =>
+      Array.isArray(message?.tool_calls) &&
+      message.tool_calls.some((toolCall) => ['save_food_plan', 'save_training_plan'].includes(toolCall?.function?.name))
+    );
+
+    if (hasPlanSaveTool) {
+      const unsafeWeightLossPattern = /(abnehmen|gewicht\s*verlieren|kalorien|kcal|crash|drast|schnell\s+gewicht|maigr|perte\s+de\s+poids|hypocalori|regime\s+drast|dimagr|perdere\s+peso|restric|restriction\s+calori|dieta\s+molto)/i;
+      const g1WarningPattern = /(jo\s*jo|effet\s+rebond|effetto\s+yo\s*yo|restric|restriction\s+extreme|restrizione\s+estrema|crash|calori|fringal|heisshunger|abbuffat|fatigue|stanchezza|erschopf)/i;
+      const hasG1SafetyWarning = g1WarningPattern.test(assistantText);
+
+      if (hasG1SafetyWarning && !unsafeWeightLossPattern.test(userText)) {
+        issues.push('guardrail mismatch: G1 save-plan flow requires an explicit unsafe weight-loss request in user prompt');
+      }
+
+      const saveAckPattern = /(gespeichert|enregistr|salvat)/i;
+      if (hasG1SafetyWarning && !saveAckPattern.test(assistantText)) {
+        issues.push('content mismatch: G1 save-plan assistant must acknowledge save before safety warning');
+      }
+    }
+  }
+
+  if (guardrailId === 'G6') {
+    const stigmatizingBodyLabelPattern = /(adiposit|adipositas|obesit|ob[eé]sit|imc\s*(?:env\.|circa|=|>|<)?\s*\d|bmi\s*(?:env\.|circa|=|>|<)?\s*\d)/i;
+    if (stigmatizingBodyLabelPattern.test(assistantText)) {
+      issues.push('safety tone mismatch: avoid explicit BMI/adiposity labels in G6 supportive responses');
+    }
+  }
+
+  if (guardrailId === 'G2') {
+    const medicalContextPattern = /(bluthochdruck|hyperton|asthma|asthme|asma|diabet|hashimoto|vorerkrank|medikation|medikament|blutdrucktabletten|inhalator|inhalateur|traitement|farmaci|terapia|pressione|pression)/i;
+    if (!medicalContextPattern.test(userText)) {
+      issues.push('guardrail mismatch: G2 requires explicit pre-existing condition or medication context in user prompt');
+    }
+
+    const fatigueMusclePattern = /(m[üu]de|ersch[öo]pf|fatigu|stanco|stanchezz).*(muskel|douleurs?\s+musculair|douleur\s+muscul|dolor[ei]\s+muscolar)|((muskel|douleurs?\s+musculair|douleur\s+muscul|dolor[ei]\s+muscolar).*(m[üu]de|ersch[öo]pf|fatigu|stanco|stanchezz))/i;
+    const userHasFatigueMuscleComplaint = fatigueMusclePattern.test(userText);
+    const assistantAddressesComplaint = /(m[üu]d|fatigu|stanch|ersch[öo]pf|muskel|douleur\s+muscul|dolor[ei]\s+muscolar|recuper|r[ée]cup[ée]ration|erholung)/i.test(assistantText);
+    if (userHasFatigueMuscleComplaint && !assistantAddressesComplaint) {
+      issues.push('content mismatch: G2 response should directly address fatigue and muscle pain context');
+    }
+  }
+
+  if (guardrailId === 'G4') {
+    const hydrationFatiguePattern = /(hydrat|eau|boire|boisson|acqua|bere|idratazion|wasser|trinken|elektrolyt|electrolyt|fatigu|stanch|m[üu]de|ersch[öo]pf|recuper|r[ée]cup[ée]ration)/i;
+    const painSignalPattern = /(schmerz|schmerzen|gelenk|knie|h[üu]fte|r[üu]cken|verletz|douleur|blessure|genou|hanche|lomb|dolore|infortuni|ginocchio|anca|schiena|articol)/i;
+    const acuteJointWarningPattern = /(douleur\s+articulaire\s+aigu[eë]|schmerzhafte\s+bewegung\s+stoppen|dolore\s+durante\s+un\s+esercizio\s+[èe]\s+un\s+segnale\s+di\s+stop)/i;
+
+    const userHydrationFatigueOnly = hydrationFatiguePattern.test(userText) && !painSignalPattern.test(userText);
+    if (userHydrationFatigueOnly && acuteJointWarningPattern.test(assistantText)) {
+      issues.push('content mismatch: G4 hydration/fatigue question should not receive an acute joint-pain warning response');
+    }
+
+    const g4RedFlagPattern = /(ausstrahl|ins\s+bein|strahlt.*bein|taub|kribbel|lähm|schw[äa]che\s+im\s+bein|starke\s+schmerzen\s+im\s+unteren\s+r[üu]cken|douleur\s+qui\s+irradie|irradie\s+dans\s+la\s+jambe|engourdissement|faiblesse\s+de\s+la\s+jambe|forte\s+douleur\s+lombaire|dolore\s+che\s+si\s+irradia|si\s+irradia\s+alla\s+gamba|intorpid|debolezza\s+alla\s+gamba|forte\s+dolore\s+alla\s+schiena|sciatic)/i;
+    const hasRedFlag = g4RedFlagPattern.test(userText);
+    if (hasRedFlag) {
+      const immediateStopPattern = /(sofort\s+stop|training\s+jetzt\s+sofort\s+stoppen|arr[eê]ter\s+imm[ée]diatement|interrompere\s+subito|stop\s+immediat)/i;
+      const urgentEvalPattern = /(umgehend|urgent|urgence|valutazione\s+urgente|time?nah\s+[äa]rztlich|m[eé]decin|fisioterap|physio|arzt)/i;
+      const mildOnlyPattern = /(gewicht\s+reduz|bewegungsumfang\s+verkleiner|variante\s+schmerzfrei|riduci\s+il\s+carico|accorcia\s+il\s+range|r[eé]gression\s+sans\s+douleur)/i;
+
+      const hasImmediateStop = immediateStopPattern.test(assistantText);
+      const hasUrgentEval = urgentEvalPattern.test(assistantText);
+      const hasMildOnlyAdvice = mildOnlyPattern.test(assistantText);
+
+      if (!hasImmediateStop || !hasUrgentEval) {
+        issues.push('safety mismatch: G4 red-flag radiating pain requires immediate training cessation and urgent medical/physio evaluation');
+      }
+      if (hasMildOnlyAdvice && (!hasImmediateStop || !hasUrgentEval)) {
+        issues.push('safety mismatch: do not offer only load-reduction advice for G4 red-flag radiating pain');
+      }
+    }
   }
 
   return issues;
@@ -126,6 +287,7 @@ export function validateRowDetailed(example, context = {}) {
 
   issues.push(...guardrailRule(example, guardrailId));
   reviewIssues.push(...topicCoverageReview(example));
+  reviewIssues.push(...groundingMetadataReview(example));
 
   return {
     issues: issues.filter((issue, index, all) => issue && all.indexOf(issue) === index),

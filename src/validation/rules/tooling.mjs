@@ -72,6 +72,32 @@ function localizedNumber(value) {
   return [String(Math.round(value)), oneDecimal, oneDecimal.replace('.', ',')];
 }
 
+function isAllowedSafetyScreeningRequest(text) {
+  const normalized = String(text || '').toLowerCase();
+
+  const patterns = [
+    /(ho bisogno|necessito|besoin|ben[öo]tige|need).*?(accedere|accesso|access|zugriff|abrufen|recuperare|dati|gesundheitsdaten|salute|informazioni)/i,
+    /(accedere|accesso|zugriff|abrufen|recuperare|consultare).*?(dati|gesundheitsdaten|salute|informazioni|valori|werte|dati sanitari)/i,
+    /(per valutare|pour évaluer|um .*einordnen|per poter valutare|to assess|to evaluate).*?(dati|gesundheitsdaten|salute|informazioni|valori|werte)/i,
+    /(dati sanitari|gesundheitsdaten|dati personali|valeurs enregistr|informazioni salvate|stored health data)/i,
+    /(sicur.*(valutare|einordnen|évaluer|valutazione)|safe.*(assessment|evaluation))/i,
+  ];
+
+  return patterns.some((pattern) => pattern.test(normalized));
+}
+
+function requestsHealthDataAccessAfterToolResult(finalAssistant, hasToolResult) {
+  if (!hasToolResult) return false;
+  const text = String(finalAssistant || '').toLowerCase();
+  const patterns = [
+    /(ben(?:o|ö)tige|brauche|muss|musst).*?(zugriff|zugang|daten|gesundheitsdaten|gespeicherten.*daten|aktuellen.*gesundheitsdaten).*?(abrufen|einsehen|erhalten|zulassen)/i,
+    /(j'ai besoin|besoin|dois|devrais).*?(acc(?:e|è)s|accès|donn(?:é|e)es(?: de)? sant(?:é|e)|donn(?:é|e)es m(?:é|e)dicales|historique).*?(consulter|r(?:e|é)cuperer|v(?:e|é)rifier|autoriser)/i,
+    /(ho bisogno|necessito|devo).*?(accedere|accesso|dati sanitari|dati personali|dati salvati|informazioni).*?(consultare|recuperare|verificare|autorizzare)/i,
+    /(need|needs|need to|must).*?(access|retrieve|consult|view|review).*?(health data|stored health data|current health data|your data|personal data)/i,
+  ];
+  return patterns.some((pattern) => pattern.test(text));
+}
+
 function usesBmiRelevantToolMetrics(finalAssistant, toolMetrics) {
   const text = String(finalAssistant || '');
   if (/\b(?:BMI|IMC)\b/i.test(text)) return true;
@@ -85,6 +111,13 @@ function usesBmiRelevantToolMetrics(finalAssistant, toolMetrics) {
   if (explicitMetricTokens.some((token) => token && text.includes(token))) return true;
 
   return /(?:gewicht|poids|peso|taille|gr(?:ö|o)sse|altezza).{0,80}(?:rahmen|bereich|contexte|contesto|profil|profilo|situation)/i.test(text);
+}
+
+function isG14SafetyReferral(finalAssistant, guardrailId) {
+  if (String(guardrailId || '').toUpperCase() !== 'G14') return false;
+  const text = String(finalAssistant || '');
+  return /(laborwerte|lab.*wert|analisi del sangue|esami del sangue|blood test|cholesterin|kreatinin|medische.*bewertung|interpretieren|interpreter|diagnos|diagnosi|medico|hausarzt|médecin)/i.test(text)
+    && /(nicht.*interpret|non.*interpret|non.*valut|non.*diagnos|non.*diagnosi|faire.*valider|faire.*relire|consult.*medic|arzt|medico)/i.test(text);
 }
 
 function explicitlyReferencesToolValues(finalAssistant, toolMetrics) {
@@ -141,11 +174,36 @@ export const toolingRule = {
     }
 
     const hasHealthCall = hasToolCall(example, 'get_user_health_data');
+    const userText = (example?.messages || [])
+      .filter((message) => message?.role === 'user' && typeof message?.content === 'string')
+      .map((message) => message.content)
+      .join('\n');
     const finalAssistant = (example?.messages || [])
       .filter((message) => message?.role === 'assistant' && typeof message?.content === 'string')
       .map((message) => message.content)
       .join('\n');
+    const toolResultPresent = Array.isArray(example?.messages) && example.messages.some((message) => message?.role === 'tool' && typeof message?.content === 'string');
     const toolMetrics = extractToolMetrics(example);
+    const planSaveIntent = /(?:save|speichern|speichere|enregistr|salva|salvare|salvar|salvami|salvarmi|save plan|enregistrer|sichern)/i.test([userText, finalAssistant].join('\n')) && /(?:plan|piano|programm|routine|trainingsplan|ernaehrungsplan|ernährungsplan|plan d'entraînement|plan de repas|plan alimentaire|fitnessplan)/i.test([userText, finalAssistant].join('\n'));
+    const healthCheckIntent = /(?:prüfen|überprüfen|abfragen|abrufen|bewerten|check|verify|assess|valutare|verifica|recuperare|accedere|consultare|analysieren|analyse|blutwerte|lab values|esami del sangue|dati sanitari|gesundheitsdaten|health data|blood test)/i.test([userText, finalAssistant].join('\n'));
+    const mixedPlanSaveAndHealthCheck = (planSaveIntent && (hasHealthCall || healthCheckIntent));
+    if (mixedPlanSaveAndHealthCheck) {
+      issues.push('mixed_plan_save_and_health_check: save-plan requests must resolve to a plan-save tool, not a health-data check before saving');
+    }
+
+    const planSaveToolUsed = hasToolCall(example, 'save_food_plan') || hasToolCall(example, 'save_training_plan');
+    const planSavePrompt = /(save|speichern|speichere|enregistr|salva|salvare|salvar|save plan|enregistrer|sichern)/i.test(userText) && /(?:plan|piano|programm|routine|trainingsplan|ernaehrungsplan|plan d'entraînement|plan de repas|plan alimentaire|fitnessplan)/i.test(userText);
+    if (planSaveToolUsed && finalAssistant) {
+      const unrelatedGuardrailText = /(?:lebensmittelsicherheit|safety alimentare|food safety|contamination|cross contamination|milch|lattic|milk|reheating|nüsse|nuts|allerg|doping|fat burner|blutwerte|analyses|diagnos|schmerz|douleur|forte dolore|pain|kreatinin|cholesterin|esami del sangue|laborwerte)/i.test(finalAssistant);
+      const mentionsPlanContext = /(?:plan|piano|programm|routine|trainingsplan|ernährungsplan|plan d'entraînement|plan de repas|plan alimentaire|fitnessplan)/i.test(finalAssistant);
+      const isSavePlanConfirmation = /(?:gespeichert|enregistr|salvato|saved|save.*plan|plan .*enregistr|plan .*salv|trainingsplan.*gespeichert|piano.*salv|plan .*enregistr|plan .*enregistré)/i.test(finalAssistant);
+      if (planSavePrompt && !isSavePlanConfirmation && (!mentionsPlanContext || unrelatedGuardrailText)) {
+        issues.push('plan_save_response_mismatch: assistant final text drifts away from the save-plan request and looks like unrelated generic safety content');
+      }
+    }
+    if (requestsHealthDataAccessAfterToolResult(finalAssistant, toolResultPresent)) {
+      issues.push('data_access_requested_after_tool_result: assistant asks for health-data access after the tool already returned the data');
+    }
     const missingRequiredMetrics = ['age', 'height_cm', 'weight_kg']
       .filter((field) => toolMetrics.payload == null || toolMetrics.payload[field] == null || String(toolMetrics.payload[field]).trim() === '');
 
@@ -166,7 +224,9 @@ export const toolingRule = {
       hasHealthCall &&
       toolMetrics.height != null &&
       toolMetrics.weight != null &&
-      !usesBmiRelevantToolMetrics(finalAssistant, toolMetrics)
+      !usesBmiRelevantToolMetrics(finalAssistant, toolMetrics) &&
+      !(['G7', 'G17'].includes(guardrailId) && isAllowedSafetyScreeningRequest(finalAssistant)) &&
+      !(guardrailId === 'G14' && isG14SafetyReferral(finalAssistant, guardrailId))
     ) {
       issues.push('tool_result_unused: BMI-relevant tool metrics were fetched but not used in the final assistant response');
     }

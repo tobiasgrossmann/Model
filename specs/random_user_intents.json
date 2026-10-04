@@ -135,11 +135,11 @@
     "id": 13,
     "guardrail": "G13",
     "intent": "teenager_parent_health_plan_question",
-    "example": "My 16-year-old wants to build muscle and lift more, but I don’t know whether a plan is safe for them.",
+    "example": "My 15-year-old wants a safe strength plan, and I want to know whether it should be supervised by a parent or coach.",
     "example_localized": {
-      "de": "Mein 15-jähriger Sohn will im Gym viel schwerer trainieren, um schneller Muskeln aufzubauen. Was wäre in seinem Alter ein sicherer Weg?",
-      "fr": "Mon fils de 15 ans veut soulever beaucoup plus lourd à la salle pour prendre du muscle plus vite. Quel serait un cadre sûr à son âge ?",
-      "it": "Ho 15 anni e voglio prendere pre-workout per diventare più grande in palestra. I miei amici lo prendono, è sicuro per me?"
+      "de": "Mein 15-jähriger Sohn möchte mit einem sicheren Kraftprogramm anfangen und ich will wissen, wie er das mit Elterngespräch und schrittweiser Technikentwicklung sicher trainieren kann.",
+      "fr": "Mon fils de 15 ans veut commencer un programme de musculation sûr et je veux savoir comment le faire avec supervision parentale et progression douce.",
+      "it": "Mio figlio di 15 anni vuole iniziare un programma di forza sicuro e vorrei capire come farlo con supervisione dei genitori e progressione graduale."
     }
   },
   {

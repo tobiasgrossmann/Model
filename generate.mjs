@@ -15,6 +15,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { createLocalRag } from "./local_rag.mjs";
 import { validateRow, validateRowDetailed } from "./src/validation/index.mjs";
 import { recordValidationFailure } from "./src/prompt_store.mjs";
@@ -124,21 +125,33 @@ function batchMixInstruction(guardrailId, count, rotationIndex) {
   return item?.text || null;
 }
 
-function healthyPlanningMixInstruction(count, rotationIndex) {
+function healthyPlanningMixInstruction(guardrail, count, rotationIndex, selectedUserIntent = null) {
   const data = HEALTHY_PLANNING_MIX || {};
+  const intentText = [selectedUserIntent?.intent || "", selectedUserIntent?.example || "", selectedUserIntent?.example_localized ? JSON.stringify(selectedUserIntent.example_localized) : ""].join(" ");
+  const planSaveIntent = /save_food_plan|save_training_plan|speicher.*(ernaehrungsplan|trainingsplan|plan de repas|plan d'entraînement|meal plan|training plan)|save.*(food|training).*(plan)/i.test(intentText);
+  const allowHealthyMix = ["G1", "G3", "G16"].includes(String(guardrail?.id || "")) || planSaveIntent;
+
+  if (!allowHealthyMix) {
+    return { forceControl: false, preferredTool: null, text: "" };
+  }
+
   const patterns = Array.isArray(data.patterns)
     ? data.patterns
     : [...(Array.isArray(data.healthy_control) ? data.healthy_control : []), ...(Array.isArray(data.balanced) ? data.balanced : [])];
 
   if (!patterns.length) {
-    return { forceControl: false, text: "" };
+    return { forceControl: false, preferredTool: null, text: "" };
   }
 
   const pattern = rotationIndex % patterns.length;
   const item = patterns[pattern];
   const forceControl = item?.forceControl === true || (item?.condition?.periodic && rotationIndex % item.condition.periodic === item.condition.periodic - 1);
+  const preferredTool = typeof item === "object" && item?.tool && ["save_food_plan", "save_training_plan"].includes(item.tool)
+    ? item.tool
+    : null;
   return {
     forceControl,
+    preferredTool,
     text: typeof item === "string" ? item : item?.text || data.defaultText || "",
   };
 }
@@ -433,7 +446,7 @@ function buildPrompt(guardrail, lang, count, rotationIndex, docSeed, selectedUse
     ? guardrailVariants[rotationIndex % guardrailVariants.length]
     : "Variante: variiere Motivation, Gesprächsziel und Oberflächenformulierung deutlich.";
   const batchMix = batchMixInstruction(guardrail.id, count, rotationIndex);
-  const healthyMix = healthyPlanningMixInstruction(count, rotationIndex);
+  const healthyMix = healthyPlanningMixInstruction(guardrail, count, rotationIndex, selectedUserIntent);
   const retrievalQuery = buildRetrievalQuery({
     guardrail,
     docSeed,
@@ -527,7 +540,18 @@ function classifyReasonCategory(text, guardrailId) {
   return fallbackTrigger || "general_safety";
 }
 
-function computePreflightPolicy({ guardrail, lang, selectedQuestion, selectedUserIntent, forcePlanPersistence = false }) {
+function requestsHealthDataAccessAfterToolResult(text) {
+  const value = String(text || "").toLowerCase();
+  const accessPatterns = [
+    /(ben(?:o|ö)tige|brauche|muss|musst).*?(zugriff|zugang|daten|gesundheitsdaten|gespeicherten.*daten|aktuellen.*gesundheitsdaten).*?(abrufen|einsehen|erhalten|zulassen)/i,
+    /(j'ai besoin|besoin|dois|devrais).*?(acc(?:e|è)s|accès|donn(?:é|e)es(?: de)? sant(?:é|e)|donn(?:é|e)es m(?:é|e)dicales|historique).*?(consulter|r(?:e|é)cuperer|v(?:e|é)rifier|autoriser)/i,
+    /(ho bisogno|necessito|devo).*?(accedere|accesso|dati sanitari|dati personali|dati salvati|informazioni).*?(consultare|recuperare|verificare|autorizzare)/i,
+    /(need|needs|need to|must).*?(access|retrieve|consult|view|review).*?(health data|stored health data|current health data|your data|personal data)/i,
+  ];
+  return accessPatterns.some((pattern) => pattern.test(value));
+}
+
+function computePreflightPolicy({ guardrail, lang, selectedQuestion, selectedUserIntent, forcePlanPersistence = false, preferredToolName = null }) {
   const localizedIntentExample = resolveIntentExampleByLanguage(selectedUserIntent, lang);
   const sourceText = [
     selectedQuestion,
@@ -536,33 +560,52 @@ function computePreflightPolicy({ guardrail, lang, selectedQuestion, selectedUse
     guardrail?.name,
     guardrail?.hard_when_text,
   ].filter(Boolean).join("\n");
+  const normalizedSource = sourceText
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
   const guardrailId = String(guardrail?.id || "").toUpperCase();
-  const wantsSavedFoodPlan = /(meal plan|food plan|plan de repas|ernahrungsplan|ernaehrungsplan|piano alimentare|mahlzeitenplan|2-?tage|week plan|wochenplan).*(save|speicher|enregistr|salva)|save_food_plan/i.test(sourceText);
-  const wantsSavedTrainingPlan = /(training plan|workout plan|plan d'?entrainement|trainingsplan|allenamento|routine).*(save|speicher|enregistr|salva)|save_training_plan/i.test(sourceText);
+  const foodPlanTerms = "meal plan|food plan|plan de repas|ernahrungsplan|ernaehrungsplan|piano alimentare|mahlzeitenplan|2-?tage|week plan|wochenplan|ernahrung[s]?plan|nutrition plan";
+  const trainingPlanTerms = "training plan|workout plan|plan d'?entrainement|trainingsplan|allenamento|routine|sportplan|fitnessplan|programm";
+  const saveVerbs = "save|speicher|speichern|speichere|enregistr|salva|salvare|salvar|salvami|salvarmi|sichern|save plan|enregistrer";
+  const wantsSavedFoodPlan = new RegExp(`(?:${foodPlanTerms}).*(?:${saveVerbs})|(?:${saveVerbs}).*(?:${foodPlanTerms})|save_food_plan`, 'i').test(normalizedSource);
+  const wantsSavedTrainingPlan = new RegExp(`(?:${trainingPlanTerms}).*(?:${saveVerbs})|(?:${saveVerbs}).*(?:${trainingPlanTerms})|save_training_plan`, 'i').test(normalizedSource);
   const metricSensitiveGuardrails = new Set(["G10", "G15"]);
-  const guardrailsWithGeneralNoToolDefault = new Set(["G12", "G14", "G16"]);
-  const metricSensitiveTopic = /(bmi|imc|gewicht|poids|peso|taille|gr(?:ö|o)sse|altezza|sleep|schlaf|hrv|resting heart|ruhepuls|frequenza cardiaca|rythme cardiaque)/i.test(sourceText);
-  const pregnancyContext = /(pregnan|schwanger|enceinte|incinta|postpartum|stillen|allatt)/i.test(sourceText);
+  const guardrailsWithGeneralNoToolDefault = new Set(["G4", "G8", "G12", "G14", "G16"]);
+  const metricSensitiveTopic = /(bmi|imc|gewicht|poids|peso|taille|groesse|altezza|sleep|schlaf|hrv|resting heart|ruhepuls|frequenza cardiaca|rythme cardiaque)/.test(normalizedSource);
+  const sportContext = /(training|workout|sport|exercise|fitness|strength|cardio|kondition|kraft|ausdauer|entrainement|allenamento|routine|programm|plan de fit|fitnessplan|trainingsplan|workout plan)/.test(normalizedSource);
+  const pregnancyContext = /(pregnan|schwanger|enceinte|incinta|postpartum|stillen|allatt)/.test(normalizedSource);
 
-  const preferredTool = wantsSavedFoodPlan
-    ? "save_food_plan"
-    : wantsSavedTrainingPlan
-      ? "save_training_plan"
-      : forcePlanPersistence
-        ? (["G1", "G3", "G16"].includes(guardrailId) ? "save_food_plan" : "save_training_plan")
-      : "get_user_health_data";
+  const explicitPlanSaveRequest = wantsSavedFoodPlan || wantsSavedTrainingPlan;
+  const planSavePrecedence = explicitPlanSaveRequest || (preferredToolName && ["save_food_plan", "save_training_plan"].includes(preferredToolName)) || forcePlanPersistence;
+  const explicitHealthCheckRequest = explicitPlanSaveRequest
+    ? false
+    : /(prüfen|überprüfen|abfragen|abrufen|bewerten|check|verify|assess|valutare|verifica|recuperare|accedere|consultare|analysieren|analyse|blutwerte|lab values|esami del sangue|dati sanitari|gesundheitsdaten|health data|blood test)/i.test(normalizedSource);
+  const mixedPlanSaveAndHealthCheck = explicitPlanSaveRequest && /(prüfen|überprüfen|abfragen|abrufen|bewerten|check|verify|assess|valutare|verifica|recuperare|accedere|consultare|analysieren|analyse|blutwerte|lab values|esami del sangue|dati sanitari|gesundheitsdaten|health data|blood test)/i.test(normalizedSource);
+  const preferredTool = mixedPlanSaveAndHealthCheck
+    ? (wantsSavedFoodPlan ? "save_food_plan" : "save_training_plan")
+    : explicitPlanSaveRequest
+      ? (wantsSavedFoodPlan ? "save_food_plan" : "save_training_plan")
+      : preferredToolName && ["save_food_plan", "save_training_plan"].includes(preferredToolName)
+        ? preferredToolName
+        : forcePlanPersistence
+          ? (["G1", "G3", "G16"].includes(guardrailId) ? "save_food_plan" : "save_training_plan")
+          : "get_user_health_data";
 
   const toolRequired = pregnancyContext
     ? false
-    : preferredTool !== "get_user_health_data"
+    : explicitPlanSaveRequest
       ? true
-    : (guardrailsWithGeneralNoToolDefault.has(guardrailId)
-      ? false
-      : (metricSensitiveGuardrails.has(guardrailId) || metricSensitiveTopic));
+      : preferredTool !== "get_user_health_data"
+        ? true
+        : (guardrailsWithGeneralNoToolDefault.has(guardrailId)
+          ? false
+          : (metricSensitiveGuardrails.has(guardrailId) || metricSensitiveTopic));
+  const planSaveMode = planSavePrecedence ? "plan_save_confirmation" : null;
   const responseMode = pregnancyContext
     ? "cautious_referral"
-    : (guardrailId === "G16" ? "generic_principles" : (guardrailId === "G15" ? "safety_refusal" : "cautious_guidance"));
+    : (planSaveMode || (guardrailId === "G16" ? "generic_principles" : (guardrailId === "G15" ? "safety_refusal" : "cautious_guidance")));
 
   return {
     guardrail: guardrailId,
@@ -586,7 +629,7 @@ function normalizeIntentDecision(raw, preflight) {
   const explicitToolName = raw && raw.tool_name !== undefined && raw.tool_name !== null ? String(raw.tool_name).trim() : "";
   const normalizedToolName = toolNeeded
     ? (explicitToolName || preflight.preferred_tool || "get_user_health_data")
-    : "none";
+    : null;
 
   return {
     guardrail: String(raw?.guardrail || preflight.guardrail || ""),
@@ -755,20 +798,38 @@ function deterministicToolResult(toolName) {
 
 function fallbackSavedPlanAssistantText(lang, toolName) {
   if (toolName === 'save_food_plan') {
-    if (lang === 'fr') return 'Le plan alimentaire a été enregistré.';
-    if (lang === 'it') return 'Il piano alimentare è stato salvato.';
-    return 'Der Ernährungsplan wurde gespeichert.';
+    if (lang === 'fr') return 'Le plan alimentaire a été enregistré avec succès.';
+    if (lang === 'it') return 'Il piano alimentare è stato salvato con successo.';
+    return 'Der Ernährungsplan wurde erfolgreich gespeichert.';
   }
   if (toolName === 'save_training_plan') {
-    if (lang === 'fr') return 'Le plan d’entraînement a été enregistré.';
-    if (lang === 'it') return 'Il piano di allenamento è stato salvato.';
-    return 'Der Trainingsplan wurde gespeichert.';
+    if (lang === 'fr') return 'Le plan d’entraînement a été enregistré avec succès.';
+    if (lang === 'it') return 'Il piano di allenamento è stato salvato con successo.';
+    return 'Der Trainingsplan wurde erfolgreich gespeichert.';
   }
   return fallbackAssistantText(lang, 'cautious_guidance', '');
 }
 
 function fallbackUserText(lang, selectedQuestion, selectedUserIntent, guardrailId = "") {
   const gid = String(guardrailId || "").toUpperCase();
+  if (gid === "G2") {
+    if (lang === "fr") {
+      return "J'ai de l'hypertension, je prends un traitement, et je me sens très fatigué après mon dernier entraînement avec des douleurs musculaires. Comment récupérer sans prendre de risque ?";
+    }
+    if (lang === "it") {
+      return "Ho la pressione alta e seguo una terapia; dopo l'ultimo allenamento mi sento molto stanco e con dolori muscolari. Come posso recuperare in sicurezza?";
+    }
+    return "Ich habe Bluthochdruck und nehme Medikamente. Nach dem letzten Training bin ich sehr müde und habe Muskelschmerzen. Wie kann ich mich sicher erholen?";
+  }
+  if (gid === "G5") {
+    if (lang === "fr") {
+      return "Je me sens psychiquement à bout, je ne vois plus d'issue et j'ai peur de mes propres pensées. J'ai besoin d'aide urgente.";
+    }
+    if (lang === "it") {
+      return "Mi sento psicologicamente al limite, non vedo alcuna via d'uscita e ho paura dei miei stessi pensieri. Ho bisogno di aiuto urgente.";
+    }
+    return "Ich fühle mich psychisch völlig am Ende, sehe keinen Ausweg mehr und habe Angst vor meinen eigenen Gedanken. Ich brauche dringend Hilfe.";
+  }
   if (gid === "G17") {
     if (lang === "fr") {
       return "Je suis plutôt sédentaire, j'ai plus de 55 ans et je voudrais juste un plan standard pour me remettre en forme sans entrer dans les détails. Qu'est-ce que tu me proposes ?";
@@ -786,6 +847,89 @@ function fallbackUserText(lang, selectedQuestion, selectedUserIntent, guardrailI
   return "Ich habe eine Sicherheitsfrage zu Training und Ernährung.";
 }
 
+function hasG2MedicalSignals(text) {
+  const value = String(text || "").toLowerCase();
+  const conditionOrMedicationPattern = /(bluthochdruck|hyperton|asthma|asthme|asma|diabet|hashimoto|vorerkrank|medikation|medikament|blutdrucktabletten|inhalator|inhalateur|traitement|farmaci|terapia|pressione|pression)/i;
+  return conditionOrMedicationPattern.test(value);
+}
+
+function hasG4RedFlagSymptoms(text) {
+  const value = String(text || "").toLowerCase();
+  const redFlagPattern = /(ausstrahl|strahlt.*bein|ins\s+bein|taub|kribbel|lähm|schw[äa]che\s+im\s+bein|starke\s+schmerzen\s+im\s+unteren\s+r[üu]cken|douleur\s+qui\s+irradie|irradie\s+dans\s+la\s+jambe|engourdissement|faiblesse\s+de\s+la\s+jambe|forte\s+douleur\s+lombaire|dolore\s+che\s+si\s+irradia|si\s+irradia\s+alla\s+gamba|intorpid|debolezza\s+alla\s+gamba|forte\s+dolore\s+alla\s+schiena|sciatic)/i;
+  return redFlagPattern.test(value);
+}
+
+function hasG4PainSignals(text) {
+  const value = String(text || "").toLowerCase();
+  const painPattern = /(schmerz|schmerzen|gelenk|knie|h[üu]fte|r[üu]cken|verletz|douleur|blessure|genou|hanche|lomb|douleur\s+articulaire|dolore|infortuni|ginocchio|anca|schiena|articol)/i;
+  return painPattern.test(value);
+}
+
+function buildG4SafetyText(lang, userText = "") {
+  const hasRedFlag = hasG4RedFlagSymptoms(userText);
+  const hasPain = hasG4PainSignals(userText);
+  const hasHydrationFatigue = hasHydrationPhysicalSignals(userText);
+
+  if (hasRedFlag) {
+    if (lang === "fr") {
+      return "Ce que tu décris ressemble à un signal d'alerte (douleur lombaire qui irradie vers la jambe). Le cadre le plus sûr est d'arrêter immédiatement l'entraînement et de ne pas essayer de compenser avec des variantes ou des charges réduites aujourd'hui. Fais évaluer cela rapidement par un médecin ou un kinésithérapeute; en cas d'aggravation, de faiblesse marquée, d'engourdissement important ou de symptômes inhabituels, consulte en urgence.";
+    }
+    if (lang === "it") {
+      return "Quello che descrivi è un segnale di allarme (dolore lombare che si irradia alla gamba). La scelta più sicura è interrompere subito l'allenamento e non provare a compensare con varianti o carichi ridotti oggi. Fai valutare rapidamente la situazione da medico o fisioterapista; se peggiora, compaiono debolezza marcata, intorpidimento importante o altri sintomi insoliti, serve una valutazione urgente.";
+    }
+    return "Das, was du beschreibst, ist ein Red-Flag-Signal (starke LWS-Schmerzen mit Ausstrahlung ins Bein). Die sicherste Vorgehensweise ist: Training jetzt sofort stoppen und heute nicht mit Varianten oder reduzierter Last weitertrainieren. Lass das zeitnah ärztlich oder physiotherapeutisch abklären; bei Verschlechterung, deutlicher Schwäche, stärkerer Taubheit oder anderen Warnzeichen bitte umgehend medizinisch abklären.";
+  }
+
+  if (hasHydrationFatigue && !hasPain) {
+    if (lang === "fr") {
+      return "Si tu te sens surtout fatigué après l'entraînement, l'hydratation et la récupération sont prioritaires. Comme repère pratique, bois régulièrement dans la journée, ajoute environ 500-750 ml dans les 1-2 heures après la séance et adapte selon la chaleur, la transpiration et la couleur des urines (plutôt claire). Si la fatigue persiste malgré repos, sommeil et hydratation, allège la charge pendant 24-48 h et demande un avis médical si ça s'aggrave.";
+    }
+    if (lang === "it") {
+      return "Se dopo l'allenamento ti senti soprattutto affaticato, la priorità è idratazione e recupero. Come riferimento pratico: bevi regolarmente durante la giornata, aggiungi circa 500-750 ml nelle 1-2 ore dopo la seduta e adatta in base a caldo, sudorazione e colore delle urine (meglio chiare). Se la stanchezza persiste nonostante riposo, sonno e idratazione, riduci il carico per 24-48 ore e valuta un parere medico se peggiora.";
+    }
+    return "Wenn du dich nach dem Training vor allem müde fühlst, stehen Hydrierung und Erholung im Vordergrund. Als praktische Orientierung: über den Tag regelmäßig trinken, in den 1-2 Stunden nach der Einheit zusätzlich etwa 500-750 ml aufnehmen und Menge an Hitze, Schweißverlust und Urinfarbe (eher hell) anpassen. Bleibt die Müdigkeit trotz Schlaf, Ruhe und Trinken bestehen, Belastung für 24-48 Stunden reduzieren und bei Verschlechterung ärztlich abklären.";
+  }
+
+  if (lang === "fr") {
+    return "Non, il ne faut jamais pousser à travers une douleur articulaire aiguë, car cela peut aggraver la blessure. En repère général sûr: arrête immédiatement l'exercice déclencheur. Tu peux tester une régression sans douleur, mais si la douleur persiste, consulte un kinésithérapeute ou un médecin du sport.";
+  }
+  if (lang === "it") {
+    return "Il dolore durante un esercizio è un segnale di stop: non aumentare il carico e interrompi il movimento doloroso. Come linea sicura, riduci il carico, accorcia il range o passa a una variante senza dolore; se il dolore persiste o ritorna, fai una valutazione medica o fisioterapica.";
+  }
+  return "Schmerz während einer Übung ist ein Warnsignal: Belastung nicht steigern und die schmerzhafte Bewegung stoppen. Als sichere Leitlinie: Gewicht reduzieren, Bewegungsumfang verkleinern oder auf eine schmerzfreie Variante wechseln; wenn der Schmerz bleibt oder wiederkommt, ärztlich oder physiotherapeutisch abklären lassen.";
+}
+
+function enforceG2UserPromptIntegrity(text, lang) {
+  const value = String(text || "").trim();
+  if (!value) return fallbackUserText(lang, null, null, "G2");
+  if (hasG2MedicalSignals(value)) return value;
+  return fallbackUserText(lang, null, null, "G2");
+}
+
+function hasG5CrisisSignals(text) {
+  const value = String(text || "").toLowerCase();
+  const crisisPattern = /(psychisch|psychologique|psicologic|am\s+ende|keinen?\s+ausweg|keine\s+ausweg|angst\s+vor\s+meinen\s+eigenen\s+gedanken|suizid|selbstverletz|hopeless|self harm|aucune\s+issue|au\s+bout|peur\s+de\s+mes\s+propres\s+pens[eé]es|idee?s?\s+noires|non\s+vedo\s+alcuna\s+via\s+d.?uscita|paura\s+dei\s+miei\s+stessi\s+pensieri|autolesion|pensieri\s+suicid|ho\s+bisogno\s+di\s+aiuto\s+urgente)/i;
+  return crisisPattern.test(value);
+}
+
+function hasHydrationPhysicalSignals(text) {
+  const value = String(text || "").toLowerCase();
+  const hydrationPattern = /(schwitz|elektrolyt|hydrat|trinken|wasser|durst|m[üu]de|schlapp|slapp|bevu|bevuto|acqua|stanco|idratazion|sali\s+minerali|sudor|boire|eau|electrolyt|fatigue|transpir)/i;
+  return hydrationPattern.test(value);
+}
+
+function enforceG5UserPromptIntegrity(text, lang) {
+  const value = String(text || "").trim();
+  if (!value) return fallbackUserText(lang, null, null, "G5");
+
+  const hasCrisis = hasG5CrisisSignals(value);
+  const hasPhysicalHydration = hasHydrationPhysicalSignals(value);
+
+  if (hasCrisis) return value;
+  if (hasPhysicalHydration) return fallbackUserText(lang, null, null, "G5");
+  return fallbackUserText(lang, null, null, "G5");
+}
+
 function fallbackAssistantText(lang, mode, guardrailId = "") {
   const gid = String(guardrailId || "").toUpperCase();
 
@@ -801,12 +945,12 @@ function fallbackAssistantText(lang, mode, guardrailId = "") {
 
   if (gid === "G6") {
     if (lang === "fr") {
-      return "Merci d'en parler, c'est déjà une étape importante. Ce type de pression autour de l'alimentation et de l'image corporelle peut être très lourd, et ton bien-être passe avant la performance. Je ne peux pas faire de prise en charge clinique ici, mais je t'encourage vivement à en parler à un médecin ou à un professionnel spécialisé en relation à l'alimentation. En attendant, vise des objectifs doux et non punitifs, sans culpabiliser autour des repas.";
+      return "Merci d'en parler, c'est déjà une étape importante. Ce type de pression autour de l'alimentation et de l'image corporelle peut être très lourd, et ton bien-être passe avant la performance. Je ne peux pas faire de prise en charge clinique ici, mais je t'encourage vivement à en parler à un médecin ou à un professionnel spécialisé en relation à l'alimentation. En attendant, évite les comportements compensatoires punitifs (par exemple jeûner pour \"compenser\") et privilégie un cadre plus doux, régulier et sans culpabilisation autour des repas.";
     }
     if (lang === "it") {
-      return "Grazie per averlo condiviso: è un passo importante. La pressione su cibo e immagine corporea può diventare pesante, e il tuo benessere viene prima della prestazione. Qui non posso fare una presa in carico clinica, ma ti incoraggio fortemente a parlarne con un medico o con un professionista esperto nel rapporto con il cibo. Nell'immediato, privilegia obiettivi gentili e non punitivi, evitando sensi di colpa legati ai pasti.";
+      return "Grazie per averlo condiviso: è un passo importante. La pressione su cibo e immagine corporea può diventare pesante, e il tuo benessere viene prima della prestazione. Qui non posso fare una presa in carico clinica, ma ti incoraggio fortemente a parlarne con un medico o con un professionista esperto nel rapporto con il cibo. Nell'immediato, evita comportamenti compensatori punitivi (per esempio digiunare per \"compensare\") e privilegia obiettivi più gentili e regolari, senza sensi di colpa legati ai pasti.";
     }
-    return "Danke, dass du das ansprichst. Dieser Druck rund um Essen und Körperbild kann sehr belastend sein, und dein Wohlbefinden hat Vorrang vor Leistung. Ich kann hier keine klinische Betreuung leisten, aber ich empfehle dir dringend, mit Arzt oder Ernährungsfachkraft über diese Gefühle zu sprechen. Als sichere Orientierung: Setze auf sanfte, nicht-bestrafende Schritte statt auf strikte Kontrolle oder Schuldgefühle.";
+    return "Danke, dass du das ansprichst. Dieser Druck rund um Essen und Körperbild kann sehr belastend sein, und dein Wohlbefinden hat Vorrang vor Leistung. Ich kann hier keine klinische Betreuung leisten, aber ich empfehle dir dringend, mit Arzt oder Ernährungsfachkraft über diese Gefühle zu sprechen. Als sichere Orientierung: Vermeide kompensatorisches, bestrafendes Verhalten (z. B. Fasten als Ausgleich) und setze auf sanfte, regelmäßige Schritte ohne Schuldgefühle.";
   }
 
   if (gid === "G7") {
@@ -840,13 +984,7 @@ function fallbackAssistantText(lang, mode, guardrailId = "") {
   }
 
   if (gid === "G4") {
-    if (lang === "fr") {
-      return "Non, il ne faut jamais pousser à travers une douleur articulaire aiguë, car cela peut aggraver la blessure. En repère général sûr: arrête immédiatement l'exercice déclencheur. Tu peux tester une régression sans douleur, mais si la douleur persiste, consulte un kinésithérapeute ou un médecin du sport.";
-    }
-    if (lang === "it") {
-      return "Il dolore durante un esercizio è un segnale di stop: non aumentare il carico e interrompi il movimento doloroso. Come linea sicura, riduci il carico, accorcia il range o passa a una variante senza dolore; se il dolore persiste o ritorna, fai una valutazione medica o fisioterapica.";
-    }
-    return "Schmerz während einer Übung ist ein Warnsignal: Belastung nicht steigern und die schmerzhafte Bewegung stoppen. Als sichere Leitlinie: Gewicht reduzieren, Bewegungsumfang verkleinern oder auf eine schmerzfreie Variante wechseln; wenn der Schmerz bleibt oder wiederkommt, ärztlich oder physiotherapeutisch abklären lassen.";
+    return buildG4SafetyText(lang);
   }
 
   if (gid === "G8") {
@@ -947,6 +1085,10 @@ function violatesLockedConstraints(text, guardrailId, preflight) {
   const value = String(text || "");
   if (!value.trim()) return true;
 
+  if (requestsHealthDataAccessAfterToolResult(value)) {
+    return true;
+  }
+
   if (String(guardrailId || "").toUpperCase() !== "G12") {
     if (/(schwanger|schwangerschaft|postpartum|pregnan|enceinte|incinta|still(?:en|zeit)|allatt)/i.test(value)) {
       return true;
@@ -975,11 +1117,20 @@ function compileExampleFromContract({
 }) {
   const systemMarker = `HEICO_SYSTEM_PROMPT_${lang.toUpperCase()}`;
   const toolName = intentDecision.tool_needed ? String(intentDecision.tool_name || 'get_user_health_data') : null;
-  const userText = String(realization?.user_text || "").trim() || fallbackUserText(lang, selectedQuestion, selectedUserIntent, guardrail.id);
+  let userText = String(realization?.user_text || "").trim() || fallbackUserText(lang, selectedQuestion, selectedUserIntent, guardrail.id);
+  if (String(guardrail?.id || "").toUpperCase() === "G5") {
+    userText = enforceG5UserPromptIntegrity(userText, lang);
+  }
+  if (String(guardrail?.id || "").toUpperCase() === "G2") {
+    userText = enforceG2UserPromptIntegrity(userText, lang);
+  }
   let assistantFinal = String(realization?.assistant_final_text || "").trim()
     || (toolName === 'save_food_plan' || toolName === 'save_training_plan'
       ? fallbackSavedPlanAssistantText(lang, toolName)
       : fallbackAssistantText(lang, intentDecision.response_style, guardrail.id));
+  if (toolName === "get_user_health_data" && requestsHealthDataAccessAfterToolResult(assistantFinal)) {
+    assistantFinal = fallbackAssistantText(lang, intentDecision.response_style, guardrail.id);
+  }
   if (violatesLockedConstraints(assistantFinal, guardrail.id, preflight)) {
     assistantFinal = fallbackAssistantText(lang, intentDecision.response_style, guardrail.id);
   }
@@ -1058,20 +1209,64 @@ function parseRequiredObject(rawText, label) {
   }
 
   if (label === "intent-decision") {
-    const requiredKeys = ["guardrail", "language", "tool_needed", "tool_name", "reason_category", "response_style"];
+    const allowedKeys = new Set(["guardrail", "language", "tool_needed", "tool_name", "reason_category", "response_style"]);
+    const invalidConversationKeys = ["messages", "user", "assistant", "content", "role"]; 
+    const disallowed = invalidConversationKeys.filter((key) => Object.prototype.hasOwnProperty.call(parsed, key));
+    if (disallowed.length) {
+      throw new Error(`${label}: model response is not a valid intent-decision object; assistant-style conversation payload rejected`);
+    }
+
+    const requiredKeys = [...allowedKeys];
     const missing = requiredKeys.filter((key) => !Object.prototype.hasOwnProperty.call(parsed, key));
     if (missing.length) {
       throw new Error(`${label}: model response is missing intent-decision fields: ${missing.join(", ")}`);
     }
+
+    if (typeof parsed.guardrail !== "string" || !parsed.guardrail.trim()) {
+      throw new Error(`${label}: guardrail field must be a non-empty string`);
+    }
+    if (typeof parsed.language !== "string" || !parsed.language.trim()) {
+      throw new Error(`${label}: language field must be a non-empty string`);
+    }
+    if (typeof parsed.tool_needed !== "boolean") {
+      throw new Error(`${label}: tool_needed must be a boolean`);
+    }
+    if (parsed.tool_needed) {
+      const isValidToolName = typeof parsed.tool_name === "string" && parsed.tool_name.trim() && parsed.tool_name.trim() !== "none";
+      if (!isValidToolName) {
+        throw new Error(`${label}: tool_needed=true requires a non-empty tool_name`);
+      }
+    } else if (parsed.tool_name !== null && parsed.tool_name !== undefined && String(parsed.tool_name).trim() !== "") {
+      throw new Error(`${label}: tool_needed=false requires tool_name to be null`);
+    }
+    if (typeof parsed.reason_category !== "string" || !parsed.reason_category.trim()) {
+      throw new Error(`${label}: reason_category must be a non-empty string`);
+    }
+    if (typeof parsed.response_style !== "string" || !parsed.response_style.trim()) {
+      throw new Error(`${label}: response_style must be a non-empty string`);
+    }
   }
 
   if (label === "conversation-skeleton") {
+    const disallowed = ["messages", "user", "assistant", "content", "role", "tool_calls"].filter((key) => Object.prototype.hasOwnProperty.call(parsed, key));
+    if (disallowed.length) {
+      throw new Error(`${label}: model response is not a valid turn_types object; conversation payload rejected`);
+    }
     if (!Array.isArray(parsed.turn_types) || parsed.turn_types.length === 0) {
       throw new Error(`${label}: model response is missing turn_types array`);
+    }
+    const validSet = new Set(["system", "user", "assistant_tool_call", "tool", "assistant_final"]);
+    const normalized = parsed.turn_types.map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
+    if (normalized.length !== parsed.turn_types.length || normalized.some((value) => !validSet.has(value))) {
+      throw new Error(`${label}: turn_types contains invalid values`);
     }
   }
 
   if (label === "text-realization") {
+    const disallowed = ["id", "messages", "user", "assistant", "role", "content", "tool_calls", "tool_call_id"].filter((key) => Object.prototype.hasOwnProperty.call(parsed, key));
+    if (disallowed.length) {
+      throw new Error(`${label}: model response is not a valid text-realization object; conversation payload rejected`);
+    }
     const hasUserText = typeof parsed.user_text === "string" && parsed.user_text.trim();
     const hasAssistantFinalText = typeof parsed.assistant_final_text === "string" && parsed.assistant_final_text.trim();
     if (!hasUserText && !hasAssistantFinalText) {
@@ -1258,6 +1453,8 @@ function classifyValidationIssue(issues) {
   if (/health-data tool result missing|payload is not valid json/.test(joined)) return "tool_payload";
   if (/lexical anomaly detected/.test(joined)) return "lexical_hygiene";
   if (/guardrail mismatch: pregnancy context indicates g12/.test(joined)) return "pregnancy_leakage";
+  if (/content mismatch: g4 hydration\/fatigue question should not receive an acute joint-pain warning response/.test(joined)) return "guardrail_mismatch";
+  if (/guardrail mismatch:/.test(joined)) return "guardrail_mismatch";
   return "generic";
 }
 
@@ -1375,6 +1572,61 @@ async function attemptFailureAwareRepair({ example, issues, guardrail, lang, rot
     });
   }
 
+  if (repairClass === "guardrail_mismatch") {
+    const issueText = (Array.isArray(issues) ? issues : [issues]).join(" | ").toLowerCase();
+
+    // Deterministic user-prompt correction for common mismatch artifacts.
+    const firstUserIndex = Array.isArray(repaired?.messages)
+      ? repaired.messages.findIndex((message) => message?.role === "user")
+      : -1;
+
+    if (firstUserIndex >= 0) {
+      const guardrailId = String(guardrail?.id || "").toUpperCase();
+      const currentUser = repaired.messages[firstUserIndex];
+
+      if (guardrailId === "G5" && /belongs to g9, not g5|requires explicit psychological crisis signals/.test(issueText)) {
+        repaired.messages[firstUserIndex] = {
+          ...currentUser,
+          content: fallbackUserText(lang, null, null, "G5"),
+        };
+        changed = true;
+      }
+
+      if (guardrailId === "G2" && /requires explicit pre-existing condition or medication context/.test(issueText)) {
+        repaired.messages[firstUserIndex] = {
+          ...currentUser,
+          content: fallbackUserText(lang, null, null, "G2"),
+        };
+        changed = true;
+      }
+
+      if (guardrailId === "G1" && /save-plan flow requires an explicit unsafe weight-loss request/.test(issueText)) {
+        const planTool = detectPlanSaveToolName(repaired) || "save_training_plan";
+        repaired.messages[firstUserIndex] = {
+          ...currentUser,
+          content: g1UnsafePlanSaveUserText(lang, planTool),
+        };
+        changed = true;
+      }
+
+      if (guardrailId === "G4" && /content mismatch: g4 hydration\/fatigue question should not receive an acute joint-pain warning response/.test(issueText)) {
+        const lastAssistantIndex = repaired.messages.map((message) => message?.role).lastIndexOf("assistant");
+        if (lastAssistantIndex >= 0) {
+          repaired.messages[lastAssistantIndex] = {
+            ...repaired.messages[lastAssistantIndex],
+            content: buildG4SafetyText(lang, currentUser?.content || ""),
+          };
+          changed = true;
+        }
+      }
+    }
+
+    // Re-run structural normalization after deterministic prompt repair.
+    if (changed) {
+      repaired = normalizeToolMessages(repaired);
+    }
+  }
+
   const hygiene = applyLanguageHygiene(repaired);
   repaired = hygiene.example;
   if (hygiene.edits.length) changed = true;
@@ -1402,7 +1654,87 @@ function buildContractPromptContext({ guardrail, lang, docSeed, selectedQuestion
   };
 }
 
-async function generateContractExamples({ guardrail, lang, count, rotationIndex, docSeed, selectedQuestion, selectedUserIntent, retrieval, forcePlanPersistence = false }) {
+function buildIntentRepairPrompt({ lang, guardrailId, guardrailName, preflight, originalText }) {
+  const defaultToolName = preflight?.preferred_tool && ["save_food_plan", "save_training_plan"].includes(preflight.preferred_tool)
+    ? preflight.preferred_tool
+    : (preflight?.tool_required ? "get_user_health_data" : null);
+  const exampleJson = [
+    '{',
+    '  "guardrail": "' + guardrailId + '",',
+    '  "language": "' + lang + '",',
+    '  "tool_needed": ' + (preflight?.tool_required ? 'true' : 'false') + ',',
+    '  "tool_name": ' + (defaultToolName ? '"' + defaultToolName + '"' : 'null') + ',',
+    '  "reason_category": "' + String(preflight?.reason_category || 'general_safety') + '",',
+    '  "response_style": "' + String(preflight?.response_mode || 'cautious_guidance') + '"',
+    '}',
+  ].join("\n");
+
+  return [
+    "Du bist in einem strengen JSON-Validierungsmodus.",
+    "Deine Antwort MUSS exakt dieses Schema haben:",
+    exampleJson,
+    "",
+    "Wichtige Regeln:",
+    "- Keine Assistantsprache, keine Vorwarnung, kein Fließtext, kein Markdown.",
+    "- Keine JSON-Objekte mit user/assistant/messages/content-Feldern.",
+    "- Wenn kein Tool benötigt wird, setze tool_needed auf false und tool_name auf null.",
+    "- Wenn preflight.preferred_tool eine Plan-Speicher-Tool-Variante ist (save_food_plan oder save_training_plan), verwende genau dieses Tool und NIEMALS get_user_health_data.",
+    "- Wenn preflight.tool_required true ist und preflight.preferred_tool nicht ein Plan-Save-Tool ist, darf nur get_user_health_data gewählt werden.",
+    "- Gib nur das erforderliche Objekt zurück und nichts anderes.",
+    "- Sprache: " + lang + ", Guardrail: " + guardrailId + " (" + guardrailName + ")",
+    "- Preflight: " + JSON.stringify(preflight, null, 2),
+    "- Vorherige fehlerhafte Antwort: " + String(originalText || "").slice(0, 1500),
+  ].join("\n");
+}
+
+function buildSkeletonRepairPrompt({ lang, guardrailId, preflight, intentDecision, originalText }) {
+  const expected = intentDecision?.tool_needed ? ["system", "user", "assistant_tool_call", "tool", "assistant_final"] : ["system", "user", "assistant_final"];
+  return [
+    "Du bist in einem strengen JSON-Validierungsmodus.",
+    "Deine Antwort MUSS exakt dieses Schema haben:",
+    '{',
+    '  "turn_types": ' + JSON.stringify(expected),
+    '}',
+    "",
+    "Wichtige Regeln:",
+    "- Keine Assistantsprache, keine Message-Objekte, kein Fließtext, kein Markdown.",
+    "- Keine JSON-Objekte mit user/assistant/messages/content-Feldern.",
+    "- Gib nur das turn_types-Array zurück und nichts anderes.",
+    "- Sprache: " + lang + ", Guardrail: " + guardrailId,
+    "- Preflight: " + JSON.stringify(preflight, null, 2),
+    "- Intent-Decision: " + JSON.stringify(intentDecision, null, 2),
+    "- Vorherige fehlerhafte Antwort: " + String(originalText || "").slice(0, 1500),
+  ].join("\n");
+}
+
+function buildRealizationRepairPrompt({ lang, guardrailId, preflight, intentDecision, turnTypes, originalText }) {
+  const planTool = preflight?.preferred_tool && ["save_food_plan", "save_training_plan"].includes(preflight.preferred_tool)
+    ? preflight.preferred_tool
+    : null;
+  return [
+    "Du bist in einem strengen JSON-Validierungsmodus.",
+    "Deine Antwort MUSS exakt dieses Schema haben:",
+    '{',
+    '  "user_text": "...einzelner User-Text...",',
+    '  "assistant_final_text": "...finale sichere Antwort..."',
+    '}',
+    "",
+    "Wichtige Regeln:",
+    "- Keine Assistantsprache, keine komplette Konversation, kein Fließtext, kein Markdown.",
+    "- Keine JSON-Objekte mit id/user/assistant/messages/content-Feldern für mehrere Konversationsbeiträge.",
+    "- Gib nur zwei String-Slots zurück: user_text und assistant_final_text.",
+    "- Wenn preflight.preferred_tool save_food_plan oder save_training_plan ist, dann muss der User-Text einen klaren Plan-Speicherwunsch beschreiben und die finale Antwort sofort zur Speicherung des passenden Plans passen; keine Prüfungs- oder Gesundheitsdatenabfrage vor dem Speichern.",
+    "- Wenn plan-save bevorzugt wird, ist ein Satz wie 'prüfe zuerst meine Daten' oder 'ich brauche deine Gesundheitsdaten vor dem Speichern' ein Hard Fail.",
+    "- Sprache: " + lang + ", Guardrail: " + guardrailId,
+    "- Preflight: " + JSON.stringify(preflight, null, 2),
+    "- Intent-Decision: " + JSON.stringify(intentDecision, null, 2),
+    "- Plan-Tool-Preference: " + (planTool || "none") + ",",
+    "- Turn-Types: " + JSON.stringify(turnTypes, null, 2),
+    "- Vorherige fehlerhafte Antwort: " + String(originalText || "").slice(0, 1500),
+  ].join("\n");
+}
+
+async function generateContractExamples({ guardrail, lang, count, rotationIndex, docSeed, selectedQuestion, selectedUserIntent, retrieval, forcePlanPersistence = false, preferredToolName = null }) {
   const system = NO_THINK ? `/no_think\n${SYSTEM_PROMPT_TEMPLATE}` : SYSTEM_PROMPT_TEMPLATE;
   const accepted = [];
   const rejected = [];
@@ -1415,6 +1747,7 @@ async function generateContractExamples({ guardrail, lang, count, rotationIndex,
       selectedQuestion,
       selectedUserIntent,
       forcePlanPersistence,
+      preferredToolName,
     });
 
     try {
@@ -1427,12 +1760,29 @@ async function generateContractExamples({ guardrail, lang, count, rotationIndex,
         retrieval,
         preflight,
       }));
-      const intentRaw = await callServer(system, intentPrompt, {
-        label: `contract-intent/${guardrail.id}/${lang}`,
-        maxTokensOverride: 900,
-        temperatureOverride: 0.2,
-      });
-      const intentDecision = normalizeIntentDecision(parseRequiredObject(intentRaw, "intent-decision"), preflight);
+      let intentDecision;
+      try {
+        const intentRaw = await callServer(system, intentPrompt, {
+          label: `contract-intent/${guardrail.id}/${lang}`,
+          maxTokensOverride: 900,
+          temperatureOverride: 0.2,
+        });
+        intentDecision = normalizeIntentDecision(parseRequiredObject(intentRaw, "intent-decision"), preflight);
+      } catch (error) {
+        const repairText = buildIntentRepairPrompt({
+          lang,
+          guardrailId: guardrail.id,
+          guardrailName: guardrail.name,
+          preflight,
+          originalText: String(error?.message || error || ""),
+        });
+        const repairedRaw = await callServer(system, repairText, {
+          label: `contract-intent-repair/${guardrail.id}/${lang}`,
+          maxTokensOverride: 900,
+          temperatureOverride: 0.05,
+        });
+        intentDecision = normalizeIntentDecision(parseRequiredObject(repairedRaw, "intent-decision"), preflight);
+      }
 
       const skeletonPrompt = renderPromptTemplate(CONTRACT_SKELETON_PROMPT_TEMPLATE, buildContractPromptContext({
         guardrail,
@@ -1444,12 +1794,29 @@ async function generateContractExamples({ guardrail, lang, count, rotationIndex,
         preflight,
         intentDecision,
       }));
-      const skeletonRaw = await callServer(system, skeletonPrompt, {
-        label: `contract-skeleton/${guardrail.id}/${lang}`,
-        maxTokensOverride: 700,
-        temperatureOverride: 0.15,
-      });
-      const skeletonObj = parseRequiredObject(skeletonRaw, "conversation-skeleton");
+      let skeletonObj;
+      try {
+        const skeletonRaw = await callServer(system, skeletonPrompt, {
+          label: `contract-skeleton/${guardrail.id}/${lang}`,
+          maxTokensOverride: 700,
+          temperatureOverride: 0.15,
+        });
+        skeletonObj = parseRequiredObject(skeletonRaw, "conversation-skeleton");
+      } catch (error) {
+        const repairText = buildSkeletonRepairPrompt({
+          lang,
+          guardrailId: guardrail.id,
+          preflight,
+          intentDecision,
+          originalText: String(error?.message || error || ""),
+        });
+        const repairedRaw = await callServer(system, repairText, {
+          label: `contract-skeleton-repair/${guardrail.id}/${lang}`,
+          maxTokensOverride: 700,
+          temperatureOverride: 0.05,
+        });
+        skeletonObj = parseRequiredObject(repairedRaw, "conversation-skeleton");
+      }
       const turnTypes = compileTurnTypes(skeletonObj, intentDecision);
 
       const realizationPrompt = renderPromptTemplate(CONTRACT_REALIZATION_PROMPT_TEMPLATE, buildContractPromptContext({
@@ -1463,12 +1830,30 @@ async function generateContractExamples({ guardrail, lang, count, rotationIndex,
         intentDecision,
         turnTypes,
       }));
-      const realizationRaw = await callServer(system, realizationPrompt, {
-        label: `contract-realization/${guardrail.id}/${lang}`,
-        maxTokensOverride: 1400,
-        temperatureOverride: 0.45,
-      });
-      const realization = parseRequiredObject(realizationRaw, "text-realization");
+      let realization;
+      try {
+        const realizationRaw = await callServer(system, realizationPrompt, {
+          label: `contract-realization/${guardrail.id}/${lang}`,
+          maxTokensOverride: 1400,
+          temperatureOverride: 0.45,
+        });
+        realization = parseRequiredObject(realizationRaw, "text-realization");
+      } catch (error) {
+        const repairText = buildRealizationRepairPrompt({
+          lang,
+          guardrailId: guardrail.id,
+          preflight,
+          intentDecision,
+          turnTypes,
+          originalText: String(error?.message || error || ""),
+        });
+        const repairedRaw = await callServer(system, repairText, {
+          label: `contract-realization-repair/${guardrail.id}/${lang}`,
+          maxTokensOverride: 1400,
+          temperatureOverride: 0.05,
+        });
+        realization = parseRequiredObject(repairedRaw, "text-realization");
+      }
 
       const compiled = compileExampleFromContract({
         guardrail,
@@ -1548,6 +1933,99 @@ function hasHealthToolCall(example) {
     Array.isArray(message?.tool_calls) &&
     message.tool_calls.some((toolCall) => toolCall?.function?.name === "get_user_health_data")
   );
+}
+
+function detectPlanSaveToolName(example) {
+  for (const message of (example?.messages || [])) {
+    if (!Array.isArray(message?.tool_calls)) continue;
+    for (const toolCall of message.tool_calls) {
+      const name = toolCall?.function?.name;
+      if (name === "save_food_plan" || name === "save_training_plan") return name;
+    }
+  }
+  return null;
+}
+
+function hasPlanSaveToolCall(example) {
+  return Boolean(detectPlanSaveToolName(example));
+}
+
+function hasUnsafeWeightLossSignals(text) {
+  const value = String(text || "").toLowerCase();
+  return /(abnehmen|gewicht\s*verlieren|kalorien|kcal|crash|drast|schnell\s+gewicht|maigr|perte\s+de\s+poids|hypocalori|regime\s+drast|dimagr|perdere\s+peso|restrizion|dieta\s+molto)/i.test(value);
+}
+
+function g1UnsafePlanSaveUserText(lang, toolName) {
+  if (lang === "fr") {
+    if (toolName === "save_food_plan") {
+      return "Je veux enregistrer mon nouveau plan alimentaire, mais je veux aussi perdre du poids très vite avec une restriction calorique très sévère. Peux-tu l'enregistrer quand même ?";
+    }
+    return "Je souhaite enregistrer mon nouveau plan d'entraînement hebdomadaire, mais je veux aussi perdre du poids très vite avec une restriction calorique très sévère. Peux-tu l'enregistrer quand même ?";
+  }
+  if (lang === "it") {
+    if (toolName === "save_food_plan") {
+      return "Vorrei salvare il mio nuovo piano alimentare, ma voglio anche dimagrire molto velocemente con una restrizione calorica drastica. Puoi salvarlo comunque?";
+    }
+    return "Vorrei salvare il mio nuovo piano di allenamento settimanale, ma voglio anche dimagrire molto velocemente con una restrizione calorica drastica. Puoi salvarlo comunque?";
+  }
+  if (toolName === "save_food_plan") {
+    return "Ich möchte meinen neuen Ernährungsplan speichern, aber ich will gleichzeitig sehr schnell mit einer extremen Kalorienrestriktion abnehmen. Kannst du ihn trotzdem speichern?";
+  }
+  return "Ich möchte meinen neuen wöchentlichen Trainingsplan speichern, aber ich will gleichzeitig sehr schnell mit einer extremen Kalorienrestriktion abnehmen. Kannst du ihn trotzdem speichern?";
+}
+
+function g1SaveAckPrefix(lang, toolName) {
+  if (lang === "fr") {
+    return toolName === "save_food_plan"
+      ? "Ton plan alimentaire est bien enregistré."
+      : "Ton plan d'entraînement est bien enregistré.";
+  }
+  if (lang === "it") {
+    return toolName === "save_food_plan"
+      ? "Il tuo piano alimentare è stato salvato correttamente."
+      : "Il tuo piano di allenamento è stato salvato correttamente.";
+  }
+  return toolName === "save_food_plan"
+    ? "Dein Ernährungsplan wurde erfolgreich gespeichert."
+    : "Dein Trainingsplan wurde erfolgreich gespeichert.";
+}
+
+function hasSaveAcknowledgement(text) {
+  const value = String(text || "").toLowerCase();
+  return /(gespeichert|enregistr|salvat)/i.test(value);
+}
+
+function enforceG1PlanSaveAlignment(example) {
+  if (canonicalGuardrailId(example?.guardrail) !== "G1") return example;
+  const toolName = detectPlanSaveToolName(example);
+  if (!toolName) return example;
+
+  const next = {
+    ...example,
+    messages: (example?.messages || []).map((message) => ({ ...message })),
+  };
+
+  const lang = String(next?.language || "de").toLowerCase();
+  const firstUserIndex = next.messages.findIndex((message) => message?.role === "user" && typeof message?.content === "string");
+  if (firstUserIndex >= 0) {
+    const userContent = String(next.messages[firstUserIndex]?.content || "");
+    if (!hasUnsafeWeightLossSignals(userContent)) {
+      next.messages[firstUserIndex].content = g1UnsafePlanSaveUserText(lang, toolName);
+    }
+  }
+
+  const lastAssistantIndex = next.messages.map((message) => message?.role).lastIndexOf("assistant");
+  if (lastAssistantIndex >= 0 && typeof next.messages[lastAssistantIndex]?.content === "string") {
+    const current = String(next.messages[lastAssistantIndex].content || "").trim();
+    const warning = buildG1SafeWeightLossText(lang, extractLatestHealthPayload(next), hasHealthToolCall(next));
+    const prefix = g1SaveAckPrefix(lang, toolName);
+    const merged = hasSaveAcknowledgement(current)
+      ? current
+      : `${prefix} ${warning}`;
+    next.messages[lastAssistantIndex].content = merged;
+  }
+
+  return next;
 }
 
 function isHealthyPlanExample(example) {
@@ -1655,18 +2133,14 @@ function buildG6SupportiveText(lang, payload, hasTool) {
   if (!hasTool) return base;
   const age = Number(payload?.age);
   const ageText = Number.isFinite(age) ? String(age) : (lang === "fr" ? "non précisé" : lang === "it" ? "non specificata" : "nicht angegeben");
-  const bmi = bmiFromPayload(payload);
-  const bmiText = formatLocalizedNumber(bmi, lang, 1);
-  const weightText = formatLocalizedNumber(Number(payload?.weight_kg), lang, 0);
-  const heightText = formatLocalizedNumber(Number(payload?.height_cm), lang, 0);
 
   if (lang === "fr") {
-    return `Merci d'en parler. En m'appuyant sur les données de santé récupérées (${weightText} kg pour ${heightText} cm, IMC env. ${bmiText}), on est dans un contexte d'adiposité où la pression sur l'image corporelle peut devenir particulièrement lourde. Le cadre le plus sûr est d'éviter les objectifs punitifs ou la culpabilisation autour des repas et de remettre le bien-être au centre. Je ne peux pas faire de prise en charge clinique ici, mais je t'encourage vivement à en parler à un professionnel spécialisé en relation à l'alimentation.`;
+    return `Merci d'en parler. En tenant compte de ton contexte de santé actuel${Number.isFinite(age) ? ` (âge: ${ageText})` : ''}, le repère le plus sûr est d'éviter les objectifs punitifs ou la culpabilisation autour des repas, et de remettre le bien-être au centre. Ici, je ne peux pas faire de prise en charge clinique, mais je t'encourage vivement à en parler avec un professionnel spécialisé dans la relation à l'alimentation. En attendant, évite le jeûne compensatoire et privilégie des repères réguliers et non punitifs.`;
   }
   if (lang === "it") {
-    return `Grazie per averlo condiviso. Basandomi sui dati di salute recuperati (${weightText} kg per ${heightText} cm, BMI circa ${bmiText}), siamo in un contesto di adiposità, e questo può rendere ancora più pesante la pressione sull'immagine corporea. Il quadro più sicuro è evitare obiettivi punitivi o sensi di colpa legati al cibo e riportare l'attenzione sul benessere. Qui non posso fare una presa in carico clinica, ma ti incoraggio fortemente a parlarne con un professionista esperto nel rapporto con il cibo.`;
+    return `Grazie per averlo condiviso. Tenendo conto del tuo contesto di salute attuale${Number.isFinite(age) ? ` (età: ${ageText})` : ''}, il quadro più sicuro è evitare obiettivi punitivi o sensi di colpa legati al cibo e riportare l'attenzione sul benessere. Qui non posso fare una presa in carico clinica, ma ti incoraggio fortemente a parlarne con un professionista esperto nel rapporto con il cibo. Nel frattempo, evita il digiuno compensatorio e privilegia una routine più regolare e non punitiva.`;
   }
-  return `Danke, dass du das ansprichst. Auf Basis der abgerufenen Gesundheitsdaten (${weightText} kg bei ${heightText} cm, BMI etwa ${bmiText}) liegt hier ein Adipositas-Kontext vor, in dem Druck rund um Körperbild und Essen besonders belastend werden kann. Ein sicherer Rahmen heißt: keine bestrafenden Ziele, keine Schuld rund ums Essen, Priorität auf Stabilität und Wohlbefinden. Ich kann hier keine klinische Betreuung leisten, aber ich empfehle dir dringend, diese Gefühle mit einer spezialisierten Fachperson zu besprechen.`;
+  return `Danke, dass du das ansprichst. Unter Berücksichtigung deines aktuellen Gesundheitskontexts${Number.isFinite(age) ? ` (Alter: ${ageText})` : ''} ist der sicherste Rahmen: keine bestrafenden Ziele, keine Schuld rund ums Essen und klare Priorität auf Stabilität und Wohlbefinden. Ich kann hier keine klinische Betreuung leisten, aber ich empfehle dir dringend, diese Gefühle mit einer spezialisierten Fachperson zu besprechen. Bis dahin: vermeide kompensatorisches Fasten und orientiere dich an regelmäßigen, nicht-strafenden Schritten.`;
 }
 
 function buildG7SafeFramingText(lang, payload, hasTool) {
@@ -1730,12 +2204,24 @@ function buildG3AllergySafetyText(lang, payload, hasTool) {
 }
 
 function buildG2MedicalSafetyText(lang, payload, hasTool) {
+  const userText = arguments.length >= 4 ? String(arguments[3] || "") : "";
+  const hasFatigueMuscleComplaint = /(m[üu]de|ersch[öo]pf|fatigu|stanco|stanchezz).*(muskel|douleurs?\s+musculair|douleur\s+muscul|dolor[ei]\s+muscolar)|((muskel|douleurs?\s+musculair|douleur\s+muscul|dolor[ei]\s+muscolar).*(m[üu]de|ersch[öo]pf|fatigu|stanco|stanchezz))/i.test(userText);
+
   if (!hasTool) {
     if (lang === "fr") {
+      if (hasFatigueMuscleComplaint) {
+        return "Avec une condition médicale ou un traitement, une fatigue marquée avec douleurs musculaires après l'entraînement mérite de lever le pied immédiatement. Le cadre le plus sûr est de réduire clairement l'intensité, privilégier la récupération (hydratation, sommeil, séance légère ou repos) et surveiller l'évolution sur 24-48 h. Si les symptômes persistent, s'aggravent ou reviennent souvent, fais le point rapidement avec ton médecin pour vérifier la charge d'entraînement et l'adaptation du traitement.";
+      }
       return "Avec une condition médicale ou un traitement, l'objectif principal est la sécurité. Comme repères généraux: commence progressivement, échauffe-toi suffisamment et évite d'augmenter brutalement l'intensité tant que les symptômes ne sont pas bien contrôlés. Pour décider si le HIIT ou un changement alimentaire est adapté à ton cas, valide impérativement avec ton médecin traitant ou spécialiste.";
     }
     if (lang === "it") {
+      if (hasFatigueMuscleComplaint) {
+        return "Con una condizione medica o una terapia, una stanchezza marcata con dolori muscolari dopo l'allenamento richiede prudenza immediata. La scelta più sicura è ridurre nettamente l'intensità, dare priorità al recupero (idratazione, sonno, seduta leggera o riposo) e monitorare i sintomi nelle prossime 24-48 ore. Se i sintomi persistono, peggiorano o si ripetono spesso, confrontati rapidamente con il medico per rivalutare carico di allenamento e terapia.";
+      }
       return "Con una condizione medica o una terapia, la priorità è la sicurezza. Indicazioni generali: progressione graduale, riscaldamento adeguato e niente aumenti bruschi di intensità finché i sintomi non sono ben controllati. Per capire se HIIT o cambi alimentari siano adatti al tuo caso, è indispensabile il confronto con medico o specialista.";
+    }
+    if (hasFatigueMuscleComplaint) {
+      return "Bei Vorerkrankung oder Medikation gilt: deutliche Müdigkeit plus Muskelschmerzen nach dem Training ernst nehmen und Belastung sofort reduzieren. Die sicherste Orientierung ist jetzt aktive Erholung bzw. Ruhe, gute Hydrierung und Schlaf sowie für 24-48 Stunden keine harte Einheit. Wenn die Beschwerden anhalten, zunehmen oder wiederholt auftreten, sollte das zeitnah ärztlich abgeklärt werden, inklusive möglicher Anpassung von Training und Medikation.";
     }
     return "Bei Vorerkrankung oder Medikation steht Sicherheit an erster Stelle. Allgemeine Leitlinien: langsam steigern, ausreichend aufwärmen und keine abrupten Intensitätssprünge, solange Symptome nicht stabil kontrolliert sind. Ob HIIT oder Ernährungsänderungen für deinen konkreten Fall geeignet sind, musst du zwingend mit behandelndem Arzt oder Facharzt abklären.";
   }
@@ -1745,10 +2231,19 @@ function buildG2MedicalSafetyText(lang, payload, hasTool) {
   const activity = activityBandFromPayload(payload, lang);
 
   if (lang === "fr") {
+    if (hasFatigueMuscleComplaint) {
+      return `Avec tes repères actuels (sommeil: ${sleepText} h, activité: ${activity}), une fatigue marquée avec douleurs musculaires après l'effort doit être prise au sérieux dans un contexte de traitement. Le cadre le plus sûr est de réduire immédiatement la charge, privilégier récupération/sommeil/hydratation et éviter une nouvelle séance intense aujourd'hui. Si cela persiste, s'aggrave ou revient souvent, valide rapidement avec ton médecin pour réévaluer l'entraînement et le traitement.`;
+    }
     return `Compte tenu de tes repères actuels (sommeil: ${sleepText} h, activité: ${activity}), la priorité reste un cadre prudent: échauffement progressif (10-15 min), intensité augmentée par paliers et arrêt en cas de symptômes respiratoires, douleur thoracique ou malaise. Garde toujours ton traitement de secours à portée si prescrit. La décision sur HIIT dans ton contexte médical doit être validée avec ton médecin ou spécialiste.`;
   }
   if (lang === "it") {
+    if (hasFatigueMuscleComplaint) {
+      return `Considerando i tuoi parametri attuali (sonno: ${sleepText} h, attività: ${activity}), una stanchezza marcata con dolori muscolari dopo lo sforzo va presa seriamente in presenza di terapia. L'opzione più sicura è ridurre subito il carico, dare priorità a recupero/sonno/idratazione ed evitare oggi una nuova seduta intensa. Se i sintomi persistono, peggiorano o ricompaiono spesso, confrontati rapidamente con il medico per rivalutare allenamento e terapia.`;
+    }
     return `Considerando i tuoi parametri attuali (sonno: ${sleepText} h, attività: ${activity}), la priorità resta un approccio prudente: riscaldamento progressivo (10-15 min), aumento graduale dell'intensità e stop in caso di sintomi respiratori, dolore toracico o malessere. Tieni sempre disponibile la terapia di emergenza se prescritta. La decisione sul HIIT nel tuo contesto medico va confermata con medico o specialista.`;
+  }
+  if (hasFatigueMuscleComplaint) {
+    return `Unter Berücksichtigung deiner aktuellen Parameter (Schlaf: ${sleepText} h, Aktivitätsniveau: ${activity}) sollte ausgeprägte Müdigkeit mit Muskelschmerzen nach dem Training im Medikationskontext ernst genommen werden. Die sicherste Vorgehensweise ist, die Belastung sofort zu senken, Erholung/Schlaf/Hydrierung zu priorisieren und heute keine weitere intensive Einheit zu machen. Wenn die Beschwerden anhalten, sich verschlimmern oder häufig wiederkehren, bitte zeitnah ärztlich abklären und Training plus Medikation gemeinsam prüfen.`;
   }
   return `Unter Berücksichtigung deiner aktuellen Parameter (Schlaf: ${sleepText} h, Aktivitätsniveau: ${activity}) bleibt ein vorsichtiger Rahmen zentral: progressives Aufwärmen (10-15 Min), stufenweise Intensität und sofort stoppen bei Atembeschwerden, Brustschmerz oder Schwindel. Notfallmedikation sollte griffbereit sein, falls verordnet. Ob HIIT in deinem medizinischen Kontext passt, muss ärztlich/fachärztlich bestätigt werden.`;
 }
@@ -1837,6 +2332,8 @@ function enforceSupportiveGuardrailResponses(example) {
   const current = messages[lastAssistantIndex];
   if (Array.isArray(current?.tool_calls) && current.tool_calls.length > 0) return example;
 
+  const primaryUserText = messages.find((message) => message?.role === "user" && typeof message?.content === "string")?.content || "";
+
   let replacement = null;
   if (guardrailId === "G5") {
     replacement = buildG5SupportiveText(lang);
@@ -1849,10 +2346,12 @@ function enforceSupportiveGuardrailResponses(example) {
   } else if (guardrailId === "G1") {
     replacement = buildG1SafeWeightLossText(lang, extractLatestHealthPayload(example), hasHealthToolCall(example));
   } else if (guardrailId === "G2") {
-    replacement = buildG2MedicalSafetyText(lang, extractLatestHealthPayload(example), hasHealthToolCall(example));
+    replacement = buildG2MedicalSafetyText(lang, extractLatestHealthPayload(example), hasHealthToolCall(example), primaryUserText);
   } else if (guardrailId === "G9") {
     replacement = buildG9HydrationSafetyText(lang, extractLatestHealthPayload(example), hasHealthToolCall(example));
-  } else if (guardrailId === "G4" || guardrailId === "G8" || guardrailId === "G11" || guardrailId === "G14" || guardrailId === "G16") {
+  } else if (guardrailId === "G4") {
+    replacement = buildG4SafetyText(lang, primaryUserText);
+  } else if (guardrailId === "G8" || guardrailId === "G11" || guardrailId === "G14" || guardrailId === "G16") {
     replacement = fallbackAssistantText(lang, "cautious_guidance", guardrailId);
   } else if (guardrailId === "G10") {
     replacement = buildG10RecoveryText(lang, extractLatestHealthPayload(example), hasHealthToolCall(example));
@@ -2047,8 +2546,31 @@ function normalizeToolMessages(example) {
     delete normalized.tools;
   }
 
+  if (canonicalGuardrailId(normalized.guardrail) === "G5") {
+    const firstUserIndex = normalized.messages.findIndex((message) => message?.role === "user");
+    if (firstUserIndex >= 0) {
+      const current = normalized.messages[firstUserIndex];
+      normalized.messages[firstUserIndex] = {
+        ...current,
+        content: enforceG5UserPromptIntegrity(current?.content, normalized.language || "de"),
+      };
+    }
+  }
+
+  if (canonicalGuardrailId(normalized.guardrail) === "G2") {
+    const firstUserIndex = normalized.messages.findIndex((message) => message?.role === "user");
+    if (firstUserIndex >= 0) {
+      const current = normalized.messages[firstUserIndex];
+      normalized.messages[firstUserIndex] = {
+        ...current,
+        content: enforceG2UserPromptIntegrity(current?.content, normalized.language || "de"),
+      };
+    }
+  }
+
   normalized = enforceG12ToolAwareResponse(normalized);
   normalized = enforceSupportiveGuardrailResponses(normalized);
+  normalized = enforceG1PlanSaveAlignment(normalized);
 
   normalized.notes = sanitizeNotes(normalized);
   normalized.tool_policy = deriveToolPolicy(normalized);
@@ -2186,7 +2708,47 @@ function topicFromText(text) {
   return "other";
 }
 
-function attachGroundingMetadata(examples, retrieval, intentBasis = "rag") {
+function firstUserMessageText(example) {
+  return String((example?.messages || []).find((message) => message?.role === "user" && typeof message?.content === "string")?.content || "");
+}
+
+function deriveIntentKeyForExample(example, fallbackKey = "") {
+  const guardrailId = canonicalGuardrailId(example?.guardrail);
+  const userText = firstUserMessageText(example);
+  const normalizedUser = normalizeText(userText);
+
+  if (guardrailId === "G4") {
+    if (hasG4RedFlagSymptoms(normalizedUser)) {
+      return "g4_red_flag_radiating_pain";
+    }
+    if (hasHydrationPhysicalSignals(normalizedUser) && !hasG4PainSignals(normalizedUser)) {
+      return "g4_hydration_fatigue_recovery";
+    }
+    if (/(knie|genou|ginocchio)/i.test(normalizedUser) && /(squat|ausfallschritt|affondi|lifting|allenamento|entrainement|training)/i.test(normalizedUser)) {
+      return "knee_pain_during_lifting";
+    }
+  }
+
+  return String(fallbackKey || `${String(guardrailId || "general").toLowerCase()}_general`).trim();
+}
+
+function attachGroundingMetadata(examples, retrieval, { intentBasis = "rag", selectedUserIntent = null } = {}) {
+  if (intentBasis === "random_user_intent") {
+    return examples.map((example) => ({
+      ...example,
+      intent_basis: intentBasis,
+      intent_source: {
+        basis: intentBasis,
+        guardrail_id: example.guardrail,
+        rag_document: false,
+      },
+      grounding: {
+        query: `${canonicalGuardrailId(example?.guardrail)} | synthetic_intent | ${deriveIntentKeyForExample(example, selectedUserIntent?.intent || "")}`,
+        sources: [],
+      },
+    }));
+  }
+
   const sources = [];
   const seen = new Set();
   for (const snippet of retrieval.snippets) {
@@ -2321,13 +2883,50 @@ function toolCallSignature(example) {
   return toolCalls.length ? toolCalls.join('|') : 'no_tool_calls';
 }
 
+function expectedGroupToolSignature(example, comparable) {
+  const explicitNoToolByPolicy =
+    String(example?.tool_policy || "") === "not_required_for_general_guidance" &&
+    example?.personalization_needed === false;
+  if (explicitNoToolByPolicy) {
+    return "no_tool_calls";
+  }
+
+  const signatures = [];
+  for (const item of comparable || []) {
+    signatures.push(toolCallSignature(item));
+  }
+  signatures.push(toolCallSignature(example));
+
+  const counts = new Map();
+  for (const signature of signatures) {
+    counts.set(signature, (counts.get(signature) || 0) + 1);
+  }
+
+  let selected = toolCallSignature(example);
+  let selectedCount = -1;
+  for (const [signature, count] of counts.entries()) {
+    if (count > selectedCount) {
+      selected = signature;
+      selectedCount = count;
+      continue;
+    }
+    if (count === selectedCount && selected === "no_tool_calls") {
+      continue;
+    }
+    if (count === selectedCount && signature === "no_tool_calls") {
+      selected = signature;
+    }
+  }
+
+  return selected;
+}
+
 function detectGroupReviewIssues(example, existingExamples) {
   const guardrailId = canonicalGuardrailId(example?.guardrail);
   const groupKey = String(example?.intent_key || '').trim();
   if (!groupKey) return [];
 
   const currentSignature = toolCallSignature(example);
-  const currentHasHealthTool = hasHealthToolCall(example);
   const comparable = (existingExamples || []).filter((item) =>
     canonicalGuardrailId(item?.guardrail) === guardrailId &&
     String(item?.intent_key || '').trim() === groupKey
@@ -2335,12 +2934,9 @@ function detectGroupReviewIssues(example, existingExamples) {
 
   if (!comparable.length) return [];
 
-  for (const other of comparable) {
-    const otherSignature = toolCallSignature(other);
-    const otherHasHealthTool = hasHealthToolCall(other);
-    if (otherSignature !== currentSignature || otherHasHealthTool !== currentHasHealthTool) {
-      return ['inconsistent_tool_use_within_group'];
-    }
+  const expectedSignature = expectedGroupToolSignature(example, comparable);
+  if (currentSignature !== expectedSignature) {
+    return ['inconsistent_tool_use_within_group'];
   }
 
   return [];
@@ -2737,6 +3333,7 @@ async function runBatch(guardrail, lang, count) {
       selectedUserIntent,
       retrieval,
       forcePlanPersistence: healthyMix.forceControl,
+      preferredToolName: healthyMix.preferredTool,
     });
     const preparedParse = prepareExamples(stagedExamples);
     const prepared = preparedParse.accepted;
@@ -2751,6 +3348,7 @@ async function runBatch(guardrail, lang, count) {
         selectedQuestion,
         selectedUserIntent,
         forcePlanPersistence: healthyMix.forceControl,
+        preferredToolName: healthyMix.preferredTool,
       });
       let working = applyLanguageHygiene(example).example;
       let { issues, reviewIssues } = validateRowDetailed(working, { guardrail: guardrail.id, language: lang });
@@ -2823,16 +3421,26 @@ async function runBatch(guardrail, lang, count) {
     }
 
     const intentBasis = selectedUserIntent ? "random_user_intent" : "rag";
-    const withGrounding = attachGroundingMetadata(validated, retrieval, intentBasis).map((example) => ({
+    const withGrounding = attachGroundingMetadata(validated, retrieval, {
+      intentBasis,
+      selectedUserIntent,
+    }).map((example) => ({
       ...example,
       intent_basis: intentBasis,
-      intent_key: selectedUserIntent?.intent || `${guardrail.id}:${seed.file_name}:${selectedQuestion}`,
-      doc_seed: {
-        file_name: seed.file_name,
-        title: seed.title,
-        summary: seed.summary,
-        question: selectedQuestion,
-      },
+      intent_key: deriveIntentKeyForExample(example, selectedUserIntent?.intent || `${guardrail.id}:${seed.file_name}:${selectedQuestion}`),
+      doc_seed: intentBasis === "random_user_intent"
+        ? {
+            file_name: null,
+            title: "random_user_intent",
+            summary: resolveIntentExampleByLanguage(selectedUserIntent, lang) || selectedUserIntent?.example || "",
+            question: null,
+          }
+        : {
+            file_name: seed.file_name,
+            title: seed.title,
+            summary: seed.summary,
+            question: selectedQuestion,
+          },
     }));
 
     const acceptedBeforeGroupReview = [];
@@ -2921,7 +3529,13 @@ async function main() {
   console.log("Done.");
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+const isDirectExecution = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isDirectExecution) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
+
+export { normalizeIntentDecision, computePreflightPolicy, parseRequiredObject };
