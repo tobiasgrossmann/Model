@@ -52,7 +52,21 @@ function renderPromptTemplate(template, values = {}) {
   });
 }
 
-const SYSTEM_PROMPT_TEMPLATE = readPromptTemplate("system.md");
+const SYSTEM_PROMPT_TEMPLATE_RAW = readPromptTemplate("system.md");
+
+function getSystemPromptForLang(lang) {
+  const sections = SYSTEM_PROMPT_TEMPLATE_RAW.split("\n---\n").map(s => s.trim());
+  const langLower = String(lang || "").toLowerCase();
+  // Try exact match first (de, fr, it)
+  for (const section of sections) {
+    if (section.startsWith(langLower === "de" ? "Du generierst" : langLower === "fr" ? "Tu génères" : "Tu generi")) {
+      return section;
+    }
+  }
+  // Fallback to first section (German)
+  return sections[0] || SYSTEM_PROMPT_TEMPLATE_RAW;
+}
+
 const GENERATION_PROMPT_TEMPLATE = readPromptTemplate("generation.md");
 const CONTRACT_INTENT_PROMPT_TEMPLATE = readPromptTemplate("generation.md", "Contract Intent Prompt Template");
 const CONTRACT_SKELETON_PROMPT_TEMPLATE = readPromptTemplate("generation.md", "Contract Skeleton Prompt Template");
@@ -460,7 +474,7 @@ function buildPrompt(guardrail, lang, count, rotationIndex, docSeed, selectedUse
   const groundingInstruction = guardrailGroundingInstruction(guardrail.id);
   const contentContract = guardrailContentContract(guardrail.id);
 
-  const system = renderPromptTemplate(SYSTEM_PROMPT_TEMPLATE, {});
+  const system = renderPromptTemplate(getSystemPromptForLang(lang), {});
   const systemWithMode = NO_THINK ? `/no_think\n${system}` : system;
   const systemMarker = `HEICO_SYSTEM_PROMPT_${lang.toUpperCase()}`;
 
@@ -1455,6 +1469,8 @@ function classifyValidationIssue(issues) {
   if (/guardrail mismatch: pregnancy context indicates g12/.test(joined)) return "pregnancy_leakage";
   if (/content mismatch: g4 hydration\/fatigue question should not receive an acute joint-pain warning response/.test(joined)) return "guardrail_mismatch";
   if (/guardrail mismatch:/.test(joined)) return "guardrail_mismatch";
+  if (/response_mismatch:/.test(joined)) return "response_mismatch";
+  if (/data_access_requested_after_tool_result:/.test(joined)) return "data_access_after_tool_result";
   return "generic";
 }
 
@@ -1471,7 +1487,7 @@ function buildSegmentRepairPrompt({ lang, guardrailId, repairClass, issues, pref
 }
 
 async function regenerateSegment({ lang, guardrailId, repairClass, issues, preflight, example, repairTarget }) {
-  const system = NO_THINK ? `/no_think\n${SYSTEM_PROMPT_TEMPLATE}` : SYSTEM_PROMPT_TEMPLATE;
+  const system = NO_THINK ? `/no_think\n${getSystemPromptForLang(lang)}` : getSystemPromptForLang(lang);
   const prompt = buildSegmentRepairPrompt({
     lang,
     guardrailId,
@@ -1735,7 +1751,7 @@ function buildRealizationRepairPrompt({ lang, guardrailId, preflight, intentDeci
 }
 
 async function generateContractExamples({ guardrail, lang, count, rotationIndex, docSeed, selectedQuestion, selectedUserIntent, retrieval, forcePlanPersistence = false, preferredToolName = null }) {
-  const system = NO_THINK ? `/no_think\n${SYSTEM_PROMPT_TEMPLATE}` : SYSTEM_PROMPT_TEMPLATE;
+  const system = NO_THINK ? `/no_think\n${getSystemPromptForLang(lang)}` : getSystemPromptForLang(lang);
   const accepted = [];
   const rejected = [];
 

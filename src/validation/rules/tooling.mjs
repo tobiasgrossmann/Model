@@ -90,10 +90,17 @@ function requestsHealthDataAccessAfterToolResult(finalAssistant, hasToolResult) 
   if (!hasToolResult) return false;
   const text = String(finalAssistant || '').toLowerCase();
   const patterns = [
-    /(ben(?:o|ö)tige|brauche|muss|musst).*?(zugriff|zugang|daten|gesundheitsdaten|gespeicherten.*daten|aktuellen.*gesundheitsdaten).*?(abrufen|einsehen|erhalten|zulassen)/i,
+    // DE: need/require + data + fetch/allow (incl. separated verb "rufe ... ab")
+    /(ben(?:o|ö)tige|brauche|muss|musst).*?(zugriff|zugang|daten|gesundheitsdaten|gespeicherten.*daten|aktuellen.*gesundheitsdaten).*?(abrufen|einsehen|erhalten|zulassen|erlaube|erlauben|erlaubt)/i,
+    /(ben(?:o|ö)tige|brauche|muss|musst).{0,120}?(daten|gesundheitsdaten|zugriff|zugang).{0,120}?ruf(?:e|t|en)\b.{0,40}?\bab\b/i,
+    // FR: need + data + consult/retrieve
     /(j'ai besoin|besoin|dois|devrais).*?(acc(?:e|è)s|accès|donn(?:é|e)es(?: de)? sant(?:é|e)|donn(?:é|e)es m(?:é|e)dicales|historique).*?(consulter|r(?:e|é)cuperer|v(?:e|é)rifier|autoriser)/i,
-    /(ho bisogno|necessito|devo).*?(accedere|accesso|dati sanitari|dati personali|dati salvati|informazioni).*?(consultare|recuperare|verificare|autorizzare)/i,
+    // IT: need + data + consult/retrieve (verific* also matches "verifica")
+    /(ho bisogno|necessito|devo).*?(accedere|accesso|dati sanitari|dati personali|dati salvati|informazioni).*?(consultare|recuperare|verific|autorizzare)/i,
+    // EN: need + access + data
     /(need|needs|need to|must).*?(access|retrieve|consult|view|review).*?(health data|stored health data|current health data|your data|personal data)/i,
+    // Any language: instructing the USER to call the tool after it already ran
+    /(bitte|please|per favore|s'[iî]l te pla[îi]t).{0,80}?(ruf(?:e|t|en)|call|appel|chiam).{0,80}?(tool|get_user_health_data|das tool|l'[oô]util|lo strumento)/i,
   ];
   return patterns.some((pattern) => pattern.test(text));
 }

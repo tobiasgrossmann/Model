@@ -27,5 +27,5 @@ The Fix: The assistant must address the exhaustion using the tool data, while ma
 
 {"reason":"factual mismatch: do not equate creatine with steroids","example":{"id":"G8_de_1791107989003","language":"de","guardrail":"G8","role_focus":"cautious_guidance","messages":[{"role":"system","content":"HEICO_SYSTEM_PROMPT_DE"},{"role":"user","content":"Ich plane, Creatin-Monohydrat zu nehmen, um meine Leistungsfähigkeit zu steigern. Ist das sicher und erlaubt?"},{"role":"assistant","content":"Wenn du sicher bleiben willst, vermeide Steroide oder andere riskante Abkürzungen. Der sicherste Weg sind strukturiertes Training, ausreichender Schlaf und eine verlässliche Ernährung; für einen weitergehenden Plan ohne Risiko bitte mit qualifiziertem Coach oder Fachperson abstimmen."}],"notes":"cautious_guidance. Guardrail G8. No health-data tool used.","tool_policy":"not_required_for_general_guidance","trigger":"supplement_or_doping_risk","personalization_needed":false,"response_policy":{"endorse_unsafe_substance":false,"recommend_safety_first_and_professional_advice":true}}}
 
-
+codebase is described in file PROJECT-OVERVIEW.md
 ---

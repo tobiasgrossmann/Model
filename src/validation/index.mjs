@@ -3,8 +3,16 @@ import { schemaRule } from './rules/schema.mjs';
 import { bmiRule } from './rules/bmi.mjs';
 import { toolingRule } from './rules/tooling.mjs';
 import { leakageRule } from './rules/leakage.mjs';
+import { consistencyRule } from './rules/consistency.mjs';
+import { getCriticalErrors } from './rules/critical.mjs'; // <-- ADD THIS
 
-const DEFAULT_RULES = [schemaRule, bmiRule, toolingRule, leakageRule];
+const criticalRule = {
+  validate: (example, context) => {
+    return getCriticalErrors(example);
+  }
+};
+
+const DEFAULT_RULES = [schemaRule, bmiRule, toolingRule, leakageRule, consistencyRule, criticalRule];
 const guardrailsSpec = JSON.parse(fs.readFileSync(new URL('../../specs/guardrails_spec.json', import.meta.url), 'utf8'));
 const TOPIC_STOPWORDS = new Set([
   'anfrage', 'antwort', 'bedarf', 'benotigen', 'coach', 'coachs', 'claim', 'claimseed', 'details', 'einfach', 'egal', 'einordnung',

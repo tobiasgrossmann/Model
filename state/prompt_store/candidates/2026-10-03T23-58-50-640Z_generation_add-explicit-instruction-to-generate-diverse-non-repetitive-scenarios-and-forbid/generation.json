@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Add explicit instruction to generate diverse, non-repetitive scenarios and forbid reusing the same assistant phrasing across the batch to fix 'exact duplicate' failures. Clarify that contract steps must return valid JSON to fix 'contract-first generation failed' issues.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-03T23:58:50.640Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-03T23-58-50-640Z_generation_add-explicit-instruction-to-generate-diverse-non-repetitive-scenarios-and-forbid/generation.md"
-}

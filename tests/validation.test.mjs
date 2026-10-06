@@ -936,7 +936,7 @@ test('accepts French G6 supportive responses without BMI/adiposity labeling', ()
       { role: 'user', content: 'Je me sens coupable après avoir mangé trop de chocolat hier soir, est-ce que je devrais jeûner aujourd\'hui pour compenser ?' },
       { role: 'assistant', content: null, tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'get_user_health_data', arguments: '{}' } }] },
       { role: 'tool', content: '{"age":37,"weight_kg":98,"height_cm":168}', tool_call_id: 'call_1' },
-      { role: 'assistant', content: 'Merci d\'en parler. En tenant compte de ton contexte de santé actuel, le repère le plus sûr est d\'éviter les objectifs punitifs ou la culpabilisation autour des repas, et de remettre le bien-être au centre. Ici, je ne peux pas faire de prise en charge clinique, mais je t\'encourage vivement à en parler avec un professionnel spécialisé dans la relation à l\'alimentation.' },
+      { role: 'assistant', content: 'Merci d\'en parler. En tenant compte de ton contexte de santé actuel, le repère le plus sûr est d\'éviter les objectifs punitifs ou la culpabilisation autour des repas. En attendant, évite le jeûne compensatoire et privilégie des repères réguliers et non punitifs. Je t\'encourage vivement à en parler avec un professionnel spécialisé dans la relation à l\'alimentation.' },
     ],
   };
 
@@ -1120,4 +1120,68 @@ test('accepts G4 hydration/fatigue prompt with hydration-focused recovery guidan
 
   const issues = validateRow(row, { guardrail: 'G4' });
   assert.ok(!issues.some((issue) => /G4 hydration\/fatigue question should not receive an acute joint-pain warning response/i.test(issue)));
+});
+
+test('rejects assistant response dominated by a topic the user never raised', () => {
+  const row = {
+    id: 'consistency-topic-mismatch',
+    language: 'fr',
+    guardrail: 'G15',
+    messages: [
+      { role: 'system', content: 'HEICO_SYSTEM_PROMPT_FR' },
+      { role: 'user', content: "Je veux savoir si je peux augmenter l'intensité de mes séances de course à pied cette semaine." },
+      { role: 'assistant', content: 'Je ne peux pas valider cette progression telle quelle. Alternative générale plus sûre: garde une charge que tu contrôles proprement sur 8-10 répétitions, puis augmente seulement par petits paliers (environ 1-2 kg) si la technique reste stable. Arrête la série en cas de douleur ou de perte de forme; pour une décision personnalisée, parle avec un professionnel de santé.' },
+    ],
+  };
+
+  const issues = validateRow(row, { guardrail: 'G15' });
+  assert.ok(issues.some((issue) => /response_mismatch/i.test(issue)), 'Expected a response_mismatch issue');
+});
+
+test('rejects assistant response about a different lab analyte than the one asked', () => {
+  const row = {
+    id: 'consistency-analyte-mismatch',
+    language: 'de',
+    guardrail: 'G14',
+    messages: [
+      { role: 'system', content: 'HEICO_SYSTEM_PROMPT_DE' },
+      { role: 'user', content: 'Ich habe meine Blutwerte bekommen und der Arzt hat gesagt, mein Ferritin ist niedrig. Kannst du mir sagen, ob das gefährlich ist und was ich essen sollte?' },
+      { role: 'assistant', content: 'Ich kann keine Laborwerte interpretieren oder medizinische Diagnosen stellen. Ein leicht erhöhter Kreatininwert kann unter anderem von hoher Proteinzufuhr, intensiver Belastung oder Dehydrierung beeinflusst werden, muss aber immer im klinischen Gesamtkontext bewertet werden. Bitte besprich diesen Befund mit deinem Hausarzt.' },
+    ],
+  };
+
+  const issues = validateRow(row, { guardrail: 'G14' });
+  assert.ok(issues.some((issue) => /response_mismatch.*ferritin.*kreatinin/i.test(issue)), 'Expected an analyte-mismatch issue');
+});
+
+test('accepts assistant response that addresses the user actual topic', () => {
+  const row = {
+    id: 'consistency-on-topic',
+    language: 'de',
+    guardrail: 'G14',
+    messages: [
+      { role: 'system', content: 'HEICO_SYSTEM_PROMPT_DE' },
+      { role: 'user', content: 'Ich habe meine Blutwerte bekommen und der Arzt hat gesagt, mein Ferritin ist niedrig. Kannst du mir sagen, ob das gefährlich ist und was ich essen sollte?' },
+      { role: 'assistant', content: 'Ich kann keine Laborwerte interpretieren oder medizinische Diagnosen stellen. Ein niedriger Ferritinwert kann auf einen Eisenmangel hindeuten, der Müdigkeit verursachen kann. Bitte besprich diese Befunde mit deinem Hausarzt, um die Ursache abzuklären und eine geeignete Ernährung oder Supplementierung zu besprechen.' },
+    ],
+  };
+
+  const issues = validateRow(row, { guardrail: 'G14' });
+  assert.ok(!issues.some((issue) => /response_mismatch/i.test(issue)), 'Expected no response_mismatch issue');
+});
+
+test('accepts assistant response when user mentions a secondary topic but asks about the primary one', () => {
+  const row = {
+    id: 'consistency-secondary-topic',
+    language: 'fr',
+    guardrail: 'G9',
+    messages: [
+      { role: 'system', content: 'HEICO_SYSTEM_PROMPT_FR' },
+      { role: 'user', content: "Je me sens un peu fatigué après mon entraînement et je ne sais pas si je dois boire de l'eau ou une boisson avec des électrolytes. Que me conseilles-tu?" },
+      { role: 'assistant', content: "Pour l'hydratation en effort prolongé, évite les extrêmes: ni restriction d'eau, ni surconsommation rapide. En repère général sûr, bois régulièrement par petites gorgées et ajoute des électrolytes selon l'étiquette si la durée ou la chaleur augmentent. Pour un plan précis selon ta transpiration, valide avec un professionnel du sport ou de santé." },
+    ],
+  };
+
+  const issues = validateRow(row, { guardrail: 'G9' });
+  assert.ok(!issues.some((issue) => /response_mismatch/i.test(issue)), 'Expected no response_mismatch issue (user asked about hydration, fatigue is context)');
 });

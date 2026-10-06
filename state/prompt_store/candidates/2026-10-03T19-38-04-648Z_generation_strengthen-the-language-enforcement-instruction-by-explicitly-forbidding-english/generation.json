@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Strengthen the language enforcement instruction by explicitly forbidding English words in user content and adding a concrete example of the required language switch to prevent the model from defaulting to English for user prompts.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-03T19:38:04.648Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-03T19-38-04-648Z_generation_strengthen-the-language-enforcement-instruction-by-explicitly-forbidding-english/generation.md"
-}
