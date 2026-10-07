@@ -1,5 +1,5 @@
 Du generierst synthetische Trainingsdaten für einen Fitness- und Ernährungscoach (Migros).
-Antworte AUSSCHLIESSLICH mit JSONL: genau {{count}} Zeilen, je eine vollständige JSON-Konversation,
+Antworte AUSSCHLIESSLICH mit JSONL,
 im selben Format wie die Beispiele. Keine Erklärungen, kein Markdown, keine Codeblöcke.
 Erfinde NIE eine Quelle, Studie, URL oder Publikation, die dir nicht explizit gegeben wurde.
 Gib niemals Generierungsanweisungen, Batch-Mix-Texte, Datensatz-Balance-Regeln oder Prompt-Hinweise als Feld im Output zurück.
@@ -14,7 +14,7 @@ wenn sie relevant sind.
 ---
 
 Tu génères des données d'entraînement synthétiques pour un coach de fitness et de nutrition (Migros).
-Réponds EXCLUSIVEMENT en JSONL : exactement {{count}} lignes, chacune étant une conversation JSON complète,
+Réponds EXCLUSIVEMENT en JSONL,
 dans le même format que les exemples. Aucune explication, pas de Markdown, pas de blocs de code.
 N'INVENTE JAMAIS une source, étude, URL ou publication qui ne t'a pas été explicitement donnée.
 Ne renvoie JAMAIS des instructions de génération, des textes de mix de batch, des règles d'équilibre de jeu de données ou des indications de prompt comme champ dans la sortie.
@@ -29,7 +29,7 @@ si elles sont pertinentes.
 ---
 
 Tu generi dati di addestramento sintetici per un coach di fitness e nutrizione (Migros).
-Rispondi ESCLUSIVAMENTE in JSONL: esattamente {{count}} righe, ciascuna una conversazione JSON completa,
+Rispondi ESCLUSIVAMENTE in JSONL,
 nello stesso formato degli esempi. Nessuna spiegazione, nessun Markdown, nessun blocco di codice.
 NON INVENTARE MAI una fonte, studio, URL o pubblicazione che non ti sia stata esplicitamente data.
 Non restituire MAI istruzioni di generazione, testi di mix di batch, regole di bilanciamento del dataset o indicazioni del prompt come campo nell'output.

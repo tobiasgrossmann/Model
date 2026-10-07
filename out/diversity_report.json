@@ -1,72 +1,72 @@
 {
   "totals": {
-    "validated_examples": 128,
-    "compared_pairs": 8128,
+    "validated_examples": 143,
+    "compared_pairs": 10153,
     "high_overlap_pairs": 5,
-    "high_overlap_ratio": 0.0006,
+    "high_overlap_ratio": 0.0005,
     "overlap_threshold": 0.85,
     "compared_pairs_cap": 150000
   },
   "distribution": {
     "language": {
-      "fr": 51,
-      "it": 49,
-      "de": 28
+      "fr": 56,
+      "it": 54,
+      "de": 33
     },
     "guardrail": {
-      "G14": 16,
-      "G2": 3,
-      "G10": 9,
+      "G14": 19,
+      "G2": 6,
+      "G10": 12,
       "G13": 5,
       "G1": 2,
-      "G4": 11,
+      "G4": 14,
       "G11": 10,
       "G6": 1,
       "G5": 2,
       "G17": 24,
       "G12": 25,
       "G9": 14,
-      "G8": 4,
+      "G8": 7,
       "G15": 2
     },
     "intent_basis": {
-      "guardrail": 128
+      "guardrail": 143
     },
     "tool_call": {
-      "get_user_health_data": 12,
+      "get_user_health_data": 14,
       "save_training_plan": 2
     },
     "tool_call_language": {
-      "get_user_health_data/it": 3,
-      "get_user_health_data/de": 4,
+      "get_user_health_data/it": 4,
+      "get_user_health_data/de": 5,
       "get_user_health_data/fr": 5,
       "save_training_plan/it": 1,
       "save_training_plan/fr": 1
     },
     "persona": {
       "sex": {
-        "unknown": 116,
-        "female": 8,
-        "male": 4
+        "unknown": 129,
+        "female": 9,
+        "male": 5
       },
       "age_band": {
-        "unknown": 116,
-        "18-29": 5,
-        "30-44": 7
+        "unknown": 129,
+        "18-29": 6,
+        "30-44": 8
       },
       "height_band_cm": {
-        "unknown": 116,
-        "160-174": 8,
-        "175-189": 4
+        "unknown": 129,
+        "160-174": 9,
+        "175-189": 5
       },
       "weight_band_kg": {
-        "unknown": 128
+        "unknown": 143
       }
     },
     "topic": {
-      "medical_scope": 48,
-      "other": 56,
-      "exercise": 9,
+      "medical_scope": 53,
+      "other": 62,
+      "exercise": 13,
       "weight_loss": 4,
       "pregnancy": 9,
       "allergy": 2

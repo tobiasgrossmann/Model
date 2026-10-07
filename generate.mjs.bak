@@ -85,9 +85,9 @@ const ONLY_LANG = argVal("lang", null);
 const REQUESTED_COUNT = parseInt(argVal("count", "1"), 10);
 const MAX_EXAMPLES_PER_RUN = 1;
 const COUNT = Math.min(REQUESTED_COUNT, MAX_EXAMPLES_PER_RUN);
-const STREAM = process.argv.includes("--no-stream") || parseInt(argVal("concurrency", "1"), 10) > 1 ? false : true;
+const STREAM = process.argv.includes("--no-stream") ? false : true;
 const NO_THINK = false;
-const REQUEST_TIMEOUT_MS = parseInt(argVal("timeout-ms", "900000"), 10);
+const REQUEST_TIMEOUT_MS = parseInt(argVal("timeout-ms", "180000"), 10);
 const MAX_TOKENS = parseInt(argVal("max-tokens", "32000"), 10);
 const DEDUP_NGRAM = parseInt(argVal("dedup-ngram", "3"), 10);
 const DEDUP_THRESHOLD = Number(argVal("dedup-threshold", "0.88"));
@@ -420,7 +420,6 @@ async function getOrCreateDocSeed({ doc, lang, guardrail }) {
   for (let attempt = 0; attempt < 2; attempt++) {
     const raw = await callServer(system, user, {
       label: `seed/${guardrail.id}/${lang}/${doc.file_name}`,
-      thinking: false,
       maxTokensOverride: 900,
       temperatureOverride: 0.6,
     });
@@ -626,7 +625,7 @@ function computePreflightPolicy({ guardrail, lang, selectedQuestion, selectedUse
     guardrail: guardrailId,
     language: lang,
     tool_required: toolRequired,
-    preferred_tool: toolRequired ? coerceToolForGuardrail(preferredTool, guardrailId) : null,
+    preferred_tool: toolRequired ? preferredTool : null,
     tool_forbidden: false,
     response_mode: responseMode,
     reason_category: classifyReasonCategory(sourceText, guardrailId),
@@ -915,7 +914,6 @@ function buildG4SafetyText(lang, userText = "") {
 }
 
 function enforceG2UserPromptIntegrity(text, lang) {
-  if (!TEMPLATE_OVERRIDES) return String(text || "").trim();
   const value = String(text || "").trim();
   if (!value) return fallbackUserText(lang, null, null, "G2");
   if (hasG2MedicalSignals(value)) return value;
@@ -935,7 +933,6 @@ function hasHydrationPhysicalSignals(text) {
 }
 
 function enforceG5UserPromptIntegrity(text, lang) {
-  if (!TEMPLATE_OVERRIDES) return String(text || "").trim();
   const value = String(text || "").trim();
   if (!value) return fallbackUserText(lang, null, null, "G5");
 
@@ -1128,19 +1125,29 @@ function compileExampleFromContract({
   intentDecision,
   turnTypes,
   realization,
+  selectedQuestion,
+  selectedUserIntent,
   rotationIndex,
 }) {
   const systemMarker = `HEICO_SYSTEM_PROMPT_${lang.toUpperCase()}`;
-  const toolName = intentDecision.tool_needed ? String(intentDecision.tool_name || "get_user_health_data") : null;
-
-  // No silent fallbacks: a canned text here would produce exactly the
-  // topic-mismatch / amnesia / duplicate samples the validator rejects.
-  const userText = String(realization?.user_text || "").trim();
-  const assistantFinal = String(realization?.assistant_final_text || "").trim();
-  if (!userText || !assistantFinal) {
-    throw new Error("realization is missing user_text or assistant_final_text");
+  const toolName = intentDecision.tool_needed ? String(intentDecision.tool_name || 'get_user_health_data') : null;
+  let userText = String(realization?.user_text || "").trim() || fallbackUserText(lang, selectedQuestion, selectedUserIntent, guardrail.id);
+  if (String(guardrail?.id || "").toUpperCase() === "G5") {
+    userText = enforceG5UserPromptIntegrity(userText, lang);
   }
-
+  if (String(guardrail?.id || "").toUpperCase() === "G2") {
+    userText = enforceG2UserPromptIntegrity(userText, lang);
+  }
+  let assistantFinal = String(realization?.assistant_final_text || "").trim()
+    || (toolName === 'save_food_plan' || toolName === 'save_training_plan'
+      ? fallbackSavedPlanAssistantText(lang, toolName)
+      : fallbackAssistantText(lang, intentDecision.response_style, guardrail.id));
+  if (toolName === "get_user_health_data" && requestsHealthDataAccessAfterToolResult(assistantFinal)) {
+    assistantFinal = fallbackAssistantText(lang, intentDecision.response_style, guardrail.id);
+  }
+  if (violatesLockedConstraints(assistantFinal, guardrail.id, preflight)) {
+    assistantFinal = fallbackAssistantText(lang, intentDecision.response_style, guardrail.id);
+  }
   const messages = [
     { role: "system", content: systemMarker },
   ];
@@ -1160,7 +1167,7 @@ function compileExampleFromContract({
           type: "function",
           function: {
             name: toolName || "get_user_health_data",
-            arguments: deterministicToolArguments(toolName || "get_user_health_data", lang),
+            arguments: deterministicToolArguments(toolName || 'get_user_health_data', lang),
           },
         }],
       });
@@ -1169,8 +1176,7 @@ function compileExampleFromContract({
     if (turn === "tool") {
       messages.push({
         role: "tool",
-        content: deterministicToolResult(toolName || "get_user_health_data")
-          || JSON.stringify(buildDeterministicHealthPayload(guardrail.id, rotationIndex, lang)),
+        content: deterministicToolResult(toolName || 'get_user_health_data') || JSON.stringify(buildDeterministicHealthPayload(guardrail.id, rotationIndex, lang)),
         tool_call_id: "call_1",
       });
       continue;
@@ -1181,7 +1187,7 @@ function compileExampleFromContract({
   }
 
   const example = {
-    id: `${guardrail.id}_${lang}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+    id: `${guardrail.id}_${lang}_${Date.now()}`,
     language: lang,
     guardrail: guardrail.id,
     role_focus: String(intentDecision.response_style || "Safety Coach"),
@@ -1193,15 +1199,15 @@ function compileExampleFromContract({
       type: "function",
       function: {
         name: toolName || "get_user_health_data",
-        description: toolName === "get_user_health_data"
+        description: toolName === 'get_user_health_data'
           ? canonicalToolDescription(lang)
-          : toolName === "save_food_plan"
-            ? "Persist a food plan for the selected language."
-            : "Persist a training plan for the selected language.",
+          : toolName === 'save_food_plan'
+            ? 'Persist a food plan for the selected language.'
+            : 'Persist a training plan for the selected language.',
         parameters: {
           type: "object",
-          properties: toolName === "get_user_health_data" ? {} : { plan: { type: "object" } },
-          required: toolName === "get_user_health_data" ? [] : ["plan"],
+          properties: toolName === 'get_user_health_data' ? {} : { plan: { type: 'object' } },
+          required: toolName === 'get_user_health_data' ? [] : ['plan'],
         },
       },
     }];
@@ -1432,7 +1438,7 @@ function enforceToolSequence(example, guardrailId, lang, rotationIndex) {
       },
       {
         role: "tool",
-        content: JSON.stringify(buildDeterministicHealthPayload(guardrailId, rotationIndex, lang)),
+        content: JSON.stringify(buildDeterministicHealthPayload(guardrailId, rotationIndex)),
         tool_call_id: "call_1",
       },
       {
@@ -1481,7 +1487,7 @@ function buildSegmentRepairPrompt({ lang, guardrailId, repairClass, issues, pref
 }
 
 async function regenerateSegment({ lang, guardrailId, repairClass, issues, preflight, example, repairTarget }) {
-  const system = NO_THINK ? `/no_think\n${getContractSystemPrompt(lang)}` : getContractSystemPrompt(lang);
+  const system = NO_THINK ? `/no_think\n${getSystemPromptForLang(lang)}` : getSystemPromptForLang(lang);
   const prompt = buildSegmentRepairPrompt({
     lang,
     guardrailId,
@@ -1493,68 +1499,13 @@ async function regenerateSegment({ lang, guardrailId, repairClass, issues, prefl
   });
   const raw = await callServer(system, prompt, {
     label: `segment-repair/${guardrailId}/${lang}/${repairClass}`,
-    thinking: false,
     maxTokensOverride: 700,
     temperatureOverride: 0.2,
   });
   return parseRequiredObject(raw, `segment-repair-${repairClass}`);
 }
 
-// Validator-feedback repair: instead of overwriting the answer with a canned
-// text, ask the model to rewrite user_text / assistant_final_text given the
-// exact validator errors and the fixed tool data.
-async function repairViaFeedback({ example, issues, guardrail, lang, preflight }) {
-  const unchanged = { repaired: example, changed: false, strategy: "llm_feedback" };
-  const messages = Array.isArray(example?.messages) ? example.messages : [];
-  const userIndex = messages.findIndex((message) => message?.role === "user");
-  const lastAssistantIndex = messages.map((message) => message?.role).lastIndexOf("assistant");
-  if (userIndex < 0 || lastAssistantIndex < 0) return unchanged;
-
-  const toolName = hasHealthToolCall(example) ? "get_user_health_data" : detectPlanSaveToolName(example);
-  const payload = toolName === "get_user_health_data" ? extractLatestHealthPayload(example) : null;
-  const visible = messages.filter((message) => message?.role !== "system");
-
-  const prompt = [
-    "Eine synthetische Trainings-Konversation wurde vom Validator abgelehnt. Schreibe user_text und assistant_final_text so neu, dass alle Fehler behoben sind.",
-    "",
-    `Guardrail: ${guardrail.id} (${guardrail.name}), Sprache: ${lang}`,
-    "Validator-Fehler:",
-    ...(Array.isArray(issues) ? issues : [issues]).map((issue) => `- ${issue}`),
-    "",
-    "Bisherige Konversation (JSON):",
-    JSON.stringify(visible, null, 2),
-    "",
-    buildRealizationFacts({ guardrail, preflight, payload, toolName }),
-    "",
-    'Antworte nur mit {"user_text": "...", "assistant_final_text": "..."}.',
-  ].join("\n");
-
-  try {
-    const raw = await callServer(getContractSystemPrompt(lang), prompt, {
-      label: `feedback-repair/${guardrail.id}/${lang}`,
-      maxTokensOverride: REALIZATION_MAX_TOKENS,
-      temperatureOverride: 0.4,
-      thinking: THINK_REALIZATION,
-    });
-    const patch = parseRequiredObject(raw, "text-realization");
-    const nextUser = String(patch.user_text || "").trim();
-    const nextFinal = String(patch.assistant_final_text || "").trim();
-    if (!nextUser || !nextFinal) return unchanged;
-
-    const repaired = JSON.parse(JSON.stringify(example));
-    repaired.messages[userIndex].content = nextUser;
-    repaired.messages[lastAssistantIndex].content = nextFinal;
-    return { repaired, changed: true, strategy: "llm_feedback" };
-  } catch (error) {
-    console.warn(`   [feedback-repair FAIL] ${guardrail.id}/${lang}: ${String(error?.message || error)}`);
-    return unchanged;
-  }
-}
-
 async function attemptFailureAwareRepair({ example, issues, guardrail, lang, rotationIndex, preflight }) {
-  if (!TEMPLATE_OVERRIDES && TEXT_REPAIR_CLASSES.has(classifyValidationIssue(issues))) {
-    return repairViaFeedback({ example, issues, guardrail, lang, preflight });
-  }
   const repairClass = classifyValidationIssue(issues);
   let repaired = JSON.parse(JSON.stringify(example || {}));
   let changed = false;
@@ -1611,7 +1562,7 @@ async function attemptFailureAwareRepair({ example, issues, guardrail, lang, rot
   if (repairClass === "tool_payload") {
     const toolIndex = (repaired.messages || []).findIndex((m) => m.role === "tool");
     if (toolIndex >= 0) {
-      repaired.messages[toolIndex].content = JSON.stringify(buildDeterministicHealthPayload(guardrail.id, rotationIndex, lang));
+      repaired.messages[toolIndex].content = JSON.stringify(buildDeterministicHealthPayload(guardrail.id, rotationIndex));
       if (!repaired.messages[toolIndex].tool_call_id) repaired.messages[toolIndex].tool_call_id = "call_1";
       changed = true;
     } else {
@@ -1800,7 +1751,7 @@ function buildRealizationRepairPrompt({ lang, guardrailId, preflight, intentDeci
 }
 
 async function generateContractExamples({ guardrail, lang, count, rotationIndex, docSeed, selectedQuestion, selectedUserIntent, retrieval, forcePlanPersistence = false, preferredToolName = null }) {
-  const system = getContractSystemPrompt(lang);
+  const system = NO_THINK ? `/no_think\n${getSystemPromptForLang(lang)}` : getSystemPromptForLang(lang);
   const accepted = [];
   const rejected = [];
 
@@ -1816,17 +1767,73 @@ async function generateContractExamples({ guardrail, lang, count, rotationIndex,
     });
 
     try {
-      // Intent decision and turn structure are fully determined by the
-      // preflight policy. They used to be LLM calls whose output was
-      // overwritten anyway; now they are computed in code.
-      const intentDecision = normalizeIntentDecision({}, preflight);
-      const turnTypes = compileTurnTypes(null, intentDecision);
-      const toolName = intentDecision.tool_needed
-        ? String(intentDecision.tool_name || "get_user_health_data")
-        : null;
-      const payload = toolName === "get_user_health_data"
-        ? buildDeterministicHealthPayload(guardrail.id, localRotation, lang)
-        : null;
+      const intentPrompt = renderPromptTemplate(CONTRACT_INTENT_PROMPT_TEMPLATE, buildContractPromptContext({
+        guardrail,
+        lang,
+        docSeed,
+        selectedQuestion,
+        selectedUserIntent,
+        retrieval,
+        preflight,
+      }));
+      let intentDecision;
+      try {
+        const intentRaw = await callServer(system, intentPrompt, {
+          label: `contract-intent/${guardrail.id}/${lang}`,
+          maxTokensOverride: 900,
+          temperatureOverride: 0.2,
+        });
+        intentDecision = normalizeIntentDecision(parseRequiredObject(intentRaw, "intent-decision"), preflight);
+      } catch (error) {
+        const repairText = buildIntentRepairPrompt({
+          lang,
+          guardrailId: guardrail.id,
+          guardrailName: guardrail.name,
+          preflight,
+          originalText: String(error?.message || error || ""),
+        });
+        const repairedRaw = await callServer(system, repairText, {
+          label: `contract-intent-repair/${guardrail.id}/${lang}`,
+          maxTokensOverride: 900,
+          temperatureOverride: 0.05,
+        });
+        intentDecision = normalizeIntentDecision(parseRequiredObject(repairedRaw, "intent-decision"), preflight);
+      }
+
+      const skeletonPrompt = renderPromptTemplate(CONTRACT_SKELETON_PROMPT_TEMPLATE, buildContractPromptContext({
+        guardrail,
+        lang,
+        docSeed,
+        selectedQuestion,
+        selectedUserIntent,
+        retrieval,
+        preflight,
+        intentDecision,
+      }));
+      let skeletonObj;
+      try {
+        const skeletonRaw = await callServer(system, skeletonPrompt, {
+          label: `contract-skeleton/${guardrail.id}/${lang}`,
+          maxTokensOverride: 700,
+          temperatureOverride: 0.15,
+        });
+        skeletonObj = parseRequiredObject(skeletonRaw, "conversation-skeleton");
+      } catch (error) {
+        const repairText = buildSkeletonRepairPrompt({
+          lang,
+          guardrailId: guardrail.id,
+          preflight,
+          intentDecision,
+          originalText: String(error?.message || error || ""),
+        });
+        const repairedRaw = await callServer(system, repairText, {
+          label: `contract-skeleton-repair/${guardrail.id}/${lang}`,
+          maxTokensOverride: 700,
+          temperatureOverride: 0.05,
+        });
+        skeletonObj = parseRequiredObject(repairedRaw, "conversation-skeleton");
+      }
+      const turnTypes = compileTurnTypes(skeletonObj, intentDecision);
 
       const realizationPrompt = renderPromptTemplate(CONTRACT_REALIZATION_PROMPT_TEMPLATE, buildContractPromptContext({
         guardrail,
@@ -1839,51 +1846,44 @@ async function generateContractExamples({ guardrail, lang, count, rotationIndex,
         intentDecision,
         turnTypes,
       }));
-      const facts = buildRealizationFacts({ guardrail, preflight, payload, toolName });
-
-      let realization = null;
-      let lastRaw = "";
-      let issues = [];
-
-      for (let attempt = 1; attempt <= REALIZATION_ATTEMPTS && !realization; attempt += 1) {
-        const prompt = [
-          realizationPrompt,
-          facts,
-          attempt > 1 ? buildFeedbackBlock(lastRaw, issues) : "",
-        ].filter(Boolean).join("\n\n");
-
-        try {
-          lastRaw = await callServer(system, prompt, {
-            label: `contract-realization/${guardrail.id}/${lang}/${attempt}`,
-            maxTokensOverride: REALIZATION_MAX_TOKENS,
-            temperatureOverride: 0.7,
-            thinking: THINK_REALIZATION,
-          });
-          const candidate = parseRequiredObject(lastRaw, "text-realization");
-          issues = checkRealization({ candidate, guardrail, lang, preflight, toolName, payload });
-          if (!issues.length) realization = candidate;
-        } catch (error) {
-          issues = [String(error?.message || error)];
-        }
-
-        if (!realization) {
-          console.warn(`   [realization retry ${attempt}/${REALIZATION_ATTEMPTS}] ${guardrail.id}/${lang}: ${issues.join(" | ")}`);
-        }
+      let realization;
+      try {
+        const realizationRaw = await callServer(system, realizationPrompt, {
+          label: `contract-realization/${guardrail.id}/${lang}`,
+          maxTokensOverride: 1400,
+          temperatureOverride: 0.45,
+        });
+        realization = parseRequiredObject(realizationRaw, "text-realization");
+      } catch (error) {
+        const repairText = buildRealizationRepairPrompt({
+          lang,
+          guardrailId: guardrail.id,
+          preflight,
+          intentDecision,
+          turnTypes,
+          originalText: String(error?.message || error || ""),
+        });
+        const repairedRaw = await callServer(system, repairText, {
+          label: `contract-realization-repair/${guardrail.id}/${lang}`,
+          maxTokensOverride: 1400,
+          temperatureOverride: 0.05,
+        });
+        realization = parseRequiredObject(repairedRaw, "text-realization");
       }
 
-      if (!realization) {
-        throw new Error(`realization failed after ${REALIZATION_ATTEMPTS} attempts: ${issues.join("; ")}`);
-      }
-
-      accepted.push(compileExampleFromContract({
+      const compiled = compileExampleFromContract({
         guardrail,
         lang,
         preflight,
         intentDecision,
         turnTypes,
         realization,
+        selectedQuestion,
+        selectedUserIntent,
         rotationIndex: localRotation,
-      }));
+      });
+
+      accepted.push(compiled);
     } catch (error) {
       rejected.push({
         reason: `contract-first generation failed: ${String(error?.message || error)}`,
@@ -1894,6 +1894,7 @@ async function generateContractExamples({ guardrail, lang, count, rotationIndex,
           messages: [
             { role: "system", content: `HEICO_SYSTEM_PROMPT_${lang.toUpperCase()}` },
             { role: "user", content: fallbackUserText(lang, selectedQuestion, selectedUserIntent, guardrail.id) },
+            { role: "assistant", content: fallbackAssistantText(lang, "cautious_guidance", guardrail.id) },
           ],
         },
       });
@@ -1901,192 +1902,6 @@ async function generateContractExamples({ guardrail, lang, count, rotationIndex,
   }
 
   return { accepted, rejected };
-}
-
-// ======================================================================
-// fixes: configuration and helpers (inserted by apply_fixes.mjs)
-// ======================================================================
-
-// Set TEMPLATE_OVERRIDES=1 to get the old behaviour back (canned fallback
-// texts overwrite the model output). Off by default: canned texts were the
-// main source of duplicates and of "wrong topic" / "amnesia" validator hits.
-const TEMPLATE_OVERRIDES = process.env.TEMPLATE_OVERRIDES === "1";
-const DEBUG_PROMPTS = process.env.DEBUG_PROMPTS === "1";
-
-// The realization step is the only creative LLM call left. It may think.
-const THINK_REALIZATION = argVal("think-realization", "on") !== "off";
-const REALIZATION_MAX_TOKENS = parseInt(argVal("realization-max-tokens", "8000"), 10);
-const REALIZATION_ATTEMPTS = parseInt(argVal("realization-attempts", "3"), 10);
-const MAX_BATCH_ATTEMPTS = parseInt(argVal("max-attempts", "6"), 10);
-const CONCURRENCY = Math.max(1, parseInt(argVal("concurrency", "1"), 10) || 1);
-const ROUNDS = Math.max(1, parseInt(argVal("rounds", "1"), 10) || 1);
-
-const TEXT_REPAIR_CLASSES = new Set([
-  "guardrail_mismatch",
-  "response_mismatch",
-  "data_access_after_tool_result",
-  "generic",
-]);
-
-// Guardrails where a training-plan save makes no sense (allergy, food safety).
-const FOOD_ONLY_GUARDRAILS = new Set(["G3", "G16"]);
-
-function coerceToolForGuardrail(toolName, guardrailId) {
-  if (toolName === "save_training_plan" && FOOD_ONLY_GUARDRAILS.has(String(guardrailId || "").toUpperCase())) {
-    return "save_food_plan";
-  }
-  return toolName;
-}
-
-// Short system prompts for the contract steps. The old system.md prompt asks
-// for "{{count}} JSONL lines" (never rendered) and contradicts the
-// {user_text, assistant_final_text} output of the realization step.
-const CONTRACT_SYSTEM_PROMPTS = {
-  de: [
-    "Du generierst synthetische Trainingsdaten für einen Fitness- und Ernährungscoach (Migros).",
-    "Antworte AUSSCHLIESSLICH mit genau einem JSON-Objekt im verlangten Schema. Kein Markdown, keine Codeblöcke, keine Erklärungen.",
-    "Erfinde NIE eine Quelle, Studie, URL oder Publikation.",
-    "Ohne Ergebnis von get_user_health_data keine BMI-/Gewichtswertung und keine personalisierte Messwert-Interpretation.",
-    "Hat ein Tool Daten geliefert, verwende sie konkret (Zahlen nennen) und bitte NIE erneut um dieselben Daten.",
-  ].join("\n"),
-  fr: [
-    "Tu génères des données d'entraînement synthétiques pour un coach fitness et nutrition (Migros).",
-    "Réponds EXCLUSIVEMENT avec un seul objet JSON au schéma demandé. Pas de markdown, pas de blocs de code, pas d'explications.",
-    "N'invente JAMAIS de source, d'étude, d'URL ou de publication.",
-    "Sans résultat de get_user_health_data: aucune évaluation de l'IMC ou du poids, aucune interprétation personnalisée de valeurs.",
-    "Si un outil a fourni des données, utilise-les concrètement (cite les chiffres) et ne redemande JAMAIS les mêmes données.",
-  ].join("\n"),
-  it: [
-    "Generi dati di addestramento sintetici per un coach di fitness e alimentazione (Migros).",
-    "Rispondi ESCLUSIVAMENTE con un solo oggetto JSON nello schema richiesto. Niente markdown, niente blocchi di codice, niente spiegazioni.",
-    "Non inventare MAI fonti, studi, URL o pubblicazioni.",
-    "Senza risultato di get_user_health_data: nessuna valutazione di BMI o peso, nessuna interpretazione personalizzata dei valori.",
-    "Se uno strumento ha fornito dati, usali in concreto (cita i numeri) e non chiedere MAI di nuovo gli stessi dati.",
-  ].join("\n"),
-};
-
-function getContractSystemPrompt(lang) {
-  return CONTRACT_SYSTEM_PROMPTS[String(lang || "").toLowerCase()] || CONTRACT_SYSTEM_PROMPTS.de;
-}
-
-function extractNumbers(text) {
-  return (String(text || "").match(/\d+(?:[.,]\d+)?/g) || []).map((n) => Number(n.replace(",", ".")));
-}
-
-function countMatches(text, re) {
-  return (String(text || "").match(re) || []).length;
-}
-
-// Facts and hard rules that go into the realization prompt. They are built in
-// code from the same deterministic payload that compileExampleFromContract
-// later puts into the tool message, so text and tool data cannot disagree.
-function buildRealizationFacts({ guardrail, preflight, payload, toolName }) {
-  const lines = ["## Feste Fakten und Pflichtregeln (vom System vorgegeben, nicht ändern)"];
-  lines.push(`- Guardrail: ${guardrail.id} (${guardrail.name})`);
-  lines.push('- Antwortformat: genau ein JSON-Objekt {"user_text": "...", "assistant_final_text": "..."} und sonst nichts.');
-
-  if (toolName === "get_user_health_data" && payload) {
-    const bmi = bmiFromPayload(payload);
-    lines.push(`- Das Tool get_user_health_data wurde bereits aufgerufen und lieferte: ${JSON.stringify(payload)}`);
-    if (bmi) lines.push(`- Daraus berechneter BMI: ${bmi.toFixed(1)}`);
-    lines.push("- assistant_final_text MUSS mindestens zwei konkrete Zahlen aus diesem Tool-Ergebnis nennen (z.B. Gewicht, Grösse, BMI oder Alter) und für die Antwort nutzen.");
-    lines.push("- assistant_final_text darf NIE nach Gewicht, Grösse, Alter, Gesundheitsdaten oder Zugriff darauf fragen: sie liegen bereits vor.");
-    lines.push("- user_text enthält keine eigenen Gewichts-, Grössen- oder BMI-Angaben.");
-  } else if (toolName === "save_food_plan" || toolName === "save_training_plan") {
-    lines.push(`- Das Tool ${toolName} wurde bereits erfolgreich ausgeführt (Status: ok).`);
-    lines.push("- user_text bittet ausdrücklich darum, den Plan zu speichern (kein Gesundheitscheck davor).");
-    lines.push("- assistant_final_text bestätigt kurz das erfolgreiche Speichern und verlangt keine Gesundheitsdaten.");
-  } else {
-    lines.push("- Es wurde KEIN Tool aufgerufen: keine BMI-/Gewichtsbewertung, keine Bezugnahme auf gespeicherte Nutzerdaten, keine personalisierte Messwert-Interpretation.");
-  }
-
-  lines.push("- assistant_final_text beantwortet genau das Thema aus user_text. Kein Themenwechsel (z.B. Müdigkeit/Hydration darf nicht mit einer Gelenkschmerz-Warnung beantwortet werden).");
-  lines.push(`- Sprache beider Texte: ${preflight.language}.`);
-  lines.push("- Keine Denkschritte, keine Meta-Kommentare, keine erfundenen Quellen.");
-  return lines.join("\n");
-}
-
-function buildFeedbackBlock(previousRaw, issues) {
-  return [
-    "## Korrektur nötig",
-    "Deine vorherige Antwort wurde abgelehnt:",
-    ...(Array.isArray(issues) ? issues : [issues]).map((issue) => `- ${issue}`),
-    "",
-    "Vorherige Antwort:",
-    String(previousRaw || "").slice(0, 1500),
-    "",
-    "Schreibe beide Texte neu und behebe alle genannten Fehler. Gib nur das JSON-Objekt zurück.",
-  ].join("\n");
-}
-
-// Programmatic coherence checks, run BEFORE a sample is accepted. They mirror
-// what the validator complains about, so the model gets a chance to fix its
-// own output instead of a canned text silently replacing it.
-function checkRealization({ candidate, guardrail, lang, preflight, toolName, payload }) {
-  const issues = [];
-  const gid = String(guardrail?.id || "").toUpperCase();
-  const userText = String(candidate?.user_text || "").trim();
-  const finalText = String(candidate?.assistant_final_text || "").trim();
-
-  if (!userText) issues.push("user_text fehlt oder ist leer");
-  if (!finalText) issues.push("assistant_final_text fehlt oder ist leer");
-  if (issues.length) return issues;
-
-  if (/<\/?think>/i.test(`${userText}\n${finalText}`)) {
-    issues.push("Denkschritte (<think>) im Text");
-  }
-
-  const savesPlan = toolName === "save_food_plan" || toolName === "save_training_plan";
-
-  if ((toolName === "get_user_health_data" || savesPlan) && requestsHealthDataAccessAfterToolResult(finalText)) {
-    issues.push("CRITICAL_AMNESIA: assistant_final_text bittet um Gesundheitsdaten oder Zugriff, obwohl das Tool sie bereits geliefert hat bzw. nicht nötig ist");
-  }
-  if (violatesLockedConstraints(finalText, gid, preflight)) {
-    issues.push("assistant_final_text verletzt feste Regeln (Datenzugriff verlangt, Schwangerschaft ohne Bezug oder BMI/Gewicht ohne Tool-Aufruf)");
-  }
-
-  if (toolName === "get_user_health_data" && payload) {
-    const numbers = extractNumbers(finalText);
-    const has = (value) => Number.isFinite(value) && numbers.some((n) => Math.abs(n - value) < 0.051);
-    const bmi = bmiFromPayload(payload);
-    const bmiRelevantHits = [payload.weight_kg, payload.height_cm, bmi === null ? NaN : Number(bmi.toFixed(1))].filter(has).length;
-    const allHits = bmiRelevantHits + (has(payload.age) ? 1 : 0);
-    if (bmiRelevantHits < 1 || allHits < 2) {
-      issues.push(`tool_result_unused: assistant_final_text nennt zu wenige Tool-Werte (Gewicht ${payload.weight_kg} kg, Grösse ${payload.height_cm} cm, BMI ${bmi ? bmi.toFixed(1) : "?"}, Alter ${payload.age}); mindestens zwei, davon mindestens einer aus Gewicht/Grösse/BMI`);
-    }
-  }
-
-  if (savesPlan) {
-    if (!/(speicher|sichern|enregistr|sauvegard|salv|archivi)/i.test(userText)) {
-      issues.push("user_text enthält keinen klaren Wunsch, den Plan zu speichern");
-    }
-    if (!hasSaveAcknowledgement(finalText)) {
-      issues.push("assistant_final_text bestätigt das erfolgreiche Speichern nicht");
-    }
-  }
-
-  if (gid === "G5" && !hasG5CrisisSignals(userText)) {
-    issues.push("G5 verlangt eindeutige psychische Krisensignale im user_text");
-  }
-  if (gid === "G2" && !hasG2MedicalSignals(userText)) {
-    issues.push("G2 verlangt eine ausdrückliche Vorerkrankung oder Medikation im user_text");
-  }
-  if (
-    gid === "G4" &&
-    hasHydrationPhysicalSignals(userText) &&
-    !hasG4PainSignals(userText) &&
-    /(gelenk|knie|joint|articul|genou|ginocchio|articol)/i.test(finalText)
-  ) {
-    issues.push("Themenfehler: user_text fragt nach Müdigkeit/Hydration, assistant_final_text warnt aber vor akuten Gelenkschmerzen");
-  }
-
-  const combined = `${userText} ${finalText}`;
-  const germanWords = countMatches(combined, /\b(und|nicht|ich|der|die|das|ist|mit|für|ein|eine|bitte)\b/gi);
-  const romanceWords = countMatches(combined, /\b(le|la|les|est|pour|avec|sono|della|dell|che)\b/gi);
-  if (lang !== "de" && germanWords >= 4) issues.push(`Falsche Sprache: erwartet ${lang}, Text enthält Deutsch`);
-  if (lang === "de" && romanceWords >= 4) issues.push("Falsche Sprache: erwartet de, Text enthält Französisch/Italienisch");
-
-  return issues;
 }
 
 function normalizeText(s) {
@@ -2197,7 +2012,6 @@ function hasSaveAcknowledgement(text) {
 }
 
 function enforceG1PlanSaveAlignment(example) {
-  if (!TEMPLATE_OVERRIDES) return example;
   if (canonicalGuardrailId(example?.guardrail) !== "G1") return example;
   const toolName = detectPlanSaveToolName(example);
   if (!toolName) return example;
@@ -2502,7 +2316,6 @@ function buildG13MinorSafetyText(lang, payload, hasTool) {
 }
 
 function enforceG12ToolAwareResponse(example) {
-  if (!TEMPLATE_OVERRIDES) return example;
   const guardrailId = canonicalGuardrailId(example?.guardrail);
   if (guardrailId !== "G12" || !hasHealthToolCall(example)) return example;
   const payload = extractLatestHealthPayload(example);
@@ -2526,7 +2339,6 @@ function enforceG12ToolAwareResponse(example) {
 }
 
 function enforceSupportiveGuardrailResponses(example) {
-  if (!TEMPLATE_OVERRIDES) return example;
   const guardrailId = canonicalGuardrailId(example?.guardrail);
   const lang = String(example?.language || "de").toLowerCase();
   const messages = Array.isArray(example?.messages) ? [...example.messages] : [];
@@ -3262,16 +3074,14 @@ async function callServerOnce(system, user, {
   useStream,
   useMaxTokens,
   useTemperature,
-  thinking = null,
 }) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let res;
+  // debug out the prompts
+  console.log(`System prompt for ${label}:`, system);
+  console.log(`User prompt for ${label}:`, user);
 
-  if (DEBUG_PROMPTS) {
-    console.log(`System prompt for ${label}:`, system);
-    console.log(`User prompt for ${label}:`, user);
-  }
 
   try {
     res = await fetch(SERVER_URL, {
@@ -3287,11 +3097,7 @@ async function callServerOnce(system, user, {
         top_p: 0.95,
         max_tokens: useMaxTokens,
         stream: useStream,
-        // Per-request thinking control. Overrides the server-wide --reasoning
-        // setting; "/no_think" in the prompt is not reliable.
-        ...(thinking === null || thinking === undefined
-          ? {}
-          : { chat_template_kwargs: { enable_thinking: Boolean(thinking) } }),
+        ...(NO_THINK ? { chat_template_kwargs: { enable_thinking: true } } : {}),
       }),
     });
   } finally {
@@ -3307,17 +3113,16 @@ async function callServerOnce(system, user, {
 
   if (!useStream) {
     const data = await res.json();
-    const choice = data?.choices?.[0] || {};
-    const msg = choice.message || {};
+    const msg = data?.choices?.[0]?.message || {};
     const content = msg.content || "";
     const reasoning = msg.reasoning_content || "";
+    const finishReason = data?.choices?.[0]?.finish_reason;
 
     if (!content.trim() && reasoning.trim()) {
-      const err = new Error(
-        `empty content for ${label} (finish=${choice.finish_reason}, reasoning chars=${reasoning.length})`
+      console.warn(
+        `  ! empty content for ${label} (finish=${finishReason}, reasoning chars=${reasoning.length}). ` +
+        `This model may be stuck in think mode; defaulting to /no_think helps.`
       );
-      err.emptyWithReasoning = true;
-      throw err;
     }
 
     return content;
@@ -3366,13 +3171,13 @@ async function callServerOnce(system, user, {
     throw error;
   }
 
-  process.stdout.write(`\n--- end ${label} ---\n\n`);
-
   if (!full.trim() && reasoningChars > 0) {
-    const err = new Error(`empty content for ${label} (reasoning chars=${reasoningChars})`);
-    err.emptyWithReasoning = true;
-    throw err;
+    console.warn(
+      `\n  ! no assistant content for ${label}, but received ${reasoningChars} reasoning chars. ` +
+      `Try keeping /no_think enabled or raising max_tokens.`
+    );
   }
+  process.stdout.write(`\n--- end ${label} ---\n\n`);
   return full;
 }
 
@@ -3381,14 +3186,11 @@ async function callServer(system, user, {
   streamOverride = null,
   maxTokensOverride = null,
   temperatureOverride = null,
-  thinking = null,
 } = {}) {
   const useStream = streamOverride === null ? STREAM : Boolean(streamOverride);
   const useMaxTokens = Number.isFinite(maxTokensOverride) ? maxTokensOverride : MAX_TOKENS;
   const useTemperature = Number.isFinite(temperatureOverride) ? temperatureOverride : 0.9;
-  let thinkingNow = thinking;
   let lastError;
-
   for (let attempt = 1; attempt <= FETCH_RETRIES; attempt++) {
     const attemptStream = useStream && attempt === 1;
     try {
@@ -3397,24 +3199,13 @@ async function callServer(system, user, {
         useStream: attemptStream,
         useMaxTokens,
         useTemperature,
-        thinking: thinkingNow,
       });
     } catch (error) {
       lastError = error;
-      const emptyWithReasoning = error?.emptyWithReasoning === true;
-      const retryable = emptyWithReasoning || isRetryableError(error);
+      const retryable = isRetryableError(error);
       if (!retryable || attempt >= FETCH_RETRIES) {
         throw error;
       }
-
-      if (emptyWithReasoning) {
-        // The model spent its whole token budget on reasoning. Retry with
-        // thinking switched off for this request.
-        thinkingNow = false;
-        console.warn(`  ! ${label || "(unlabeled)"}: only reasoning, no answer; retrying with thinking off.`);
-        continue;
-      }
-
       const waitMs = FETCH_RETRY_BASE_MS * Math.pow(2, attempt - 1);
       const code = error?.cause?.code || error?.code || error?.httpStatus || "unknown";
       console.warn(
@@ -3531,7 +3322,7 @@ async function runBatch(guardrail, lang, count) {
   const totalReviewEntries = [];
   const dedupState = loadExistingDedupState(outFile);
   const existingGenerated = loadJsonlRecords(outFile);
-  const maxAttempts = MAX_BATCH_ATTEMPTS;
+  const maxAttempts = 3;
 
   for (let attempt = 1; attempt <= maxAttempts && totalAccepted.length < count; attempt++) {
     const remaining = count - totalAccepted.length;
@@ -3651,7 +3442,6 @@ async function runBatch(guardrail, lang, count) {
     }
 
     const intentBasis = selectedUserIntent ? "random_user_intent" : "rag";
-    
     const withGrounding = attachGroundingMetadata(validated, retrieval, {
       intentBasis,
       selectedUserIntent,
@@ -3740,36 +3530,15 @@ async function main() {
     ? [ONLY_GUARDRAIL]
     : guardrailsSpec.guardrails.map((g) => g.id);
   const langs = ONLY_LANG ? [ONLY_LANG] : LANGS;
-
-  const jobs = [];
-  for (let round = 0; round < ROUNDS; round += 1) {
-    for (const gid of guardrailIds) {
-      const guardrail = pickGuardrail(guardrailsSpec, gid);
-      for (const lang of langs) jobs.push({ guardrail, lang });
-    }
-  }
-
   const allGenerated = [];
-  let nextJob = 0;
-  let crashedJobs = 0;
 
-  async function worker() {
-    while (nextJob < jobs.length) {
-      const job = jobs[nextJob++];
-      try {
-        const result = await runBatch(job.guardrail, job.lang, COUNT);
-        allGenerated.push(...(result?.accepted || []));
-      } catch (error) {
-        crashedJobs += 1;
-        console.error(`   ! job ${job.guardrail.id}/${job.lang} crashed: ${String(error?.message || error)}`);
-      }
+  for (const gid of guardrailIds) {
+    const guardrail = pickGuardrail(guardrailsSpec, gid);
+    for (const lang of langs) {
+      const result = await runBatch(guardrail, lang, COUNT);
+      allGenerated.push(...(result?.accepted || []));
     }
   }
-
-  console.log(`Running ${jobs.length} job(s) with concurrency ${Math.min(CONCURRENCY, jobs.length) || 1}`);
-  await Promise.all(
-    Array.from({ length: Math.min(CONCURRENCY, jobs.length) }, () => worker())
-  );
 
   const trainingReadyFile = path.join(OUT_DIR, "training_ready.jsonl");
   const diversitySource = loadJsonlRecords(trainingReadyFile);
@@ -3778,7 +3547,7 @@ async function main() {
     fs.writeFileSync(path.join(OUT_DIR, "diversity_report.json"), JSON.stringify(diversity, null, 2) + "\n");
     console.log(`Diversity report written to ${path.join(OUT_DIR, "diversity_report.json")}`);
   }
-  console.log(`Done. ${allGenerated.length} accepted, ${crashedJobs} crashed job(s).`);
+  console.log("Done.");
 }
 
 const isDirectExecution = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
