@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the prohibition against announcing data retrieval in the final assistant response after a tool call, and clarify that the final response must interpret existing data rather than requesting it.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-07T08:12:06.129Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-07T08-12-06-130Z_generation_strengthen-the-prohibition-against-announcing-data-retrieval-in-the-final-assist/generation.md"
+}

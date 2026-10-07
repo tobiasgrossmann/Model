@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the 'NO-AMNESY' rule to explicitly forbid transitional phrases like 'Ich rufe diese jetzt ab' and 'Attendo l'esito' in the final assistant response, and clarify that the final response must directly interpret the tool data without announcing the retrieval process.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-07T07:10:53.897Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-07T07-10-53-898Z_generation_strengthen-the-no-amnesy-rule-to-explicitly-forbid-transitional-phrases-like-ich/generation.md"
+}

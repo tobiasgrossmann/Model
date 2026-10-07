@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the NO-AMNESY rule to explicitly forbid waiting/confirmation phrases in the final response and add a specific G15 recovery focus constraint to prevent topic drift.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-07T09:37:37.300Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-07T09-37-37-301Z_generation_strengthen-the-no-amnesy-rule-to-explicitly-forbid-waiting-confirmation-phrases-/generation.md"
+}

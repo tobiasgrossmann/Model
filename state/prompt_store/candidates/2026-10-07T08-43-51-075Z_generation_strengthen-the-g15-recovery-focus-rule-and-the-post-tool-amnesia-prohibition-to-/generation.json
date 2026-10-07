@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the G15 recovery focus rule and the post-tool amnesia prohibition to prevent topic drift and data-access requests after tool results.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-07T08:43:51.074Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-07T08-43-51-075Z_generation_strengthen-the-g15-recovery-focus-rule-and-the-post-tool-amnesia-prohibition-to-/generation.md"
+}

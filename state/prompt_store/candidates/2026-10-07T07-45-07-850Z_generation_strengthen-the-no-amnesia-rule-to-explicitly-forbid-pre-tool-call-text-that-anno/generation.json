@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the 'No-Amnesia' rule to explicitly forbid pre-tool-call text that announces data retrieval, and add a G15-specific rule to ensure the final response addresses recovery rather than just strength progression.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-07T07:45:07.849Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-07T07-45-07-850Z_generation_strengthen-the-no-amnesia-rule-to-explicitly-forbid-pre-tool-call-text-that-anno/generation.md"
+}

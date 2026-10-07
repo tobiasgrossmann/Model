@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the 'No-Amnesia' rule to explicitly forbid asking for data access or confirmation in the final response after a tool call, and add a specific prohibition against generic lab value responses (like creatinine) when the user asks about a different specific biomarker (like ferritin or cholesterol) in G14.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-07T07:29:11.254Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-07T07-29-11-255Z_generation_strengthen-the-no-amnesia-rule-to-explicitly-forbid-asking-for-data-access-or-co/generation.md"
+}

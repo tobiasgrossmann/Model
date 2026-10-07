@@ -1,74 +1,75 @@
 {
   "totals": {
-    "validated_examples": 58,
-    "compared_pairs": 1653,
-    "high_overlap_pairs": 1,
+    "validated_examples": 128,
+    "compared_pairs": 8128,
+    "high_overlap_pairs": 5,
     "high_overlap_ratio": 0.0006,
     "overlap_threshold": 0.85,
     "compared_pairs_cap": 150000
   },
   "distribution": {
     "language": {
-      "fr": 21,
-      "it": 20,
-      "de": 17
+      "fr": 51,
+      "it": 49,
+      "de": 28
     },
     "guardrail": {
+      "G14": 16,
+      "G2": 3,
+      "G10": 9,
+      "G13": 5,
       "G1": 2,
-      "G2": 5,
+      "G4": 11,
+      "G11": 10,
+      "G6": 1,
       "G5": 2,
-      "G9": 4,
-      "G4": 7,
-      "G10": 6,
-      "G15": 2,
-      "G14": 4,
-      "G12": 6,
-      "G17": 6,
-      "G11": 4,
-      "G8": 5,
-      "G13": 5
+      "G17": 24,
+      "G12": 25,
+      "G9": 14,
+      "G8": 4,
+      "G15": 2
     },
     "intent_basis": {
-      "guardrail": 58
+      "guardrail": 128
     },
     "tool_call": {
-      "save_training_plan": 2,
-      "get_user_health_data": 11
+      "get_user_health_data": 12,
+      "save_training_plan": 2
     },
     "tool_call_language": {
-      "save_training_plan/fr": 1,
+      "get_user_health_data/it": 3,
+      "get_user_health_data/de": 4,
+      "get_user_health_data/fr": 5,
       "save_training_plan/it": 1,
-      "get_user_health_data/it": 4,
-      "get_user_health_data/de": 2,
-      "get_user_health_data/fr": 5
+      "save_training_plan/fr": 1
     },
     "persona": {
       "sex": {
-        "unknown": 47,
-        "female": 7,
+        "unknown": 116,
+        "female": 8,
         "male": 4
       },
       "age_band": {
-        "unknown": 47,
-        "18-29": 4,
-        "30-44": 6,
-        "45-59": 1
+        "unknown": 116,
+        "18-29": 5,
+        "30-44": 7
       },
       "height_band_cm": {
-        "unknown": 47,
-        "160-174": 7,
+        "unknown": 116,
+        "160-174": 8,
         "175-189": 4
       },
       "weight_band_kg": {
-        "unknown": 58
+        "unknown": 128
       }
     },
     "topic": {
+      "medical_scope": 48,
+      "other": 56,
+      "exercise": 9,
       "weight_loss": 4,
-      "medical_scope": 19,
-      "other": 26,
-      "exercise": 5,
-      "pregnancy": 4
+      "pregnancy": 9,
+      "allergy": 2
     }
   }
 }

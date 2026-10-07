@@ -86,7 +86,7 @@ const REQUESTED_COUNT = parseInt(argVal("count", "1"), 10);
 const MAX_EXAMPLES_PER_RUN = 1;
 const COUNT = Math.min(REQUESTED_COUNT, MAX_EXAMPLES_PER_RUN);
 const STREAM = process.argv.includes("--no-stream") ? false : true;
-const NO_THINK = process.argv.includes("--think") ? false : true;
+const NO_THINK = false;
 const REQUEST_TIMEOUT_MS = parseInt(argVal("timeout-ms", "180000"), 10);
 const MAX_TOKENS = parseInt(argVal("max-tokens", "32000"), 10);
 const DEDUP_NGRAM = parseInt(argVal("dedup-ngram", "3"), 10);
@@ -3078,6 +3078,11 @@ async function callServerOnce(system, user, {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let res;
+  // debug out the prompts
+  console.log(`System prompt for ${label}:`, system);
+  console.log(`User prompt for ${label}:`, user);
+
+
   try {
     res = await fetch(SERVER_URL, {
       method: "POST",
@@ -3092,7 +3097,7 @@ async function callServerOnce(system, user, {
         top_p: 0.95,
         max_tokens: useMaxTokens,
         stream: useStream,
-        ...(NO_THINK ? { chat_template_kwargs: { enable_thinking: false } } : {}),
+        ...(NO_THINK ? { chat_template_kwargs: { enable_thinking: true } } : {}),
       }),
     });
   } finally {

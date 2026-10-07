@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the prohibition against announcing data retrieval in the assistant message that contains the tool call, and explicitly forbid 'waiting' or 'requesting access' phrasing in that specific turn.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-07T08:59:02.356Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-07T08-59-02-357Z_generation_strengthen-the-prohibition-against-announcing-data-retrieval-in-the-assistant-me/generation.md"
+}
