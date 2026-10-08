@@ -37,6 +37,46 @@ const SCENARIO_ROTATION = JSON.parse(fs.readFileSync(path.join(SPEC_DIR, "scenar
 const PERSONA_SLOT_ROTATION = JSON.parse(fs.readFileSync(path.join(SPEC_DIR, "persona_rotation.json"), "utf8"));
 const GUARDRAIL_VARIANTS = JSON.parse(fs.readFileSync(path.join(SPEC_DIR, "guardrail_variants.json"), "utf8"));
 
+
+
+const ALLOWED_TOOLS = {
+  G1:  ['save_food_plan', 'save_training_plan', 'get_user_health_data', 'none'],
+  G2:  ['get_user_health_data', 'none'],
+  G3:  ['save_food_plan', 'get_user_health_data', 'none'],
+  G4:  ['get_user_health_data', 'save_training_plan', 'none'],
+  G5:  ['none'],  // Mental health crisis — NO tool calls allowed
+  G6:  ['get_user_health_data', 'none'],
+  G7:  ['get_user_health_data', 'none'],
+  G8:  ['get_user_health_data', 'none'],
+  G9:  ['get_user_health_data', 'none'],
+  G10: ['get_user_health_data', 'none'],
+  G11: ['get_user_health_data', 'save_training_plan', 'none'],
+  G12: ['get_user_health_data', 'none'],
+  G13: ['get_user_health_data', 'save_training_plan', 'none'],
+  G14: ['get_user_health_data', 'none'],
+  G15: ['get_user_health_data', 'save_training_plan', 'none'],
+  G16: ['save_food_plan', 'none'],
+  G17: ['get_user_health_data', 'save_training_plan', 'save_food_plan', 'none'],
+};
+
+function isToolAllowed(guardrailId, toolName) {
+  const gid = String(guardrailId || '').toUpperCase();
+  const allowed = ALLOWED_TOOLS[gid] || ['none'];
+  if (!toolName || toolName === 'none') return allowed.includes('none');
+  return allowed.includes(toolName);
+}
+
+function fallbackAllowedTool(guardrailId) {
+  const gid = String(guardrailId || '').toUpperCase();
+  const allowed = ALLOWED_TOOLS[gid] || ['none'];
+  // Prefer get_user_health_data > save_training_plan > save_food_plan > none
+  if (allowed.includes('get_user_health_data')) return 'get_user_health_data';
+  if (allowed.includes('save_training_plan')) return 'save_training_plan';
+  if (allowed.includes('save_food_plan')) return 'save_food_plan';
+  return null;
+}
+
+
 function readPromptTemplate(fileName, sectionName = null) {
   const source = fs.readFileSync(path.join(PROMPTS_DIR, fileName), "utf8");
   if (!sectionName) return source;
@@ -598,15 +638,20 @@ function computePreflightPolicy({ guardrail, lang, selectedQuestion, selectedUse
     ? false
     : /(prüfen|überprüfen|abfragen|abrufen|bewerten|check|verify|assess|valutare|verifica|recuperare|accedere|consultare|analysieren|analyse|blutwerte|lab values|esami del sangue|dati sanitari|gesundheitsdaten|health data|blood test)/i.test(normalizedSource);
   const mixedPlanSaveAndHealthCheck = explicitPlanSaveRequest && /(prüfen|überprüfen|abfragen|abrufen|bewerten|check|verify|assess|valutare|verifica|recuperare|accedere|consultare|analysieren|analyse|blutwerte|lab values|esami del sangue|dati sanitari|gesundheitsdaten|health data|blood test)/i.test(normalizedSource);
-  const preferredTool = mixedPlanSaveAndHealthCheck
-    ? (wantsSavedFoodPlan ? "save_food_plan" : "save_training_plan")
-    : explicitPlanSaveRequest
-      ? (wantsSavedFoodPlan ? "save_food_plan" : "save_training_plan")
-      : preferredToolName && ["save_food_plan", "save_training_plan"].includes(preferredToolName)
-        ? preferredToolName
-        : forcePlanPersistence
-          ? (["G1", "G3", "G16"].includes(guardrailId) ? "save_food_plan" : "save_training_plan")
-          : "get_user_health_data";
+  let preferredTool = mixedPlanSaveAndHealthCheck
+  ? (wantsSavedFoodPlan ? "save_food_plan" : "save_training_plan")
+  : explicitPlanSaveRequest
+  ? (wantsSavedFoodPlan ? "save_food_plan" : "save_training_plan")
+  : preferredToolName && ["save_food_plan", "save_training_plan"].includes(preferredToolName)
+  ? preferredToolName
+  : forcePlanPersistence
+  ? (["G1", "G3", "G16"].includes(guardrailId) ? "save_food_plan" : "save_training_plan")
+  : "get_user_health_data";
+  if (!isToolAllowed(guardrailId, preferredTool)) {
+    // The computed tool is forbidden for this guardrail — fall back to a safe allowed tool
+    const fallback = fallbackAllowedTool(guardrailId);
+    preferredTool = fallback;
+  }
 
   const toolRequired = pregnancyContext
     ? false
@@ -1932,10 +1977,26 @@ const TEXT_REPAIR_CLASSES = new Set([
 const FOOD_ONLY_GUARDRAILS = new Set(["G3", "G16"]);
 
 function coerceToolForGuardrail(toolName, guardrailId) {
-  if (toolName === "save_training_plan" && FOOD_ONLY_GUARDRAILS.has(String(guardrailId || "").toUpperCase())) {
+  const gid = String(guardrailId || "").toUpperCase();
+  
+  // If the tool is allowed for this guardrail, keep it as-is
+  if (isToolAllowed(gid, toolName)) return toolName;
+  
+  // Otherwise, try intelligent coercion:
+  // 1. save_training_plan → save_food_plan (for food-only guardrails)
+  if (toolName === "save_training_plan" && isToolAllowed(gid, "save_food_plan")) {
     return "save_food_plan";
   }
-  return toolName;
+  // 2. save_food_plan → save_training_plan (for training-only guardrails)
+  if (toolName === "save_food_plan" && isToolAllowed(gid, "save_training_plan")) {
+    return "save_training_plan";
+  }
+  // 3. Any save tool → get_user_health_data (if health data is allowed)
+  if ((toolName === "save_food_plan" || toolName === "save_training_plan") && isToolAllowed(gid, "get_user_health_data")) {
+    return "get_user_health_data";
+  }
+  // 4. Final fallback: no tool at all
+  return null;
 }
 
 // Short system prompts for the contract steps. The old system.md prompt asks
@@ -2032,6 +2093,11 @@ function checkRealization({ candidate, guardrail, lang, preflight, toolName, pay
   if (!finalText) issues.push("assistant_final_text fehlt oder ist leer");
   if (issues.length) return issues;
 
+  if (toolName && !isToolAllowed(gid, toolName)) {
+    issues.push(`CRITICAL_TOOL_VIOLATION: Tool "${toolName}" is not allowed for guardrail ${gid}. Allowed: ${(ALLOWED_TOOLS[gid] || []).join(', ')}`);
+    return issues;  // Fail fast
+  }
+
   if (/<\/?think>/i.test(`${userText}\n${finalText}`)) {
     issues.push("Denkschritte (<think>) im Text");
   }
@@ -2079,6 +2145,28 @@ function checkRealization({ candidate, guardrail, lang, preflight, toolName, pay
   ) {
     issues.push("Themenfehler: user_text fragt nach Müdigkeit/Hydration, assistant_final_text warnt aber vor akuten Gelenkschmerzen");
   }
+  // Catch G8 mismatch: User asks about general nutrition, assistant warns about steroids
+  if (gid === "G8") {
+    const asksAboutGeneralNutrition = /(abendessen|dinner|cena|mittagessen|lunch|déjeuner|migros|snack|leichte|light|einfach|simple|recette|ricetta|rezept)/i.test(userText);
+    const warnsAboutSteroids = /(steroid|doping|anabol)/i.test(finalText);
+    if (asksAboutGeneralNutrition && warnsAboutSteroids) {
+      issues.push("Themenfehler: user_text fragt nach allgemeiner Ernährung/Snacks, assistant_final_text warnt aber vor Steroiden/Doping");
+    }
+  }
+
+  // Catch G2 mismatch: User asks about supplements, assistant gives generic HIIT/warmup advice
+  if (gid === "G2") {
+    const asksAboutSupplements = /(creatina|creatine|kreatin|protein|supplement|integrator|nahrungserg.nzung)/i.test(userText);
+    const talksAboutHiitOrWarmup = /(hiit|cardio|warming up|riscaldamento|échauffement|aufwärmen|intensit[ày]|intensit[ée]|belastung)/i.test(finalText);
+    const userMentionsTrainingLoad = /(hiit|cardio|training|workout|belastung|intensit[ày]|intensit[ée])/i.test(userText);
+    
+    if (asksAboutSupplements && talksAboutHiitOrWarmup && !userMentionsTrainingLoad) {
+      issues.push("Themenfehler: user_text fragt nach Nahrungsergänzung, assistant_final_text gibt aber unpassende Ratschläge zu HIIT/Aufwärmen/Trainingsintensität");
+    }
+  }
+
+
+
 
   const combined = `${userText} ${finalText}`;
   const germanWords = countMatches(combined, /\b(und|nicht|ich|der|die|das|ist|mit|für|ein|eine|bitte)\b/gi);
@@ -2920,20 +3008,36 @@ function deriveIntentKeyForExample(example, fallbackKey = "") {
   const guardrailId = canonicalGuardrailId(example?.guardrail);
   const userText = firstUserMessageText(example);
   const normalizedUser = normalizeText(userText);
-
+  
   if (guardrailId === "G4") {
-    if (hasG4RedFlagSymptoms(normalizedUser)) {
-      return "g4_red_flag_radiating_pain";
-    }
-    if (hasHydrationPhysicalSignals(normalizedUser) && !hasG4PainSignals(normalizedUser)) {
-      return "g4_hydration_fatigue_recovery";
-    }
+    if (hasG4RedFlagSymptoms(normalizedUser)) return "g4_red_flag_radiating_pain";
+    if (hasHydrationPhysicalSignals(normalizedUser) && !hasG4PainSignals(normalizedUser)) return "g4_hydration_fatigue_recovery";
     if (/(knie|genou|ginocchio)/i.test(normalizedUser) && /(squat|ausfallschritt|affondi|lifting|allenamento|entrainement|training)/i.test(normalizedUser)) {
       return "knee_pain_during_lifting";
     }
   }
+  
+  if (guardrailId === "G8") {
+    if (/steroid|doping|anabol/i.test(normalizedUser)) return "steroid_and_performance_boost_question";
+    if (/creatine|kreatin|creatina|protein|supplement|nahrungserg.nzung/i.test(normalizedUser)) return "supplement_safety_question";
+    return "g8_general_supplement_safety";
+  }
+  
+  if (guardrailId === "G2") {
+    if (/asthma|asthme|asma/i.test(normalizedUser)) return "asthma_medication_training";
+    if (/hypertension|bluthochdruck|pressione|hyperton/i.test(normalizedUser)) return "hypertension_medication_training";
+    return "g2_medication_training_general";
+  }
 
-  return String(fallbackKey || `${String(guardrailId || "general").toLowerCase()}_general`).trim();
+  if (guardrailId === "G1") {
+    if (/save|speicher|enregistr|salva/i.test(normalizedUser) && /gewicht|poids|peso|abnehm|maigr|dimagr/i.test(normalizedUser)) {
+      return "g1_unsafe_plan_save_request";
+    }
+    return "g1_general_weight_loss_safety";
+  }
+
+  // Fallback to a safe, generic key based on guardrail rather than a mismatched seed
+  return `${guardrailId.toLowerCase()}_generated_intent`;
 }
 
 function attachGroundingMetadata(examples, retrieval, { intentBasis = "rag", selectedUserIntent = null } = {}) {
@@ -3651,28 +3755,35 @@ async function runBatch(guardrail, lang, count) {
     }
 
     const intentBasis = selectedUserIntent ? "random_user_intent" : "rag";
-    
+
     const withGrounding = attachGroundingMetadata(validated, retrieval, {
       intentBasis,
       selectedUserIntent,
-    }).map((example) => ({
-      ...example,
-      intent_basis: intentBasis,
-      intent_key: deriveIntentKeyForExample(example, selectedUserIntent?.intent || `${guardrail.id}:${seed.file_name}:${selectedQuestion}`),
-      doc_seed: intentBasis === "random_user_intent"
-        ? {
-            file_name: null,
-            title: "random_user_intent",
-            summary: resolveIntentExampleByLanguage(selectedUserIntent, lang) || selectedUserIntent?.example || "",
-            question: null,
-          }
-        : {
-            file_name: seed.file_name,
-            title: seed.title,
-            summary: seed.summary,
-            question: selectedQuestion,
-          },
-    }));
+    }).map((example) => {
+      // Extract the ACTUAL generated user text to prevent metadata mismatch
+      const generatedUserText = firstUserMessageText(example);
+      
+      return {
+        ...example,
+        intent_basis: intentBasis,
+        // Derive intent key from the generated text, falling back to a safe generic key
+        intent_key: deriveIntentKeyForExample(example, ""),
+        doc_seed: intentBasis === "random_user_intent"
+          ? {
+              file_name: null,
+              title: "random_user_intent",
+              // Use the actual generated user text as the summary/question
+              summary: generatedUserText.slice(0, 250),
+              question: generatedUserText,
+            }
+          : {
+              file_name: seed.file_name,
+              title: seed.title,
+              summary: seed.summary,
+              question: selectedQuestion,
+            },
+      };
+    });
 
     const acceptedBeforeGroupReview = [];
     for (const example of withGrounding) {
