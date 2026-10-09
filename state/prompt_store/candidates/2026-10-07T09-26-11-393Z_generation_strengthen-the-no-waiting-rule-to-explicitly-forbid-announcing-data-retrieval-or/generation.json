@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Strengthen the 'NO-WAITING' rule to explicitly forbid announcing data retrieval or asking for permission in the assistant message that contains the tool call.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-07T09:26:11.392Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-07T09-26-11-393Z_generation_strengthen-the-no-waiting-rule-to-explicitly-forbid-announcing-data-retrieval-or/generation.md"
-}

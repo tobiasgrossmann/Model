@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Strengthen the 'No-Amnesia' rule to explicitly forbid pre-tool data requests and add a G15-specific rule to ensure recovery-focused responses.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-07T07:57:31.262Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-07T07-57-31-263Z_generation_strengthen-the-no-amnesia-rule-to-explicitly-forbid-pre-tool-data-requests-and-a/generation.md"
-}

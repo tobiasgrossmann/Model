@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Strengthen the prohibition of 'waiting for data' or 'requesting permission' in the final assistant response after a tool call, and add a specific constraint to prevent G4 (joint pain) responses from being generated for fatigue/hydration queries.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-07T08:29:13.373Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-07T08-29-13-374Z_generation_strengthen-the-prohibition-of-waiting-for-data-or-requesting-permission-in-the-f/generation.md"
-}

@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Strengthen the 'NO-AMNESY' rule to explicitly forbid requesting data access or waiting for results in the final response after a tool call, and add a specific recovery-focus constraint for G15 to prevent topic drift to strength progression.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-07T09:13:16.478Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-07T09-13-16-480Z_generation_strengthen-the-no-amnesy-rule-to-explicitly-forbid-requesting-data-access-or-wai/generation.md"
-}

@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Strengthen the 'No Amnesia' rule to explicitly forbid 'I will fetch' or 'I need to access' phrasing in the final assistant response after a tool call, and reinforce the topic alignment rule to prevent lab-result drift when the user asks about recovery.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-07T06:47:51.153Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-07T06-47-51-154Z_generation_strengthen-the-no-amnesia-rule-to-explicitly-forbid-i-will-fetch-or-i-need-to-ac/generation.md"
-}
