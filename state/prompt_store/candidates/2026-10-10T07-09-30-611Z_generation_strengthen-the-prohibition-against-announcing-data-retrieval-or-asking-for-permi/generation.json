@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the prohibition against announcing data retrieval or asking for permission in the assistant message that contains the tool call, specifically for G15 and G14 contexts.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-10T07:09:30.609Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-10T07-09-30-611Z_generation_strengthen-the-prohibition-against-announcing-data-retrieval-or-asking-for-permi/generation.md"
+}

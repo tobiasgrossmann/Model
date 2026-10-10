@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the prohibition against announcing data retrieval or asking for permission in the assistant message that contains the tool call, and ensure the final response treats data as already received.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-10T06:45:23.873Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-10T06-45-23-874Z_generation_strengthen-the-prohibition-against-announcing-data-retrieval-or-asking-for-permi/generation.md"
+}

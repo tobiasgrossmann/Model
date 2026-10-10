@@ -225,9 +225,9 @@
     "intent": "busy_professional_with_overweight",
     "example": "I work 10-hour days, eat takeout constantly, and have gained 15 kg. I need something realistic I can stick to.",
     "example_localized": {
-      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
-      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
-      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
+      "de": "Ich arbeite zehn Stunden am Tag, esse ständig Take-away und habe 15 Kilo zugenommen. Ich brauche etwas Realistisches, das ich wirklich durchhalten kann.",
+      "fr": "Je travaille dix heures par jour, je mange tout le temps des plats à emporter et j'ai pris 15 kilos. J'ai besoin de quelque chose de réaliste que je pourrai tenir.",
+      "it": "Lavoro dieci ore al giorno, mangio sempre cibo da asporto e ho preso 15 chili. Mi serve qualcosa di realistico che io riesca a mantenere."
     }
   },
   {
@@ -236,9 +236,9 @@
     "intent": "mental_wellbeing_through_exercise",
     "example": "I’ve been feeling stressed and mentally exhausted lately. I want exercise and nutrition habits that help me feel better.",
     "example_localized": {
-      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
-      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
-      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
+      "de": "Ich fühle mich in letzter Zeit gestresst und mental erschöpft. Ich möchte Bewegungs- und Ernährungsgewohnheiten, die mir helfen, mich besser zu fühlen.",
+      "fr": "Je me sens stressé(e) et mentalement épuisé(e) ces derniers temps. Je voudrais des habitudes d'activité physique et d'alimentation qui m'aident à me sentir mieux.",
+      "it": "Ultimamente mi sento stressato/a e mentalmente esausto/a. Vorrei abitudini di movimento e alimentazione che mi aiutino a stare meglio."
     }
   },
   {
@@ -247,9 +247,9 @@
     "intent": "training_for_first_marathon_later_in_life",
     "example": "I’m 50 and want to run my first marathon. I’m not currently very fit and need a training and nutrition plan.",
     "example_localized": {
-      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
-      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
-      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
+      "de": "Ich bin 50 und möchte meinen ersten Marathon laufen. Im Moment bin ich nicht besonders fit und brauche einen Trainings- und Ernährungsplan.",
+      "fr": "J'ai 50 ans et je veux courir mon premier marathon. Je ne suis pas très en forme actuellement et j'ai besoin d'un plan d'entraînement et d'alimentation.",
+      "it": "Ho 50 anni e vorrei correre la mia prima maratona. Al momento non sono molto in forma e mi serve un piano di allenamento e alimentazione."
     }
   },
   {
@@ -258,9 +258,9 @@
     "intent": "beginner_wants_to_build_muscle",
     "example": "I’ve never lifted weights before and want to gain muscle without spending hours in the gym.",
     "example_localized": {
-      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
-      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
-      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
+      "de": "Ich habe noch nie mit Gewichten trainiert und möchte Muskeln aufbauen, ohne stundenlang im Fitnessstudio zu verbringen.",
+      "fr": "Je n'ai jamais soulevé de poids et je veux prendre du muscle sans passer des heures en salle.",
+      "it": "Non ho mai sollevato pesi e vorrei mettere su massa muscolare senza passare ore in palestra."
     }
   },
   {
@@ -269,9 +269,9 @@
     "intent": "fat_loss_without_restrictive_dieting",
     "example": "I’ve tried diets over and over and always regain the weight. I want to lose fat without constantly feeling hungry.",
     "example_localized": {
-      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
-      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
-      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
+      "de": "Ich habe schon unzählige Diäten probiert und nehme immer wieder zu. Ich möchte Fett verlieren, ohne ständig Hunger zu haben.",
+      "fr": "J'ai essayé régime après régime et je reprends toujours le poids. Je veux perdre de la graisse sans avoir constamment faim.",
+      "it": "Ho provato dieta dopo dieta e riprendo sempre il peso. Vorrei perdere grasso senza avere sempre fame."
     }
   },
   {
@@ -280,9 +280,9 @@
     "intent": "healthy_aging_and_maintaining_strength",
     "example": "I’m in my 60s and want to stay strong, mobile, and independent for as long as possible. What should I eat and train?",
     "example_localized": {
-      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
-      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
-      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
+      "de": "Ich bin in den Sechzigern und möchte so lange wie möglich kräftig, beweglich und selbstständig bleiben. Was sollte ich essen und wie sollte ich trainieren?",
+      "fr": "J'ai la soixantaine et je veux rester fort(e), mobile et autonome le plus longtemps possible. Que dois-je manger et comment m'entraîner ?",
+      "it": "Ho una sessantina d'anni e voglio restare forte, mobile e autonomo/a il più a lungo possibile. Cosa dovrei mangiare e come dovrei allenarmi?"
     }
   },
   {
@@ -291,9 +291,9 @@
     "intent": "improve_energy_and_reduce_sedentary_lifestyle",
     "example": "I sit at a desk all day and feel sluggish. I want to move more and have more energy without completely changing my life.",
     "example_localized": {
-      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
-      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
-      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
+      "de": "Ich sitze den ganzen Tag am Schreibtisch und fühle mich träge. Ich möchte mich mehr bewegen und mehr Energie haben, ohne mein ganzes Leben umzukrempeln.",
+      "fr": "Je suis assis(e) à mon bureau toute la journée et je me sens apathique. Je veux bouger davantage et avoir plus d'énergie sans bouleverser toute ma vie.",
+      "it": "Sto seduto/a alla scrivania tutto il giorno e mi sento senza energia. Vorrei muovermi di più e avere più energia senza stravolgere la mia vita."
     }
   },
   {
@@ -302,9 +302,9 @@
     "intent": "nutrition_for_strength_and_performance",
     "example": "I’m training 4–5 times a week and want to know what and when I should eat to perform better and recover faster.",
     "example_localized": {
-      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
-      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
-      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
+      "de": "Ich trainiere vier- bis fünfmal pro Woche und möchte wissen, was und wann ich essen sollte, um leistungsfähiger zu sein und mich schneller zu erholen.",
+      "fr": "Je m'entraîne quatre à cinq fois par semaine et je voudrais savoir quoi manger et à quel moment pour mieux performer et récupérer plus vite.",
+      "it": "Mi alleno quattro o cinque volte a settimana e vorrei sapere cosa e quando mangiare per rendere meglio e recuperare più in fretta."
     }
   },
   {
@@ -313,9 +313,9 @@
     "intent": "vegetarian_or_vegan_fitness_nutrition",
     "example": "I’m vegan and lifting weights. How can I get enough protein and nutrients while supporting muscle growth?",
     "example_localized": {
-      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
-      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
-      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
+      "de": "Ich ernähre mich vegan und trainiere mit Gewichten. Wie decke ich meinen Bedarf an Protein und Nährstoffen und unterstütze gleichzeitig den Muskelaufbau?",
+      "fr": "Je suis végane et je fais de la musculation. Comment couvrir mes besoins en protéines et en nutriments tout en favorisant la prise de muscle ?",
+      "it": "Sono vegano/a e faccio pesi. Come posso assumere abbastanza proteine e nutrienti sostenendo allo stesso tempo la crescita muscolare?"
     }
   },
   {
@@ -324,9 +324,9 @@
     "intent": "return_to_exercise_after_long_break",
     "example": "I used to be active but haven’t exercised in three years. I want to get back into shape without getting injured.",
     "example_localized": {
-      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
-      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
-      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
+      "de": "Früher war ich sportlich aktiv, aber seit drei Jahren habe ich nicht mehr trainiert. Ich möchte wieder fit werden, ohne mich zu verletzen.",
+      "fr": "J'étais autrefois actif/active, mais je ne me suis pas entraîné(e) depuis trois ans. Je veux retrouver la forme sans me blesser.",
+      "it": "Un tempo ero attivo/a, ma non mi alleno da tre anni. Vorrei rimettermi in forma senza infortunarmi."
     }
   },
   {
@@ -335,9 +335,9 @@
     "intent": "home_workout_with_limited_equipment",
     "example": "I have two dumbbells and 30 minutes a day. Can you create a workout and nutrition routine for me?",
     "example_localized": {
-      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
-      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
-      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
+      "de": "Ich habe zwei Hanteln und 30 Minuten pro Tag. Kannst du mir eine Trainings- und Ernährungsroutine zusammenstellen?",
+      "fr": "J'ai deux haltères et 30 minutes par jour. Peux-tu me préparer une routine d'entraînement et d'alimentation ?",
+      "it": "Ho due manubri e 30 minuti al giorno. Puoi crearmi una routine di allenamento e alimentazione?"
     }
   },
   {
@@ -346,9 +346,9 @@
     "intent": "healthy_weight_gain",
     "example": "I’m naturally very thin and struggle to eat enough. I want to gain healthy weight and muscle.",
     "example_localized": {
-      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
-      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
-      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
+      "de": "Ich bin von Natur aus sehr schlank und tue mich schwer damit, genug zu essen. Ich möchte gesund an Gewicht und Muskeln zulegen.",
+      "fr": "Je suis naturellement très mince et j'ai du mal à manger assez. Je veux prendre du poids et du muscle de façon saine.",
+      "it": "Sono naturalmente molto magro/a e faccio fatica a mangiare abbastanza. Vorrei prendere peso e muscoli in modo sano."
     }
   },
   {
@@ -357,9 +357,9 @@
     "intent": "body_recomposition",
     "example": "My weight is normal, but I have little muscle and more body fat than I’d like. I want to become stronger and leaner.",
     "example_localized": {
-      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
-      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
-      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
+      "de": "Mein Gewicht ist normal, aber ich habe wenig Muskeln und mehr Körperfett, als mir lieb ist. Ich möchte stärker und definierter werden.",
+      "fr": "Mon poids est normal, mais j'ai peu de muscle et plus de masse grasse que je ne le voudrais. Je veux devenir plus fort(e) et plus affûté(e).",
+      "it": "Il mio peso è nella norma, ma ho poca massa muscolare e più grasso di quanto vorrei. Voglio diventare più forte e più definito/a."
     }
   },
   {
@@ -368,9 +368,9 @@
     "intent": "prepare_for_sporting_event",
     "example": "I signed up for my first cycling race in four months. What should I eat and how should I structure my training?",
     "example_localized": {
-      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
-      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
-      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
+      "de": "Ich habe mich für mein erstes Radrennen in vier Monaten angemeldet. Was sollte ich essen und wie baue ich mein Training auf?",
+      "fr": "Je me suis inscrit(e) à ma première course cycliste dans quatre mois. Que dois-je manger et comment structurer mon entraînement ?",
+      "it": "Mi sono iscritto/a alla mia prima gara ciclistica fra quattro mesi. Cosa dovrei mangiare e come dovrei strutturare l'allenamento?"
     }
   },
   {
@@ -390,9 +390,9 @@
     "intent": "family_friendly_healthy_eating",
     "example": "I have two kids and nobody in my family wants to eat the same healthy food. Help me create simple meals everyone will actually eat.",
     "example_localized": {
-      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
-      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
-      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
+      "de": "Ich habe zwei Kinder und niemand in meiner Familie will dasselbe gesunde Essen. Hilf mir, einfache Mahlzeiten zu planen, die wirklich alle essen.",
+      "fr": "J'ai deux enfants et personne dans ma famille ne veut manger la même nourriture saine. Aide-moi à préparer des repas simples que tout le monde mangera vraiment.",
+      "it": "Ho due figli e nessuno in famiglia vuole mangiare gli stessi cibi sani. Aiutami a creare pasti semplici che mangino davvero tutti."
     }
   },
   {
@@ -401,9 +401,9 @@
     "intent": "healthier_relationship_with_food",
     "example": "I constantly snack when I’m stressed or bored. I want to understand my eating patterns and build healthier habits without obsessing over calories.",
     "example_localized": {
-      "de": "Ich fühle mich derzeit stark unter Druck gesetzt, was mein Essverhalten und mein Körperbild angeht, und brauche eine empathische, sichere Unterstützung, um damit umzugehen.",
-      "fr": "Je ressens beaucoup de pression concernant mon alimentation et mon image corporelle en ce moment, et j'aurais besoin de conseils sûrs et bienveillants pour gérer cela.",
-      "it": "Ultimamente mi sento molto sotto pressione per la mia alimentazione e l'immagine del mio corpo, e ho bisogno di una guida sicura ed empatica per gestire la situazione."
+      "de": "Wenn ich gestresst oder gelangweilt bin, snacke ich ständig. Ich möchte meine Essmuster verstehen und gesündere Gewohnheiten aufbauen, ohne mich auf Kalorien zu fixieren.",
+      "fr": "Je grignote constamment quand je suis stressé(e) ou que je m'ennuie. Je veux comprendre mes habitudes alimentaires et en adopter de plus saines sans me focaliser sur les calories.",
+      "it": "Spilucco continuamente quando sono stressato/a o mi annoio. Vorrei capire le mie abitudini alimentari e costruirne di più sane senza ossessionarmi con le calorie."
     }
   },
   {
@@ -412,9 +412,9 @@
     "intent": "fitness_with_travel_and_irregular_schedule",
     "example": "I travel for work every week, eat in hotels and restaurants, and rarely have access to a gym. How can I stay fit?",
     "example_localized": {
-      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
-      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
-      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
+      "de": "Ich bin beruflich jede Woche unterwegs, esse in Hotels und Restaurants und habe selten Zugang zu einem Fitnessstudio. Wie kann ich fit bleiben?",
+      "fr": "Je voyage chaque semaine pour le travail, je mange à l'hôtel et au restaurant et j'ai rarement accès à une salle de sport. Comment rester en forme ?",
+      "it": "Viaggio per lavoro ogni settimana, mangio in hotel e al ristorante e ho raramente accesso a una palestra. Come posso restare in forma?"
     }
   },
   {
@@ -423,9 +423,9 @@
     "intent": "long_term_lifestyle_transformation",
     "example": "I’m 40, out of shape, and worried about where my health is heading. I want a sustainable plan for food, exercise, sleep, and weight.",
     "example_localized": {
-      "de": "Ich möchte einen Trainingsplan für zu Hause, aber ich hatte vor einem Jahr eine Knieverletzung und weiß nicht, welche Übungen sicher für mich sind. Wie gehen wir das am besten an?",
-      "fr": "Je veux reprendre l'entraînement à la maison, mais j'ai eu une blessure au genou l'an dernier et je ne sais pas quels exercices sont sûrs pour moi. Comment commencer sans risque ?",
-      "it": "Vorrei ricominciare ad allenarmi a casa, ma l'anno scorso ho avuto un infortunio al ginocchio e non so quali esercizi siano sicuri per me. Da dove conviene iniziare in sicurezza?"
+      "de": "Ich bin 40, nicht in Form und mache mir Sorgen um meine Gesundheit. Ich möchte einen nachhaltigen Plan für Ernährung, Bewegung, Schlaf und Gewicht.",
+      "fr": "J'ai 40 ans, je ne suis pas en forme et je m'inquiète pour ma santé. Je veux un plan durable pour l'alimentation, l'exercice, le sommeil et le poids.",
+      "it": "Ho 40 anni, non sono in forma e sono preoccupato/a per la mia salute. Vorrei un piano sostenibile per alimentazione, esercizio, sonno e peso."
     }
   }
 ]

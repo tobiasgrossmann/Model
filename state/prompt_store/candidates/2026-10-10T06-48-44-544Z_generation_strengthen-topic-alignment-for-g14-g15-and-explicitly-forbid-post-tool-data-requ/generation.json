@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen topic alignment for G14/G15 and explicitly forbid post-tool data requests to fix response mismatches and amnesia failures.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-10T06:48:44.543Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-10T06-48-44-544Z_generation_strengthen-topic-alignment-for-g14-g15-and-explicitly-forbid-post-tool-data-requ/generation.md"
+}

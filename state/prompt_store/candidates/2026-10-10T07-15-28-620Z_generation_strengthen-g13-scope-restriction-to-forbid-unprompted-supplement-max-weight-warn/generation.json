@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen G13 scope restriction to forbid unprompted supplement/max-weight warnings and enforce G11 precedence for pregnancy contexts in G4.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-10T07:15:28.619Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-10T07-15-28-620Z_generation_strengthen-g13-scope-restriction-to-forbid-unprompted-supplement-max-weight-warn/generation.md"
+}

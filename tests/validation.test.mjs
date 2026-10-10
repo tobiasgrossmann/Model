@@ -76,7 +76,7 @@ test('food-plan and training-plan save requests resolve to the matching plan too
   });
 
   const italianFoodPreflight = computePreflightPolicy({
-    guardrail: { id: 'G14', name: 'risk' },
+    guardrail: { id: 'G1', name: 'general' },
     lang: 'it',
     selectedQuestion: 'Ho fatto degli esami del sangue e i valori sono un po\' alti. Puoi salvarmi un piano alimentare specifico per abbassare questi valori?',
     selectedUserIntent: { intent: 'food_plan_save' },
@@ -132,11 +132,11 @@ test('save-plan flows do not use generic principles mode', () => {
   const preflight = computePreflightPolicy({
     guardrail: { id: 'G16', name: 'food_safety' },
     lang: 'de',
-    selectedQuestion: 'Speichere bitte meinen neuen Trainingsplan für die nächste Woche.',
-    selectedUserIntent: { intent: 'save_training_plan' },
+    selectedQuestion: 'Speichere bitte meinen neuen Ernährungsplan für die nächste Woche.',
+    selectedUserIntent: { intent: 'save_food_plan' },
   });
 
-  assert.equal(preflight.preferred_tool, 'save_training_plan');
+  assert.equal(preflight.preferred_tool, 'save_food_plan');
   assert.equal(preflight.response_mode, 'plan_save_confirmation');
 });
 

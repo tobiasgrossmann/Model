@@ -218,6 +218,17 @@ function findNormalizedUniqueRange(haystack, needle) {
   return { start: match.index, end: match.index + match[0].length };
 }
 
+// Matches the snippet token by token, ignoring punctuation, markdown markers and
+// whitespace between words (e.g. a leading "- " or "**" the model added).
+function findTokenUniqueRange(haystack, needle) {
+  const tokens = String(needle || '').split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  if (tokens.length < 6) return null;
+  const regex = new RegExp(tokens.map(escapeRegExp).join('[^\\p{L}\\p{N}]+'), 'giu');
+  const matches = [...haystack.matchAll(regex)];
+  if (matches.length !== 1) return null;
+  return { start: matches[0].index, end: matches[0].index + matches[0][0].length };
+}
+
 function normalizeLoose(text) {
   const mapped = String(text || '')
     .replace(/[äÄ]/g, 'ae')
@@ -250,7 +261,7 @@ function findUniqueLineRangeByLooseMatch(haystack, needle) {
     const lineNorm = normalizeLoose(line);
     if (!lineNorm) continue;
 
-    const directMatch = lineNorm.includes(needleNorm) || needleNorm.includes(lineNorm);
+    const directMatch = lineNorm.includes(needleNorm) || (lineNorm.length >= 18 && needleNorm.includes(lineNorm));
     const prefixMatch = lineNorm.includes(needleNorm.slice(0, Math.max(12, Math.floor(needleNorm.length * 0.55))));
     if (directMatch || prefixMatch) {
       matches.push({ start, end, lineNormLength: lineNorm.length });
@@ -398,13 +409,24 @@ export function applyRepairEdits(currentPrompt, edits) {
       continue;
     }
 
+    const tokenRange = findTokenUniqueRange(nextPrompt, find);
+    if (tokenRange) {
+      let fixedReplace = replace;
+      const lead = (find.match(/^[\s\-*\u2022]+/) || [''])[0];
+      const lineStart = nextPrompt.lastIndexOf('\n', tokenRange.start - 1) + 1;
+      const atLineStart = nextPrompt.slice(lineStart, tokenRange.start).trim() === '';
+      if (lead && !atLineStart && fixedReplace.startsWith(lead)) fixedReplace = fixedReplace.slice(lead.length);
+      nextPrompt = nextPrompt.slice(0, tokenRange.start) + fixedReplace + nextPrompt.slice(tokenRange.end);
+      continue;
+    }
+
     const lineRange = findUniqueLineRangeByLooseMatch(nextPrompt, find);
     if (lineRange) {
       nextPrompt = nextPrompt.slice(0, lineRange.start) + replace + nextPrompt.slice(lineRange.end);
       continue;
     }
 
-    throw new Error(`Repair edit could not find target snippet: ${find.slice(0, 120)}`);
+    throw new Error(`Repair edit could not find target snippet (${find.length} chars): ${find.slice(0, 400)}`);
   }
   return nextPrompt;
 }

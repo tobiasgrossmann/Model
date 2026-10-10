@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the prohibition against announcing data retrieval in tool-call messages and clarify that G14/G15 responses must address the user's specific topic (recovery/supplements) rather than defaulting to lab results or generic strength advice.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-10T06:53:27.005Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-10T06-53-27-007Z_generation_strengthen-the-prohibition-against-announcing-data-retrieval-in-tool-call-messag/generation.md"
+}

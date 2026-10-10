@@ -166,7 +166,9 @@ if (!ragDocuments.length) {
 
 
 
-let promptRotationIndex = 0;
+let promptRotationIndex = Number.isFinite(parseInt(process.env.ROTATION_START, 10))
+  ? parseInt(process.env.ROTATION_START, 10)
+  : Math.floor(Math.random() * 1000000);
 
 function batchMixInstruction(guardrailId, count, rotationIndex) {
   const data = BATCH_MIX_INSTRUCTIONS[guardrailId] || [];
@@ -189,9 +191,14 @@ function healthyPlanningMixInstruction(guardrail, count, rotationIndex, selected
     return { forceControl: false, preferredTool: null, text: "" };
   }
 
-  const patterns = Array.isArray(data.patterns)
+  const allPatterns = Array.isArray(data.patterns)
     ? data.patterns
     : [...(Array.isArray(data.healthy_control) ? data.healthy_control : []), ...(Array.isArray(data.balanced) ? data.balanced : [])];
+  // Respect ALLOWED_TOOLS: skip mix patterns whose save tool this guardrail forbids.
+  const patterns = allPatterns.filter((item) => {
+    const tool = item && typeof item === "object" ? item.tool : null;
+    return !tool || tool === "none" || isToolAllowed(guardrail?.id, tool);
+  });
 
   if (!patterns.length) {
     return { forceControl: false, preferredTool: null, text: "" };
@@ -653,7 +660,7 @@ function computePreflightPolicy({ guardrail, lang, selectedQuestion, selectedUse
     preferredTool = fallback;
   }
 
-  const toolRequired = pregnancyContext
+  const toolRequired = (pregnancyContext || !preferredTool)
     ? false
     : explicitPlanSaveRequest
       ? true
@@ -724,6 +731,63 @@ function compileTurnTypes(rawSkeleton, intentDecision) {
   return canonical;
 }
 
+// ---- diversity helpers (fix 8) ----
+const PERSONA_VARIETY_OFF = process.env.PERSONA_VARIETY === "off";
+const INTENT_SHARE = Math.min(1, Math.max(0, parseFloat(argVal("intent-share", "0.5")) || 0));
+const BALANCE_TO = parseInt(argVal("balance-to", "0"), 10) || 0;
+const MAX_JOBS = parseInt(argVal("max-jobs", "300"), 10) || 300;
+
+const PERSONA_RANGES = {
+  default: { age: [19, 65], bmi: [19.5, 31] },
+  G6:  { age: [22, 52], bmi: [31, 39] },
+  G10: { age: [22, 48], bmi: [20, 28] },
+  G11: { age: [24, 40], bmi: [20, 30], sex: "female" },
+  G13: { age: [14, 17], bmi: [18, 24] },
+  G17: { age: [52, 69], bmi: [30, 37] },
+};
+
+function seededRandom(seedText) {
+  const text = String(seedText);
+  let h = 1779033703 ^ text.length;
+  for (const ch of text) { h = Math.imul(h ^ ch.charCodeAt(0), 3432918353); h = (h << 13) | (h >>> 19); }
+  let a = (h ^ (h >>> 16)) >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Deterministic for the same (guardrail, rotationIndex, lang), so repairs that
+// recompute the payload get the same person back.
+function generatePersonaProfile(guardrailId, rotationIndex, lang) {
+  const gid = String(guardrailId || "").toUpperCase();
+  const range = PERSONA_RANGES[gid] || PERSONA_RANGES.default;
+  const rnd = seededRandom(`${gid}|${Math.abs(Number(rotationIndex) || 0)}|${String(lang || "").toLowerCase()}`);
+  const between = (lo, hi) => lo + rnd() * (hi - lo);
+  const sex = range.sex || (rnd() < 0.5 ? "female" : "male");
+  const age = Math.round(between(range.age[0], range.age[1]));
+  const height_cm = Math.round(sex === "female" ? between(155, 182) : between(165, 195));
+  const bmi = between(range.bmi[0], range.bmi[1]);
+  const weight_kg = Math.round(bmi * (height_cm / 100) ** 2 * 10) / 10;
+  const exercise_minutes = Math.round(between(10, 90) / 5) * 5;
+  return {
+    age,
+    weight_kg,
+    height_cm,
+    sex,
+    active_calories_burned: Math.round((exercise_minutes * between(5, 9)) / 10) * 10,
+    basal_energy_burned: Math.round(10 * weight_kg + 6.25 * height_cm - 5 * age + (sex === "male" ? 5 : -161)),
+    exercise_minutes,
+    stand_hours: Math.round(between(4, 12)),
+    sleep_duration_hours: Math.round(between(5.2, 8.6) * 10) / 10,
+    hrv_ms: Math.max(18, Math.round(between(55, 75) - age * 0.6 + between(-8, 8))),
+    resting_heart_rate_bpm: Math.round(between(52, 78)),
+  };
+}
+
 function buildDeterministicHealthPayload(guardrailId, rotationIndex, lang = "") {
   const profiles = [
     { age: 24, weight_kg: 68.0, height_cm: 172, sex: "female", active_calories_burned: 320, basal_energy_burned: 1450, exercise_minutes: 45, stand_hours: 9, sleep_duration_hours: 7.4, hrv_ms: 42, resting_heart_rate_bpm: 61 },
@@ -732,9 +796,11 @@ function buildDeterministicHealthPayload(guardrailId, rotationIndex, lang = "") 
   ];
   const langOffset = { de: 0, fr: 1, it: 2 }[String(lang || "").toLowerCase()] || 0;
   const index = Math.abs(Number(rotationIndex || 0) + langOffset) % profiles.length;
-  const payload = { ...profiles[index] };
+  const payload = PERSONA_VARIETY_OFF
+    ? { ...profiles[index] }
+    : { ...generatePersonaProfile(guardrailId, rotationIndex, lang) };
   const gid = String(guardrailId || "").toUpperCase();
-  if (gid === "G6") {
+  if (gid === "G6" && PERSONA_VARIETY_OFF) {
     const g6Profiles = {
       de: { age: 42, weight_kg: 104.0, height_cm: 171, sex: "female", active_calories_burned: 220, basal_energy_burned: 1580, exercise_minutes: 25, stand_hours: 6, sleep_duration_hours: 6.1, hrv_ms: 29, resting_heart_rate_bpm: 72 },
       fr: { age: 37, weight_kg: 98.0, height_cm: 168, sex: "male", active_calories_burned: 260, basal_energy_burned: 1710, exercise_minutes: 30, stand_hours: 6, sleep_duration_hours: 6.4, hrv_ms: 31, resting_heart_rate_bpm: 70 },
@@ -742,7 +808,7 @@ function buildDeterministicHealthPayload(guardrailId, rotationIndex, lang = "") 
     };
     Object.assign(payload, g6Profiles[String(lang || "").toLowerCase()] || g6Profiles.de);
   }
-  if (gid === "G17") {
+  if (gid === "G17" && PERSONA_VARIETY_OFF) {
     const g17Profiles = {
       de: { age: 61, weight_kg: 101.0, height_cm: 170, sex: "male", active_calories_burned: 120, basal_energy_burned: 1660, exercise_minutes: 12, stand_hours: 4, sleep_duration_hours: 6.0, hrv_ms: 26, resting_heart_rate_bpm: 74 },
       fr: { age: 57, weight_kg: 96.0, height_cm: 167, sex: "female", active_calories_burned: 110, basal_energy_burned: 1520, exercise_minutes: 10, stand_hours: 4, sleep_duration_hours: 6.4, hrv_ms: 27, resting_heart_rate_bpm: 73 },
@@ -760,7 +826,7 @@ function buildDeterministicHealthPayload(guardrailId, rotationIndex, lang = "") 
     payload.hrv_ms = 28;
     payload.resting_heart_rate_bpm = 72;
   }
-  if (gid === "G13") {
+  if (gid === "G13" && PERSONA_VARIETY_OFF) {
     payload.age = 15;
     payload.weight_kg = 58.0;
     payload.height_cm = 168;
@@ -2057,6 +2123,7 @@ function buildRealizationFacts({ guardrail, preflight, payload, toolName }) {
     lines.push(`- Das Tool ${toolName} wurde bereits erfolgreich ausgeführt (Status: ok).`);
     lines.push("- user_text bittet ausdrücklich darum, den Plan zu speichern (kein Gesundheitscheck davor).");
     lines.push("- assistant_final_text bestätigt kurz das erfolgreiche Speichern und verlangt keine Gesundheitsdaten.");
+    lines.push(`- assistant_final_text MUSS die Bestätigung in dieser oder fast identischer Form enthalten: "${fallbackSavedPlanAssistantText(preflight.language, toolName)}" Danach darf höchstens ein kurzer Satz zum Anliegen des Nutzers folgen.`);
   } else {
     lines.push("- Es wurde KEIN Tool aufgerufen: keine BMI-/Gewichtsbewertung, keine Bezugnahme auf gespeicherte Nutzerdaten, keine personalisierte Messwert-Interpretation.");
   }
@@ -3643,7 +3710,7 @@ async function runBatch(guardrail, lang, count) {
     const seed = await getOrCreateDocSeed({ doc: randomDoc, lang, guardrail });
     const selectedQuestion = randomItem(seed.questions);
     const matchingIntentPool = RANDOM_USER_INTENTS.filter((entry) => entry.guardrail === guardrail.id);
-    const selectedUserIntent = matchingIntentPool.length ? randomItem(matchingIntentPool) : null;
+    const selectedUserIntent = matchingIntentPool.length && Math.random() < INTENT_SHARE ? randomItem(matchingIntentPool) : null;
     console.log(`   • doc-seed ${seed.file_name}: ${selectedQuestion}${selectedUserIntent ? ` | intent: ${selectedUserIntent.intent}` : ""}`);
     const { retrieval, healthyMix } = buildPrompt(
       guardrail,
@@ -3858,6 +3925,30 @@ async function main() {
       const guardrail = pickGuardrail(guardrailsSpec, gid);
       for (const lang of langs) jobs.push({ guardrail, lang });
     }
+  }
+
+  if (BALANCE_TO > 0) {
+    const have = {};
+    for (const row of loadJsonlRecords(path.join(OUT_DIR, "training_ready.jsonl"))) {
+      const key = `${String(row.guardrail || "").toUpperCase()}/${row.language}`;
+      have[key] = (have[key] || 0) + 1;
+    }
+    jobs.length = 0;
+    const deficits = [];
+    for (const gid of guardrailIds) {
+      for (const lang of langs) {
+        const need = BALANCE_TO - (have[`${gid.toUpperCase()}/${lang}`] || 0);
+        if (need > 0) deficits.push({ guardrail: pickGuardrail(guardrailsSpec, gid), lang, need });
+      }
+    }
+    // largest deficits first, then round-robin so every deficient pair is worked on evenly
+    deficits.sort((x, y) => y.need - x.need);
+    while (deficits.some((d) => d.need > 0) && jobs.length < MAX_JOBS) {
+      for (const d of deficits) {
+        if (d.need > 0 && jobs.length < MAX_JOBS) { jobs.push({ guardrail: d.guardrail, lang: d.lang }); d.need -= 1; }
+      }
+    }
+    console.log(`Balance mode: ${jobs.length} job(s) to bring every guardrail/lang up to ${BALANCE_TO}`);
   }
 
   const allGenerated = [];

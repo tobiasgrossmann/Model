@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the 'NO-AMNESY' rule to explicitly forbid asking for permission or announcing data retrieval in the final response after a tool call, and add a specific prohibition against generic 'Kreatinin' answers for non-Kreatinin lab questions.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-10T06:47:23.059Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-10T06-47-23-060Z_generation_strengthen-the-no-amnesy-rule-to-explicitly-forbid-asking-for-permission-or-anno/generation.md"
+}
