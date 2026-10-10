@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen topic alignment for G8 (hydration/fatigue vs. steroids) and enforce save-plan acknowledgment structure for G16 to prevent generic safety drift.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-10T05:47:37.718Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-10T05-47-37-719Z_generation_strengthen-topic-alignment-for-g8-hydration-fatigue-vs-steroids-and-enforce-save/generation.md"
+}

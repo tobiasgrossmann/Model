@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen G13 scope restrictions to prevent unprompted supplement/max-weight warnings and ensure G8 responses strictly distinguish creatine from steroids without conflating them.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-10T05:46:49.212Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-10T05-46-49-213Z_generation_strengthen-g13-scope-restrictions-to-prevent-unprompted-supplement-max-weight-wa/generation.md"
+}

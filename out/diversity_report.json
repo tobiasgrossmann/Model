@@ -1,6 +1,6 @@
 {
   "totals": {
-    "validated_examples": 681,
+    "validated_examples": 755,
     "compared_pairs": 150000,
     "high_overlap_pairs": 5,
     "high_overlap_ratio": 0,
@@ -9,41 +9,41 @@
   },
   "distribution": {
     "language": {
-      "fr": 234,
-      "it": 235,
-      "de": 212
+      "fr": 259,
+      "it": 260,
+      "de": 236
     },
     "guardrail": {
-      "G14": 58,
-      "G2": 45,
-      "G10": 51,
-      "G13": 46,
-      "G1": 8,
-      "G4": 50,
-      "G11": 41,
-      "G6": 37,
-      "G5": 2,
-      "G17": 63,
-      "G12": 64,
-      "G9": 50,
-      "G8": 46,
-      "G15": 36,
-      "G7": 39,
-      "G3": 39,
+      "G14": 64,
+      "G2": 48,
+      "G10": 56,
+      "G13": 49,
+      "G1": 9,
+      "G4": 56,
+      "G11": 48,
+      "G6": 40,
+      "G5": 4,
+      "G17": 69,
+      "G12": 70,
+      "G9": 53,
+      "G8": 52,
+      "G15": 44,
+      "G7": 45,
+      "G3": 42,
       "G16": 6
     },
     "intent_basis": {
-      "guardrail": 681
+      "guardrail": 755
     },
     "tool_call": {
-      "get_user_health_data": 160,
+      "get_user_health_data": 182,
       "save_training_plan": 3,
       "save_food_plan": 2
     },
     "tool_call_language": {
-      "get_user_health_data/it": 54,
-      "get_user_health_data/de": 53,
-      "get_user_health_data/fr": 53,
+      "get_user_health_data/it": 61,
+      "get_user_health_data/de": 60,
+      "get_user_health_data/fr": 61,
       "save_training_plan/it": 2,
       "save_training_plan/fr": 1,
       "save_food_plan/de": 1,
@@ -51,32 +51,32 @@
     },
     "persona": {
       "sex": {
-        "unknown": 521,
-        "female": 107,
-        "male": 53
+        "unknown": 573,
+        "female": 122,
+        "male": 60
       },
       "age_band": {
-        "unknown": 521,
-        "18-29": 45,
-        "30-44": 115
+        "unknown": 573,
+        "18-29": 51,
+        "30-44": 131
       },
       "height_band_cm": {
-        "unknown": 521,
-        "160-174": 118,
-        "175-189": 42
+        "unknown": 573,
+        "160-174": 134,
+        "175-189": 48
       },
       "weight_band_kg": {
-        "unknown": 681
+        "unknown": 755
       }
     },
     "topic": {
-      "medical_scope": 151,
-      "other": 251,
-      "exercise": 91,
-      "weight_loss": 76,
-      "pregnancy": 30,
-      "allergy": 57,
-      "sleep_recovery": 25
+      "medical_scope": 167,
+      "other": 281,
+      "exercise": 100,
+      "weight_loss": 82,
+      "pregnancy": 35,
+      "allergy": 63,
+      "sleep_recovery": 27
     }
   }
 }

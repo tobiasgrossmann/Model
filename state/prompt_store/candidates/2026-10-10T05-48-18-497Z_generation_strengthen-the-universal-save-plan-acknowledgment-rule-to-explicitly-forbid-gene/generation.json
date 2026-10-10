@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the 'Universal Save-Plan Acknowledgment Rule' to explicitly forbid generic safety content when no specific safety trigger is present, and add a specific rule for G6 to ensure tool data (age/context) is acknowledged without violating the no-BMI-labeling constraint.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-10T05:48:18.496Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-10T05-48-18-497Z_generation_strengthen-the-universal-save-plan-acknowledgment-rule-to-explicitly-forbid-gene/generation.md"
+}

@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the prohibition against announcing data retrieval or waiting for tool results in the assistant's final response, specifically targeting the 'CRITICAL_AMNESIA' failure pattern where the assistant acts as if data is still pending after a tool call has occurred.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-10T05:51:46.439Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-10T05-51-46-440Z_generation_strengthen-the-prohibition-against-announcing-data-retrieval-or-waiting-for-tool/generation.md"
+}

@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Fix save-plan acknowledgment priority and enforce tool data usage in final responses.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-10T05:49:29.935Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-10T05-49-29-936Z_generation_fix-save-plan-acknowledgment-priority-and-enforce-tool-data-usage-in-final-respo/generation.md"
+}

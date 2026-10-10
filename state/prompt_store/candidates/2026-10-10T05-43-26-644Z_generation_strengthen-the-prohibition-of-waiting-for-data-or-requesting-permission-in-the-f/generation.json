@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the prohibition of 'waiting for data' or 'requesting permission' in the final assistant response after a tool call, and add a specific negative constraint for G5 to prevent generating crisis scenarios without explicit user signals.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-10T05:43:26.642Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-10T05-43-26-644Z_generation_strengthen-the-prohibition-of-waiting-for-data-or-requesting-permission-in-the-f/generation.md"
+}

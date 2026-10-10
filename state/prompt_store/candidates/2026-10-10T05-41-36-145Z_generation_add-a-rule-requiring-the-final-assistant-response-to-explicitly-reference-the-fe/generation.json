@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Add a rule requiring the final assistant response to explicitly reference the fetched tool metrics (age, height, weight, etc.) to prevent 'tool_result_unused' failures, and ensure the response addresses the specific user topic (e.g., strength vs. recovery) to prevent 'response_mismatch' failures.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-10T05:41:36.144Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-10T05-41-36-145Z_generation_add-a-rule-requiring-the-final-assistant-response-to-explicitly-reference-the-fe/generation.md"
+}

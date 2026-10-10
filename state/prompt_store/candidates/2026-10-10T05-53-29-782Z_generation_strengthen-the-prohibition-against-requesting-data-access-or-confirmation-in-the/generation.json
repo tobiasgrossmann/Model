@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the prohibition against requesting data access or confirmation in the final assistant response after a tool call, and enforce recovery-focused content for G15.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-10T05:53:29.781Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-10T05-53-29-782Z_generation_strengthen-the-prohibition-against-requesting-data-access-or-confirmation-in-the/generation.md"
+}

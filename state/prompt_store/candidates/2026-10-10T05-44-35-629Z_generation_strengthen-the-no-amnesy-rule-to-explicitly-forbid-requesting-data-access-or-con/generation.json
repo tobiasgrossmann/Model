@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the NO-AMNESY rule to explicitly forbid requesting data access or confirmation in the final response after a tool call, and add a specific instruction to use fetched metrics in the final response.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-10T05:44:35.628Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-10T05-44-35-629Z_generation_strengthen-the-no-amnesy-rule-to-explicitly-forbid-requesting-data-access-or-con/generation.md"
+}

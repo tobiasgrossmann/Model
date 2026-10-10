@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the mandatory save-acknowledgment rule to explicitly forbid generic safety-only responses when a save tool is used, ensuring the final assistant text always starts with the save confirmation.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-10T05:51:03.820Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-10T05-51-03-822Z_generation_strengthen-the-mandatory-save-acknowledgment-rule-to-explicitly-forbid-generic-s/generation.md"
+}

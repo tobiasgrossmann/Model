@@ -1,0 +1,7 @@
+{
+  "promptId": "generation",
+  "reason": "Strengthen the prohibition against requesting data access or confirmation after a tool call has already been made, and clarify that the final response must treat tool data as already received.",
+  "sourceFile": "prompts/generation.md",
+  "createdAt": "2026-10-10T06:13:26.397Z",
+  "mdPath": "state/prompt_store/candidates/2026-10-10T06-13-26-398Z_generation_strengthen-the-prohibition-against-requesting-data-access-or-confirmation-after-/generation.md"
+}
