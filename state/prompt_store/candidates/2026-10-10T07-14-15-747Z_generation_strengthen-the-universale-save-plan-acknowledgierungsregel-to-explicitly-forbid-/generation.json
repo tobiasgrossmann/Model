@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Strengthen the 'UNIVERSALE SAVE-PLAN-ACKNOWLEDGIERUNGSREGEL' to explicitly forbid generic safety drift when a save-plan tool is used, and add a specific hard-fail rule for G14 to prevent answering about the wrong biomarker (e.g., answering about creatinine when asked about cholesterol).",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-10T07:14:15.745Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-10T07-14-15-747Z_generation_strengthen-the-universale-save-plan-acknowledgierungsregel-to-explicitly-forbid-/generation.md"
-}

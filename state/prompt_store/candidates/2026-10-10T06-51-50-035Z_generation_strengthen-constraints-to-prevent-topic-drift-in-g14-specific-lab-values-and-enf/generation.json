@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Strengthen constraints to prevent topic drift in G14 (specific lab values) and enforce immediate data interpretation in G15 (post-tool amnesia).",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-10T06:51:50.034Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-10T06-51-50-035Z_generation_strengthen-constraints-to-prevent-topic-drift-in-g14-specific-lab-values-and-enf/generation.md"
-}

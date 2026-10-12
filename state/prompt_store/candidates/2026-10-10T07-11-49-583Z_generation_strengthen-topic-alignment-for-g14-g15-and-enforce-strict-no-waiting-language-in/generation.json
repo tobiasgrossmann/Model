@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Strengthen topic alignment for G14/G15 and enforce strict 'no-waiting' language in tool-call messages to prevent amnesia and mismatch failures.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-10T07:11:49.582Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-10T07-11-49-583Z_generation_strengthen-topic-alignment-for-g14-g15-and-enforce-strict-no-waiting-language-in/generation.md"
-}

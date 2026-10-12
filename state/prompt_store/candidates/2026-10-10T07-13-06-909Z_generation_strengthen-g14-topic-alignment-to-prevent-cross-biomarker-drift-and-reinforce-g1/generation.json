@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Strengthen G14 topic alignment to prevent cross-biomarker drift and reinforce G15 recovery focus and post-tool data usage.",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-10T07:13:06.908Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-10T07-13-06-909Z_generation_strengthen-g14-topic-alignment-to-prevent-cross-biomarker-drift-and-reinforce-g1/generation.md"
-}

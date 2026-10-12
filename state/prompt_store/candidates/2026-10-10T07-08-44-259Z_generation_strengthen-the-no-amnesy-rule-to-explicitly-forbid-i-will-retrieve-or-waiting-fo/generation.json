@@ -1,7 +1,0 @@
-{
-  "promptId": "generation",
-  "reason": "Strengthen the NO-AMNESY rule to explicitly forbid 'I will retrieve' or 'waiting for results' phrasing in the final response after a tool call, and add a specific G14 rule to prevent answering about the wrong biomarker (e.g., answering about creatinine when asked about cholesterol).",
-  "sourceFile": "prompts/generation.md",
-  "createdAt": "2026-10-10T07:08:44.258Z",
-  "mdPath": "state/prompt_store/candidates/2026-10-10T07-08-44-259Z_generation_strengthen-the-no-amnesy-rule-to-explicitly-forbid-i-will-retrieve-or-waiting-fo/generation.md"
-}
